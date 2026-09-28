@@ -1,0 +1,27 @@
+flowchart TD
+    CMD{"CLI 分派"} -->|sweep| SW["sweep(config, axes, mode)<br/>校验 axes 与 max_candidates"]
+    SW --> PRODUCT["内部：itertools.product 枚举组合<br/>copy 配置 → set_field()"]
+    PRODUCT --> SWVALID["Config.model_validate()"]
+    SWVALID --> SWRUN["run(candidate, mode, full_detail=False)<br/>compact_result()"]
+    SWVALID -->|异常| SWBAD["内部：保留 invalid_config 与原因"]
+    SWRUN --> SWNEXT{"内部：还有组合？"}
+    SWBAD --> SWNEXT
+    SWNEXT -->|是| PRODUCT
+    SWNEXT -->|否| SWOUT["返回 completed + candidates"]
+    CMD -->|size-su| SU["size_su(config, single / multi / both)"]
+    SU --> ENUM["内部：枚举 NPU count × SU size × parallel layout<br/>多域需 total_npus 或 max_total_npus"]
+    ENUM --> VALID["Config.model_validate(candidate)"]
+    VALID -->|异常| BAD["记录 invalid_config"]
+    VALID --> EST["run(candidate, estimate, full_detail=False)"]
+    EST --> MEM{"内部：resident_memory 超容量？"}
+    MEM -->|是| MP["记录 infeasible<br/>resident_memory_lower_bound 剪枝"]
+    MEM -->|否| PERF{"内部：duration 下界超过有效全图 deadline？"}
+    PERF -->|是| PP["记录 slo_failed<br/>performance_lower_bound 剪枝"]
+    PERF -->|否| SIM["run(candidate, simulate, full_detail=False)<br/>_payload_summary()"]
+    BAD --> NEXT{"内部：还有候选？"}
+    MP --> NEXT
+    PP --> NEXT
+    SIM --> NEXT
+    NEXT -->|是| VALID
+    NEXT -->|否| BEST["内部：过滤 feasible<br/>按 SU size / NPU count / duration 排序"]
+    BEST --> OUT["返回 best / minimum_su_size / 全部候选<br/>或 no_candidates / no_feasible_candidate"]

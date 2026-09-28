@@ -1,0 +1,50 @@
+source:
+  status: assumed
+  description: Two modeled64-NPU cabinet slices within Atlas950 capacity, configured
+    as two SU domains for FSDP2/SO sensitivity. This domain split is an analysis assumption,
+    not Atlas950 maximumSU size. Other nominal950DT fields and unmeasured assumptions
+    match64profile.
+  uri: https://www.huawei.com/en/news/2025/9/hc-xu-keynote-speech
+  revision: 2025-09-18 roadmap; 2026-03-02 cabinet scale
+hardware:
+  name: Ascend 950DT — 128 NPUs in two modeled 64-NPU domains
+  npu_count: 128
+  su_size: 64
+  npus_per_host: 8
+  topology: full_mesh
+  npu:
+    hbm_bytes: 144000000000
+    hbm_Bps: 4000000000000
+    flops:
+      fp8: 1000000000000000.0
+      fp16: 500000000000000.0
+      bf16: 500000000000000.0
+      fp32: 50000000000000.0
+    efficiency: 0.5
+    runtime_bytes: 8000000000
+    workspace_bytes: 256000000
+  cpu:
+    dram_bytes: 4000000000000.0
+    dram_Bps: 512000000000.0
+    flops: 4000000000000.0
+    efficiency: 0.5
+    iops: 100000000.0
+  scale_up:
+    bandwidth_Bps: 1000000000000.0
+    injection_Bps: 1000000000000.0
+    latency_s: 2.1e-06
+    efficiency: 0.8
+  scale_out:
+    bandwidth_Bps: 50000000000.0
+    injection_Bps: 50000000000.0
+    latency_s: 5.0e-06
+    efficiency: 0.8
+  host_link:
+    bandwidth_Bps: 64000000000.0
+    injection_Bps: 64000000000.0
+    latency_s: 2.0e-06
+    efficiency: 0.85
+  remote:
+    enabled: false
+  ssd:
+    enabled: false

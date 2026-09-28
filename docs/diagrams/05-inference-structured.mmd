@@ -1,0 +1,28 @@
+flowchart TD
+    ENTRY["build_structured() → Builder.__init__()"] --> INIT["Builder.inference() → initial()<br/>驻留权重 / runtime / 可选 Engram"]
+    INIT --> DP["内部：遍历 DP replica"]
+    DP --> TOKEN["内部：遍历 output step<br/>0 = prefill；其余 = decode"]
+    TOKEN --> ACTIVE["内部：筛选 output_length 大于 step 的序列<br/>按 EP lane 分配 tokens"]
+    ACTIVE --> LAYER["内部：遍历 layer → 确定 PP stage"]
+    LAYER --> STATE["attention_state() / attnres_state()<br/>KDA 固定状态 或 paged KV 增量<br/>可选残差状态"]
+    STATE --> COMPONENT["component_order(layer)<br/>遍历 embedding / norm / attention / FFN / output"]
+    COMPONENT --> DISPATCH["MoE 时 collective(EP dispatch)"]
+    DISPATCH --> ACT["逐 rank activation_rows()<br/>prefill Output 仅算每序列末位"]
+    ACT --> READ["内部可选：旧 KV fetch → decode conversion<br/>PreNorm 前 Engram lookup"]
+    READ --> KERNEL["kernel()<br/>权重转换 + component Event"]
+    KERNEL --> WRITE["内部可选：新 KV encode → offload write"]
+    WRITE --> COMM["MoE combine<br/>attention / FFN 后 TP all_reduce"]
+    COMM --> MOREC{"内部：还有组件？"}
+    MOREC -->|是| COMPONENT
+    MOREC -->|否| DONE["barrier(layer_done)<br/>释放上个 stage 的 receive buffer"]
+    DONE --> PP{"内部：跨 PP stage？"}
+    PP -->|是| SEND["pipeline_transfer()<br/>pack → Topology.transfer() → unpack"]
+    PP -->|否| MOREL{"内部：还有层？"}
+    SEND --> MOREL
+    MOREL -->|是| LAYER
+    MOREL -->|否| COMPLETE["barrier(token_complete)<br/>记录 sequence_token_completion_events"]
+    COMPLETE --> MORET{"内部：还有 output step？"}
+    MORET -->|是| TOKEN
+    MORET -->|否| MORED{"内部：还有 replica？"}
+    MORED -->|是| DP
+    MORED -->|否| RETURN["annotate_collective_allocations()<br/>返回 Graph"]

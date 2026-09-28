@@ -1,0 +1,423 @@
+"""Portable Chinese reports, CSV tables, and Chrome/Perfetto trace export."""
+from __future__ import annotations
+
+import csv
+import json
+from pathlib import Path
+import re
+from typing import Iterable
+
+
+AUTO_DETAIL_THRESHOLD = 50_000
+
+
+def _number(value):
+    if value is None:
+        return '—'
+    if isinstance(value, (int, float)):
+        return f'{value:,.6g}'
+    return str(value)
+
+
+_STATE_LABELS = {
+    'weights': '权重', 'gradients': '梯度', 'master_weights': '主权重',
+    'adam_momentum': 'Adam 一阶动量', 'adam_variance': 'Adam 二阶矩',
+    'momentum': '动量', 'variance': '二阶矩',
+    'muon_momentum': 'Muon 动量', 'activation': '激活', 'kv_cache': 'KV',
+    'recurrent_state': '循环状态', 'quantization_metadata': '量化元数据',
+    'buffers': '缓冲', 'runtime': '运行时预留', 'optimizer_combined': '未拆分优化器状态',
+    'weight_materialization': '临时完整权重', 'extra_weight_copy': '额外权重副本',
+    'attnres_residual': 'AttnRes 残差', 'convolution_state': '卷积历史', 'page_table': '页表',
+    'saved_recurrent_states': '训练循环状态', 'gathered_weight': '展开权重',
+    'unsharded_gradient_buffer': '完整梯度缓冲', 'muon_workspace': 'Muon 工作区',
+}
+
+
+def _safe_cell(value):
+    return str(value).replace('|', '\\|').replace('\n', ' ')
+
+
+def _display_pool_label(group: dict) -> str:
+    pools = sorted(group.get('pools', []), key=lambda name: [int(part) if part.isdigit() else part for part in re.split(r'(\d+)', name)])
+    if not pools:
+        return group['pool_label']
+    if len(pools) <= 4:
+        return ', '.join(pools)
+    return f'{pools[0]} … {pools[-1]} ({len(pools)} pools)'
+
+
+def _memory_markdown(breakdown: dict) -> list[str]:
+    mode = breakdown['mode']
+    basis = {'simulated': '仿真实际并发峰值', 'observed_partial': '中断前已观测并发峰值',
+             'resident_only': '初始固定驻留，未计算执行峰值'}[mode]
+    lines = ['', '## 存储分解：组件 × 状态', '', f'口径：**{basis}**。表格使用十进制 GB（1 GB = 10⁹ byte）；CSV 和 JSON 使用 byte。']
+    inventory = breakdown.get('component_inventory') or {}
+    if inventory.get('components'):
+        lines += ['', '### 全模型逻辑参数（分片和复制之前）', '',
+                  '结构清单按唯一参数所有权计数；共享权重别名不重复计入。精确形状、参数量、层号、分片标记和别名见 model_parameters.csv。',
+                  '', '| 组件 | 总参数 / B | 每 token 活跃参数 / B | 独立参数张量数 | 层数 |',
+                  '|---|---:|---:|---:|---:|']
+        for component, values in inventory['components'].items():
+            lines.append(f"| {_safe_cell(component)} | {_number(values.get('params', 0) / 1e9)} | "
+                         f"{_number(values.get('active_params', 0) / 1e9)} | {_number(values.get('tensor_count'))} | "
+                         f"{len(values.get('layers', []))} |")
+    logical = breakdown.get('logical_component_state_bytes', {})
+    if logical:
+        states = sorted({state for values in logical.values() for state in values})
+        lines += ['', '### 全模型逻辑状态容量（分片和复制之前）', '',
+                  '以下状态由编译器按具体参数和优化器归属给出；没有从物理副本或合并状态反推 Adam/Muon。单位：GB。',
+                  '', '| 组件 | ' + ' | '.join(_safe_cell(_STATE_LABELS.get(s, s)) for s in states) + ' | 合计 |',
+                  '|---|' + '---:|' * (len(states) + 1)]
+        for component, sizes in sorted(logical.items()):
+            values = [sizes.get(state, 0) for state in states]
+            lines.append('| ' + _safe_cell(component) + ' | ' + ' | '.join(_number(v / 1e9) for v in values) +
+                         ' | ' + _number(sum(values) / 1e9) + ' |')
+        totals = [sum(sizes.get(state, 0) for sizes in logical.values()) for state in states]
+        lines.append('| **总计** | ' + ' | '.join(_number(v / 1e9) for v in totals) +
+                     ' | **' + _number(sum(totals) / 1e9) + '** |')
+    lines += ['', '### 物理内存池容量与峰值',
+             '', '容量和分解均为每个内存池的数值；相同容量与分解的内存池合并展示，完整设备明细保留在 CSV。',
+             '', '| 池组 | 等价内存池 | 数量 | 单池容量 / GB | 单池固定驻留 / GB | 单池峰值或驻留 / GB |',
+             '|---|---|---:|---:|---:|---:|']
+    all_groups = breakdown['equivalent_pool_groups']
+    groups = all_groups
+    if len(groups) > 16:
+        # Bound human-facing output even if every device has a different peak.
+        # Exact individual rows remain available in the CSV/JSON artifacts.
+        priority = lambda g: (g['peak_bytes_per_pool'] / (g['capacity_bytes_per_pool'] or 1),
+                              g['peak_bytes_per_pool'], g['pool_count'])
+        ranked = sorted(groups, key=priority, reverse=True)
+        selected, kinds = [], set()
+        for group in ranked:
+            if group['pool_kind'] not in kinds:
+                selected.append(group)
+                kinds.add(group['pool_kind'])
+        for group in ranked:
+            if group not in selected and len(selected) < 16:
+                selected.append(group)
+        groups = selected[:16]
+        # Place the note before the existing group table, not inside its rows.
+        table = lines[-2:]
+        lines = lines[:-2]
+        lines += [f"共有 {len(all_groups)} 种等价池组。此处展示容量压力最高的最多 16 组，并覆盖各内存类型；全部逐池结果见 memory_peaks.csv。", '',
+                  '| 内存类型 | 内存池数量 | 单池峰值或驻留范围 / GB |', '|---|---:|---:|']
+        for kind in sorted({g['pool_kind'] for g in all_groups}):
+            same_kind = [g for g in all_groups if g['pool_kind'] == kind]
+            values = [g['peak_bytes_per_pool'] / 1e9 for g in same_kind]
+            lines.append(f"| {kind} | {sum(g['pool_count'] for g in same_kind)} | {_number(min(values))}–{_number(max(values))} |")
+        lines += [''] + table
+    for group in groups:
+        capacity = group['capacity_bytes_per_pool']
+        lines.append(f"| {group['group_id']} | {_safe_cell(_display_pool_label(group))} | {group['pool_count']} | "
+                     f"{_number(capacity / 1e9 if capacity is not None else None)} | "
+                     f"{_number(group['resident_bytes_per_pool'] / 1e9)} | {_number(group['peak_bytes_per_pool'] / 1e9)} |")
+    if mode == 'observed_partial':
+        lines += ['', '执行未完成：已观测峰值仅覆盖成功申请的内存，不能用来证明完整任务能运行。初始驻留和失败诊断仍须单独检查。']
+    elif mode == 'resident_only':
+        lines += ['', '没有有序执行内存日志，以下组件分解仅代表初始驻留。解析乐观峰值没有附会组件构成；临时张量的计划生命周期见 tensors.csv。']
+    lines += ['', '### 每池同一峰值时刻的构成', '', '每组中各组件和状态可以相加得到上表的单池总值。不同池的峰值时刻可能不同。']
+    for group in groups:
+        rows = group['composition_at_peak_per_pool']
+        states = sorted({row['state'] for row in rows})
+        components = sorted({row['component'] for row in rows})
+        cells = {(row['component'], row['state']): row['bytes'] for row in rows}
+        if not rows:
+            lines += ['', f"{group['group_id']}：没有已驻留或已观测分配。"]
+            continue
+        lines += ['', f"**{group['group_id']} · {_safe_cell(_display_pool_label(group))} · 单池 GB**", '',
+                  '| 组件 | ' + ' | '.join(_safe_cell(_STATE_LABELS.get(s, s)) for s in states) + ' | 合计 |',
+                  '|---|' + '---:|' * (len(states) + 1)]
+        for component in components:
+            values = [cells.get((component, state), 0) for state in states]
+            lines.append('| ' + _safe_cell(component) + ' | ' + ' | '.join(_number(v / 1e9) for v in values) +
+                         ' | ' + _number(sum(values) / 1e9) + ' |')
+        totals = [sum(cells.get((component, state), 0) for component in components) for state in states]
+        lines.append('| **总计** | ' + ' | '.join(_number(v / 1e9) for v in totals) +
+                     ' | **' + _number(sum(totals) / 1e9) + '** |')
+    if mode != 'resident_only':
+        lines += ['', '### 各组件独立峰值（不可相加）', '',
+                  '下表每项取该组件在整段已观测执行中的最大值，各项可能出现在不同时间；相加不能得到设备峰值。',
+                  '', '| 池组 | 组件 | 单池组件独立峰值 / GB |', '|---|---|---:|']
+        for group in groups:
+            for component, amount in group['component_independent_peak_bytes_per_pool'].items():
+                lines.append(f"| {group['group_id']} | {_safe_cell(component)} | {_number(amount / 1e9)} |")
+        cluster = breakdown['cluster']
+        lines += ['', f"所有内存池同一时刻的合计峰值为 {_number(cluster['peak_bytes'] / 1e9)} GB，"
+                  f"发生于 {_number(cluster['peak_time_s'])} s。该数值按全局时间线重放得到，未相加各池独立峰值；不同内存类型的容量不能互相替代。"]
+    lines += ['', '张量、层号、形状、精度、组件来源与申请/释放时刻见 tensors.csv；组件状态交叉表见 component_memory.csv，状态汇总见 state_memory.csv，逐池峰值见 memory_peaks.csv。',
+              '', '缺失组件归属保留为 `Unassigned`；通用缓冲和运行时归为 `System`。已知优化器按其状态语义拆分；无法确定语义的合并状态才保持未拆分，不推定 Adam/Muon 的具体张量。']
+    return lines
+
+
+def markdown_report(result: dict) -> str:
+    lines = ['# 超节点资源建模报告', '', f"状态：**{result['status']}**；模式：`{result['mode']}`。", '']
+    export = result.get('artifact_export', {})
+    if export.get('compacted'):
+        lines += ['大图使用精简导出，数值仿真仍包含全部事件。所有容量、通信、性能、组件状态和并发峰值汇总均保持完整。', '',
+                  '| 明细 | 原始行数 | 导出行数 | 未导出行数 | 文件/处理 |', '|---|---:|---:|---:|---|']
+        for label, key in (('事件时间线', 'events'), ('物理张量', 'tensors'), ('原始申请/释放日志', 'memory_log')):
+            detail = export[key]
+            lines.append(f"| {label} | {detail['total_rows']} | {detail['exported_rows']} | {detail['omitted_rows']} | {_safe_cell(detail.get('artifact') or '保留精确峰值汇总')} |")
+        lines += ['', 'events.csv / timeline.json 保留模型 kernel、token/step 完成标记和模型张量申请事件，省略 collective 搬运与缓冲控制事件。tensors.csv 省略临时 `buffers` 明细；这些缓冲仍完整计入组件状态和并发峰值。',
+                  '', '需要全部原始事件、张量和有序内存日志时，用相同配置在 estimate/simulate 命令添加 `--full-detail` 重新导出。原始日志未写入其他隐藏文件。', '']
+    if result['mode'] in ('sweep', 'size-su'):
+        lines += ['结果限定于显式候选集合和给定调度策略，完整配置与失败原因见 JSON。', '', '| 候选 | 状态 | SU 卡数 | 总卡数 | 执行时间 / s |', '|---|---|---:|---:|---:|']
+        if result['mode'] == 'sweep':
+            rows = [(str(i), r['result']) for i, r in enumerate(result['candidates'])]
+        else:
+            rows = []
+            for mode, search in result['searches'].items():
+                lines += [f"| {mode} 搜索 | {search['status']} | {_number(search.get('minimum_su_size'))} | — | — |"]
+                rows.extend((f'{mode}/{i}', row['result']) for i, row in enumerate(search.get('candidates', [])))
+        for name, row in rows:
+            hardware = row.get('config', {}).get('hardware', {})
+            lines.append(f"| {name} | {row['status']} | {_number(hardware.get('su_size'))} | {_number(hardware.get('npu_count'))} | {_number(row.get('metrics', {}).get('duration_s'))} |")
+    else:
+        config = result['config']
+        lines += [f"模型：`{config['model']['name']}`；场景：`{config['workload']['scenario']}`；权重：`{config['execution']['precision']['weight']}`。"]
+        hardware = config.get('hardware', {})
+        if hardware:
+            capacity = hardware.get('npu', {}).get('hbm_bytes')
+            lines += ['', f"硬件：`{hardware.get('name', '用户硬件配置')}`；NPU 数量：{_number(hardware.get('npu_count'))}；"
+                      f"每颗 HBM：{_number(capacity / 1e9 if capacity is not None else None)} GB。"]
+        fidelity = result.get('model_metadata', {}).get('fidelity', {})
+        if fidelity.get('parameter_capacity') == 'shape_derived':
+            lines += ['', '容量按张量形状推导；激活与耗时仍为解析模型，尚未通过整机实测校准。`feasible` 表示在本模型假设下满足约束，不代表真实整机部署验证。']
+        if config['workload']['scenario'] == 'training' and fidelity.get('distributed_muon') == 'not_implemented':
+            lines += ['', '**Muon 训练限制：尚未实现分布式 Muon 正交化。当前训练步时间是本地更新与通信的代理模型，不能作为已验证的生产训练性能。**']
+        lines += ['', '## 性能与约束', '', '| 指标 | 数值 |', '|---|---:|']
+        labels = {'duration_s': '总执行时间 / s', 'step_time_s': '平均训练步时间 / s', 'ttft_s': '执行 TTFT / s', 'tpot_s': '批内最大平均 TPOT / s', 'throughput_tokens_s': '聚合吞吐 / tokens/s', 'input_throughput_tokens_s': '输入吞吐 / tokens/s', 'throughput_per_replica_tokens_s': '每副本吞吐 / tokens/s'}
+        for key, label in labels.items():
+            if key in result.get('metrics', {}):
+                lines.append(f"| {label} | {_number(result['metrics'][key])} |")
+        lines.append(f"| 理想执行时间必要下界 / s | {_number(result['estimate']['duration_lower_bound_s'])} |")
+        for check in result.get('slo', {}).get('checks', []):
+            lines.append(f"| SLO {check['metric']} | {'满足' if check['passed'] else '不满足'}；目标 {_number(check['target'])} |")
+        if result['mode'] == 'estimate':
+            lines += ['', '解析结果提供必要下界，尚未证明资源争用下的 SLO 可行性。']
+        logical = result.get('model_metadata', {}).get('logical_memory_bytes', {})
+        if logical:
+            lines += ['', '## 全局逻辑容量', '', '单位为十进制 TB；实际分片、复制和生命周期见设备明细。', '', '| 组成 | TB |', '|---|---:|']
+            for key, value in logical.items():
+                if isinstance(value, (int, float)):
+                    lines.append(f'| {key} | {_number(value / 1e12)} |')
+        if result.get('memory_breakdown'):
+            lines += _memory_markdown(result['memory_breakdown'])
+            lines += ['', '## 通信']
+        else:
+            peaks = result.get('simulation', {}).get('memory_peaks_bytes', result['estimate']['resident_memory_bytes'])
+            lines += ['', '## 存储与通信', '', '| 内存池 | 峰值或固定驻留 / GB | 配置容量 / GB |', '|---|---:|---:|']
+            for pool, value in peaks.items():
+                capacity = result.get('memory_capacities_bytes', {}).get(pool)
+                lines.append(f'| {pool} | {_number(value / 1e9)} | {_number(capacity / 1e9 if capacity is not None else None)} |')
+        lines += ['', '物理链路字节量按路径上的每一跳累计；与应用 payload 分开统计。', '', '| 网络域 | 物理传输 / GB |', '|---|---:|']
+        for domain, amount in result['estimate']['communication']['physical_bytes_by_domain'].items():
+            lines.append(f'| {domain} | {_number(amount / 1e9)} |')
+        lines += ['', '| 应用语义 | 传输 payload / GB |', '|---|---:|']
+        for category, amount in result['estimate']['communication']['payload_by_semantic_bytes'].items():
+            lines.append(f'| {category} | {_number(amount / 1e9)} |')
+        lines += ['', '应用语义与 collective 分类是同一批 payload 的不同视图，不能相加。']
+        if result['requirements']['target_window_s'] is not None:
+            lines += ['', f"按吞吐或训练步 SLO 得到的整任务时间窗口：{_number(result['requirements']['target_window_s'])} s。各资源平均速率必要下界见 resources.csv；还需满足局部依赖与争用约束。"]
+        resource_times = result['estimate']['resource_time_lower_bounds_s']
+        lines += ['', '## 主要资源下界', '', '| 资源 | 独占服务时间下界 / s |', '|---|---:|']
+        for key, value in sorted(resource_times.items(), key=lambda x: x[1], reverse=True)[:10]:
+            lines.append(f'| {key} | {_number(value)} |')
+        lines += ['', '缓存容量和 MTE 通道数需要 kernel/硬件校准；当前输出工作集与搬运量下界。']
+        diagnostics = result.get('simulation', {}).get('diagnostics', [])
+        if diagnostics:
+            lines += ['', '## 未满足约束', '', '```json', json.dumps(diagnostics, ensure_ascii=False, indent=2), '```']
+        lines += ['', '## 参数来源', '']
+        for key, source in result['sources'].items():
+            lines.append(f"- `{key}`：{source['status']}；{source['description']}" + (f"；{source.get('uri')}" if source.get('uri') else ''))
+    lines += ['', '## 假设与复现', '']
+    for assumption in result.get('assumptions', []):
+        lines.append(f'- {assumption}')
+    lines += ['- 固定负载执行模型，不含请求到达排队或生产尾延迟。', '- FP8 scale、转换缓冲与额外副本按配置单独计入。', '- 未经实测校准的合成配置用于架构比较。']
+    if result.get('config_sha256'):
+        lines += [f"- 配置 SHA256：`{result['config_sha256']}`。"]
+    return '\n'.join(lines) + '\n'
+
+
+def _csv(path: Path, fields: list[str], rows: Iterable[dict]):
+    with path.open('w', newline='', encoding='utf-8-sig') as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields, extrasaction='ignore')
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _prepare_export(result: dict, full_detail: bool):
+    """Make a shallow artifact view; leave all API-owned arrays unchanged."""
+    trace = result.get('simulation', {}).get('trace', [])
+    tensors = result.get('memory_breakdown', {}).get('tensors', [])
+    memory_log = result.get('simulation', {}).get('memory_log', [])
+    record_stream = not isinstance(trace, (dict, str, bytes)) and hasattr(trace, '__iter__') and hasattr(trace, '__len__')
+    if not record_stream or not isinstance(tensors, list):
+        raise ValueError('write_report expects the full run() result, not a previously filtered artifact reference')
+    tensor_details = result.get('memory_breakdown', {}).get('tensor_detail_export', {})
+    original_tensor_count = tensor_details.get('total_rows', len(tensors))
+    prefiltered_count = tensor_details.get('omitted_rows', 0)
+    if tensor_details and tensor_details.get('retained_rows') != len(tensors):
+        raise ValueError('Tensor detail counts disagree with the available allocation rows')
+    omitted_trace_fields = result.get('simulation', {}).get('trace_payload_fields_omitted', [])
+    if full_detail and omitted_trace_fields:
+        raise ValueError('Full event payloads were not retained; rerun with retain_event_payload=True before requesting --full-detail export')
+    if full_detail and prefiltered_count:
+        raise ValueError('Full tensor details were not materialized; rerun with full detail enabled (include_ephemeral_details=True) before requesting --full-detail export')
+    large = len(trace) > AUTO_DETAIL_THRESHOLD or original_tensor_count > AUTO_DETAIL_THRESHOLD
+    compact = (large and not full_detail) or bool(prefiltered_count)
+    if not compact and (not isinstance(trace, (list, tuple)) or not isinstance(memory_log, (list, tuple))):
+        raise ValueError('Streamed checkpoint records require compact export; materialize records before full-detail export')
+    keep_tensor = lambda row: not compact or row.get('state') != 'buffers' or bool(row.get('is_initial'))
+    model_allocators = ({row['allocation_event'] for row in tensors
+                         if keep_tensor(row) and row.get('allocation_event')} if compact else set())
+    markers = set()
+
+    def collect_markers(value):
+        if isinstance(value, str):
+            markers.add(value)
+        elif isinstance(value, dict):
+            for item in value.values():
+                collect_markers(item)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                collect_markers(item)
+
+    metadata = result.get('model_metadata', {})
+    for key in ('sequence_token_completion_events', 'token_completion_events', 'step_end_events', 'prefill_end_events'):
+        collect_markers(metadata.get(key, []))
+
+    def keep_event(row):
+        if not compact:
+            return True
+        meta = row.get('metadata', {})
+        return (bool(meta.get('kernel')) or row['id'] in markers or row['id'] in model_allocators or
+                meta.get('phase') in ('token_complete', 'step_complete') or
+                meta.get('operation') in ('token_complete', 'step_complete'))
+
+    if not large and not prefiltered_count:
+        return result, trace, tensors, keep_event, keep_tensor
+    event_count = sum(keep_event(row) for row in trace) if compact else len(trace)
+    tensor_count = sum(keep_tensor(row) for row in tensors) if compact else len(tensors)
+    manifest = {
+        'compacted': compact, 'detail_mode': 'compact' if compact else 'full',
+        'requested_full_detail': full_detail, 'auto_detail_threshold_rows': AUTO_DETAIL_THRESHOLD,
+        'trace_payload_fields_omitted': list(omitted_trace_fields),
+        'reason': ('Ephemeral buffer details were omitted during memory report construction; numerical replay remains complete.'
+                   if prefiltered_count else 'Raw trace or physical allocation row count exceeds the automatic detail threshold.'),
+        'events': {'total_rows': len(trace), 'exported_rows': event_count,
+                   'omitted_rows': len(trace) - event_count, 'artifact': 'events.csv' if 'simulation' in result else None,
+                   'timeline_artifact': 'timeline.json' if 'simulation' in result else None},
+        'tensors': {'total_rows': original_tensor_count, 'available_rows': len(tensors),
+                    'prefiltered_rows': prefiltered_count, 'exported_rows': tensor_count,
+                    'omitted_rows': original_tensor_count - tensor_count,
+                    'artifact': 'tensors.csv' if 'memory_breakdown' in result else None},
+        'memory_log': {'total_rows': len(memory_log), 'exported_rows': 0 if compact else len(memory_log),
+                       'omitted_rows': len(memory_log) if compact else 0,
+                       'representation': 'omitted_raw_log' if compact else 'inline_result_json',
+                       'summary_artifacts': ['memory_peaks.csv', 'component_memory.csv', 'state_memory.csv']},
+        'preserved': 'All numerical metrics, communication/resource totals, logical parameters/states, and exact concurrent pool/cluster peak compositions are unchanged.',
+        'event_filter': 'Model kernels, token/step completion markers, and allocating events of retained model tensors.',
+        'tensor_filter': 'Only ephemeral state=buffers rows are omitted; initial buffers and every other state remain.',
+        'reproduce_raw_detail': 'Rerun estimate/simulate with the same resolved configuration and --full-detail.',
+    }
+    exported = dict(result)
+    exported['artifact_export'] = manifest
+    if compact:
+        if 'simulation' in result:
+            simulation = dict(result['simulation'])
+            simulation['trace'] = {'representation': 'filtered_artifact', **manifest['events']}
+            simulation['memory_log'] = dict(manifest['memory_log'])
+            exported['simulation'] = simulation
+        if 'memory_breakdown' in result:
+            breakdown = dict(result['memory_breakdown'])
+            breakdown['tensors'] = {'representation': 'filtered_artifact', **manifest['tensors']}
+            exported['memory_breakdown'] = breakdown
+    return exported, trace, tensors, keep_event, keep_tensor
+
+
+def _write_timeline(path: Path, rows: Iterable[dict]):
+    with path.open('w', encoding='utf-8') as handle:
+        handle.write('{"traceEvents":[')
+        first = True
+        for row in rows:
+            if not first:
+                handle.write(',')
+            first = False
+            event = {'name': row['id'], 'ph': 'X', 'ts': row['start_s'] * 1e6,
+                     'dur': (row['end_s'] - row['start_s']) * 1e6,
+                     'pid': 1, 'tid': str(row.get('slots') or row.get('metadata', {}).get('src') or 'events'),
+                     'args': row.get('metadata', {})}
+            json.dump(event, handle, ensure_ascii=False, allow_nan=False, separators=(',', ':'))
+        handle.write('],"displayTimeUnit":"ms"}')
+
+
+def write_report(result: dict, directory: str | Path, *, full_detail: bool = False) -> Path:
+    """Stream report artifacts; automatically filter only large raw detail tables.
+
+    Numerical summaries always preserve the complete simulation. ``full_detail``
+    restores raw arrays and all CSV/timeline rows; the in-memory API result is
+    never modified by either export mode.
+    """
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    exported, trace, tensors, keep_event, keep_tensor = _prepare_export(result, full_detail)
+    with (directory / 'result.json').open('w', encoding='utf-8') as handle:
+        json.dump(exported, handle, ensure_ascii=False, indent=2, allow_nan=False)
+    (directory / 'report.md').write_text(markdown_report(exported), encoding='utf-8')
+    if 'config' in result:
+        snapshot = dict(result['config'])
+        # The normalized snapshot already includes the calibration values.
+        snapshot['calibration'] = None
+        with (directory / 'config.resolved.json').open('w', encoding='utf-8') as handle:
+            json.dump(snapshot, handle, ensure_ascii=False, indent=2, allow_nan=False)
+    if 'estimate' in result:
+        resources = result.get('simulation', {}).get('resources', {})
+        _csv(directory / 'resources.csv', ['resource', 'unit', 'work_unit', 'capacity', 'work', 'utilization', 'busy_s', 'average_rate_at_lower_bound', 'required_average_rate_lower_bound'],
+             ({'resource': key, **item, **resources.get(key, {})} for key, item in result.get('requirements', {}).get('per_resource', {}).items()))
+        peaks = result.get('simulation', {}).get('memory_peaks_bytes', {})
+        _csv(directory / 'memory.csv', ['pool', 'capacity_bytes', 'resident_bytes', 'optimistic_peak_bytes', 'simulated_peak_bytes'], (
+            {'pool': pool, 'resident_bytes': result['estimate']['resident_memory_bytes'].get(pool, 0),
+             'capacity_bytes': result['memory_capacities_bytes'].get(pool),
+             'optimistic_peak_bytes': result['estimate']['optimistic_schedule_memory_peak_bytes'].get(pool, 0),
+             'simulated_peak_bytes': peaks.get(pool)}
+            for pool in sorted(set(result['estimate']['resident_memory_bytes']) | set(result['estimate']['optimistic_schedule_memory_peak_bytes']) | set(peaks))))
+    if 'simulation' in result:
+        _csv(directory / 'events.csv', ['id', 'start_s', 'end_s', 'duration_s', 'metadata'], (
+            {**row, 'duration_s': row['end_s'] - row['start_s'], 'metadata': json.dumps(row.get('metadata', {}), ensure_ascii=False)}
+            for row in trace if keep_event(row)))
+        _write_timeline(directory / 'timeline.json', (row for row in trace if keep_event(row)))
+    if result.get('memory_breakdown'):
+        breakdown = result['memory_breakdown']
+        _csv(directory / 'component_memory.csv', [
+            'pool', 'pool_kind', 'component', 'state', 'resident_bytes', 'bytes_at_pool_peak',
+            'independent_component_state_peak_bytes', 'independent_component_peak_bytes',
+            'pool_peak_bytes', 'pool_peak_time_s', 'peak_basis'], breakdown['component_state_rows'])
+        _csv(directory / 'state_memory.csv', [
+            'pool', 'pool_kind', 'state', 'resident_bytes', 'bytes_at_pool_peak',
+            'independent_state_peak_bytes', 'pool_peak_bytes', 'pool_peak_time_s', 'peak_basis'], breakdown['state_rows'])
+        _csv(directory / 'tensors.csv', [
+            'allocation_id', 'pool', 'pool_kind', 'component', 'layer', 'tensor_name', 'tensor_members', 'state',
+            'category', 'dtype', 'shape', 'bytes', 'is_initial', 'allocation_event', 'release_events',
+            'observed', 'allocated_at_s', 'released_at_s', 'attribution', 'metadata'], (
+                {**row, 'shape': json.dumps(row['shape']), 'tensor_members': json.dumps(row.get('tensor_members', [])),
+                 'release_events': json.dumps(row['release_events']),
+                 'metadata': json.dumps(row['metadata'], ensure_ascii=False)} for row in tensors if keep_tensor(row)))
+        _csv(directory / 'memory_peaks.csv', [
+            'pool', 'pool_kind', 'capacity_bytes', 'resident_bytes', 'peak_bytes', 'peak_basis', 'peak_time_s',
+            'optimistic_peak_bytes', 'resident_exceeds_capacity', 'observed_peak_exceeds_capacity',
+            'composition_at_peak', 'component_independent_peak_bytes', 'state_independent_peak_bytes'], (
+                {**row, 'composition_at_peak': json.dumps(row['composition_at_peak'], ensure_ascii=False),
+                 'component_independent_peak_bytes': json.dumps(row['component_independent_peak_bytes'], ensure_ascii=False),
+                 'state_independent_peak_bytes': json.dumps(row['state_independent_peak_bytes'], ensure_ascii=False)}
+                for row in breakdown['pools']))
+        inventory_tensors = (breakdown.get('component_inventory') or {}).get('tensors', [])
+        if inventory_tensors:
+            preferred = ['name', 'component', 'layer', 'shape', 'elements', 'accounted_elements', 'active_elements',
+                         'role', 'tp_shard', 'ep_shard', 'tp_max_shards', 'active_fraction', 'alias_of', 'formula']
+            actual = {key for row in inventory_tensors for key in row}
+            fields = [key for key in preferred if key in actual] + sorted(actual - set(preferred))
+            _csv(directory / 'model_parameters.csv', fields, (
+                {key: json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list, tuple)) else value
+                 for key, value in row.items()} for row in inventory_tensors))
+    return directory.resolve()

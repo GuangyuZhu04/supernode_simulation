@@ -1,0 +1,48 @@
+schema_version: '1.0'
+model:
+  name: synthetic-moe-demo
+  total_params: 2000000000
+  layers: 4
+  hidden_dim: 1024
+  intermediate_dim: 4096
+  num_heads: 8
+  kv_heads: 2
+  head_dim: 128
+  num_experts: 8
+  top_k: 2
+  moe_layer_fraction: 0.5
+  expert_parameter_fraction: 0.8
+hardware:
+  npu_count: 4
+  su_size: 2
+  npus_per_host: 2
+workload:
+  scenario: inference
+  batch_size: 2
+  input_lengths: [128, 64]
+  output_lengths: [4, 2]
+execution:
+  tp: 2
+  ep: 2
+  precision:
+    weight: fp8
+    kv: fp8
+  features:
+    kv_offload: host
+    engram:
+      enabled: true
+      table_bytes: 1000000000
+      queries_per_token: 2
+      record_bytes: 1024
+      layers: [0]
+targets:
+  throughput_tokens_s: 1
+  ttft_s: 1
+  tpot_s: 1
+  candidate_npu_counts: [4, 8]
+  candidate_su_sizes: [1, 2, 4, 8]
+  max_total_npus: 8
+sources:
+  '*':
+    status: assumed
+    description: Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.

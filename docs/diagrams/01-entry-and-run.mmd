@@ -1,0 +1,29 @@
+flowchart TD
+    CLI["snmodel / python -m supernode_sim"] --> MAIN["cli.main() → _main() → parser()"]
+    MAIN --> CMD{"内部：命令类型"}
+    CMD -->|schema| SCHEMA["Config.model_json_schema() → 写出 schema"]
+    CMD -->|import-hf| HF["import_hf_config() → read_data()<br/>模型片段 + missing_fields"]
+    CMD -->|其余命令| LOAD["load_config() → read_data()<br/>可选校准 deep_merge() → Config.model_validate()"]
+    LOAD --> SUB{"内部：命令分派"}
+    SUB -->|validate| VALID["返回 valid；不构图"]
+    SUB -->|sweep / size-su| SEARCH["sweep() / size_su()<br/>见图 10"]
+    SUB -->|estimate / simulate| RUN["analysis.run(config, mode, full_detail)"]
+    RUN --> COMPILE["compile_graph()<br/>规范化 Config → Topology.__init__()"]
+    COMPILE --> ARCH{"内部：model.architecture 存在？"}
+    ARCH -->|是| STRUCT["build_structured()<br/>Builder.training_graph() / inference()"]
+    ARCH -->|否，training| TRAIN["build_training() → _TrainingBuilder.build()"]
+    ARCH -->|否，inference| INFER["build_inference()"]
+    STRUCT --> CAL["apply_kernel_profiles()<br/>内部：补充 assumptions / fidelity"]
+    TRAIN --> CAL
+    INFER --> CAL
+    CAL --> EST["graph_estimate(graph)<br/>DAG 与资源下界、驻留容量、通信总量"]
+    EST --> REQ["device_requirements()<br/>内部：快照、SHA-256、目标窗口、requirements"]
+    REQ --> MODE{"内部：mode == simulate？"}
+    MODE -->|是| SIM["engine.simulate(graph)<br/>analysis 中别名 simulate_graph"]
+    SIM --> MET["execution_metrics() → evaluate_targets()<br/>内部：汇总最终 status"]
+    MODE -->|否| MEM["build_memory_breakdown()<br/>见图 9"]
+    MET --> MEM
+    MEM --> RESULT["run() 返回结果字典"]
+    RESULT --> WRITE["CLI：write_report(result, output)"]
+    SEARCH --> WRITE
+    WRITE --> EXIT["打印摘要并返回退出码<br/>main() finally 恢复 GC 状态"]

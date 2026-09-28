@@ -1,0 +1,28 @@
+flowchart TD
+    ENTRY["training.build_training(config, topology)"] --> INIT["_TrainingBuilder.__init__()<br/>内部：rank / stage 映射与 dense / expert 参数预算"]
+    INIT --> BUILD["build() → initial_state()<br/>驻留 weights / gradients / master / Adam / runtime"]
+    BUILD --> STEP["内部：遍历 training step"]
+    STEP --> STAGE["内部：遍历 PP stage<br/>pipeline_schedule(stage, stages, microbatches)"]
+    STAGE --> PHASE["phase(step, stage, F或B, micro)<br/>phase_previous() 建立前驱"]
+    PHASE --> LAYER["内部：按 F 正序 / B 逆序遍历层"]
+    LAYER --> GATHER["按 FSDP / reshard 条件 add_gather()<br/>可选一层前瞻预取"]
+    GATHER --> DISPATCH["可选 collective(EP dispatch)<br/>内部：权重精度转换、activation 生命周期"]
+    DISPATCH --> CK{"内部：B 且 activation checkpointing？"}
+    CK -->|是| RECOMP["kernel(forward=True)<br/>重放 TP / EP 通信"]
+    CK -->|否| KERNEL["kernel(..., forward=F)<br/>创建计算与 HBM work 的 Event"]
+    RECOMP --> KERNEL
+    KERNEL --> COMM["collective(TP attention / MLP all_reduce)<br/>可选 EP combine"]
+    COMM --> SYNC{"内部：B 到达梯度同步点？"}
+    SYNC -->|是| GRAD["collective()<br/>dense EP AR → FSDP RS → replica DP AR"]
+    SYNC -->|否| DONE["barrier(layer done)<br/>释放本层已消费临时分配"]
+    GRAD --> DONE
+    DONE --> MOREL{"内部：还有层？"}
+    MOREL -->|是| LAYER
+    MOREL -->|否| PDONE["barrier(phase done)"]
+    PDONE --> SEND["有相邻 PP stage 时：<br/>内部可选 pack → Topology.transfer() → 可选 unpack<br/>send.done 供接收方依赖"]
+    SEND --> MOREP{"内部：还有 phase / stage？"}
+    MOREP -->|是| STAGE
+    MOREP -->|否| OPT["optimizer(step)<br/>图 4：Adam 与可选 CPU offload"]
+    OPT --> MORES{"内部：还有 step？"}
+    MORES -->|是| STEP
+    MORES -->|否| RETURN["内部：写 schedule / logical_memory / step_end_events<br/>返回 Graph"]

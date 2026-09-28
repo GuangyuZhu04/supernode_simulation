@@ -1,0 +1,30 @@
+flowchart TD
+    ENTRY["build_structured() → Builder.__init__()<br/>Topology.populate() + parameter_inventory()"]
+    ENTRY --> INIT["training_graph() → initial()<br/>states() / state_dtype() / local_elements()"]
+    INIT --> STEP["内部：step → PP stage<br/>pipeline_schedule() → F或B / microbatch"]
+    STEP --> LAYER["内部：按阶段方向遍历 stage layers"]
+    LAYER --> GATHER["按 FSDP / reshard 条件 gather()<br/>collective(all_gather)"]
+    GATHER --> ACT["activation_rows() → component_activations()<br/>内部：B 时建立或复用 gradient buffers"]
+    ACT --> CK{"内部：B 且 checkpoint？"}
+    CK -->|是| RECOMP["recompute_layer()<br/>kernel() + TP / EP + 临时状态"]
+    CK -->|否| ORDER["component_order(layer)<br/>F 正序 / B 逆序遍历组件"]
+    RECOMP --> ORDER
+    ORDER --> DISPATCH["MoE 时 collective(EP dispatch)"]
+    DISPATCH --> KERNEL["逐 rank kernel()<br/>权重转换、FLOPs/HBM、activation/state allocs/releases"]
+    KERNEL --> COMM["MoE 时 collective(combine)<br/>attention / FFN 后 collective(TP all_reduce)"]
+    COMM --> MOREC{"内部：还有组件？"}
+    MOREC -->|是| ORDER
+    MOREC -->|否| SYNC{"内部：B 到达梯度同步点？"}
+    SYNC -->|是| GRAD["collective()<br/>FSDP RS → replica AR → dense EP AR"]
+    SYNC -->|否| DONE["barrier(layer.done)<br/>释放 gather / gradient / recompute 临时项"]
+    GRAD --> DONE
+    DONE --> MOREL{"内部：还有层？"}
+    MOREL -->|是| LAYER
+    MOREL -->|否| PHASE["barrier(phase 完成)<br/>释放消费完的 PP receive 等状态"]
+    PHASE --> SEND["有下游时 pipeline_transfer()<br/>可选 pack → Topology.transfer() → 可选 unpack<br/>内部：stage_previous 指向发送完成"]
+    SEND --> MOREP{"内部：还有 phase / stage？"}
+    MOREP -->|是| STEP
+    MOREP -->|否| OPT["optimizer(step, stage tails)<br/>见图 4"]
+    OPT --> MORES{"内部：还有 step？"}
+    MORES -->|是| STEP
+    MORES -->|否| ANNOTATE["annotate_collective_allocations()<br/>返回 Graph"]

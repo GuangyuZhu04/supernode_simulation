@@ -1,0 +1,24 @@
+flowchart TD
+    ENTRY["inference.build_inference(config, topology)"] --> INIT["Topology.populate()<br/>内部：rank / layer 映射，驻留权重与缓存设施"]
+    INIT --> LOOPS["内部：DP → output step → layer → EP → TP<br/>step0 prefill，后续 decode，仅 active 序列"]
+    LOOPS --> LAYOUT["闭包 layout() → kv_layout_bytes()<br/>data / scale / page table"]
+    LAYOUT --> READY["闭包 alloc() / add()<br/>ready Event：KV 增量、activation 与临时状态"]
+    READY --> FETCH["内部可选：KV offload fetch<br/>Topology.transfer()"]
+    READY --> ENGRAM["内部可选：Engram lookup / cache hit<br/>Topology.transfer() 与资源 Event"]
+    READY --> CAST["内部可选：weight conversion Event"]
+    FETCH --> DENSE["内部：dense Event<br/>attention + dense 计算，读侧 KV 转换融合建模"]
+    ENGRAM --> DENSE
+    CAST --> DENSE
+    DENSE --> KVCONVERT["内部可选：新 KV conversion"]
+    KVCONVERT --> KVWRITE["内部可选：KV offload write"]
+    KVCONVERT --> MOE["可选 collective(dispatch)<br/>expert Event → collective(combine)"]
+    MOE --> TP["闭包 collective()<br/>层末 TP attention AR → TP FFN AR"]
+    TP --> PP["内部可选 PP：pack → Topology.transfer() → unpack"]
+    PP --> DONE["内部：layer.done<br/>等待层输出与 KV write；释放临时 buffer"]
+    KVWRITE --> DONE
+    DONE --> MOREL{"内部：还有层？"}
+    MOREL -->|是| LOOPS
+    MOREL -->|否| TOKEN["内部：token barrier<br/>记录逐序列 token 完成事件"]
+    TOKEN --> MORE{"内部：还有 step / replica？"}
+    MORE -->|是| LOOPS
+    MORE -->|否| RETURN["返回 Graph"]

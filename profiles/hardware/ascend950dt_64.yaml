@@ -1,0 +1,49 @@
+source:
+  status: assumed
+  description: Huawei Ascend 950DT / Atlas 950 64-NPU cabinet slice, based on public
+    roadmap. Nominal chip HBM/FP8 fields sourced; topology direction interpretation,
+    CPU/DDR/H2D/SO and efficiencies are unmeasured assumptions. See docs/sources/README.md.
+  uri: https://www.huawei.com/en/news/2025/9/hc-xu-keynote-speech
+  revision: 2025-09-18 roadmap; 2026-03-02 cabinet scale
+hardware:
+  name: Ascend 950DT / Atlas 950 — 64-NPU reference slice
+  npu_count: 64
+  su_size: 64
+  npus_per_host: 8
+  topology: full_mesh
+  npu:
+    hbm_bytes: 144000000000
+    hbm_Bps: 4000000000000
+    flops:
+      fp8: 1000000000000000.0
+      fp16: 500000000000000.0
+      bf16: 500000000000000.0
+      fp32: 50000000000000.0
+    efficiency: 0.5
+    runtime_bytes: 8000000000
+    workspace_bytes: 256000000
+  cpu:
+    dram_bytes: 4000000000000.0
+    dram_Bps: 512000000000.0
+    flops: 4000000000000.0
+    efficiency: 0.5
+    iops: 100000000.0
+  scale_up:
+    bandwidth_Bps: 1000000000000.0
+    injection_Bps: 1000000000000.0
+    latency_s: 2.1e-06
+    efficiency: 0.8
+  scale_out:
+    bandwidth_Bps: 50000000000.0
+    injection_Bps: 50000000000.0
+    latency_s: 5.0e-06
+    efficiency: 0.8
+  host_link:
+    bandwidth_Bps: 64000000000.0
+    injection_Bps: 64000000000.0
+    latency_s: 2.0e-06
+    efficiency: 0.85
+  remote:
+    enabled: false
+  ssd:
+    enabled: false

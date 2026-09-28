@@ -1,0 +1,2 @@
+execution.precision.weight: [fp8, fp16]
+execution.precision.weight_transfer: [fp8, fp16]

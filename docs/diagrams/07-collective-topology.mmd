@@ -1,0 +1,22 @@
+flowchart TD
+    ENTRY["构图器 collective() 封装<br/>结构化 / 预算训练 / 预算推理"] --> CAST["内部：必要时 pack Event<br/>activation → communication dtype"]
+    CAST --> TC["Topology.collective(graph, kind, ranks, size, deps)"]
+    TC --> SINGLE{"内部：rank 数为 1？"}
+    SINGLE -->|是| IDENTITY["直接返回传入 deps，不产生通信事件"]
+    SINGLE -->|否| KIND{"内部：collective 类型"}
+    KIND -->|AG / RS| RING["内部：ring，N-1 轮<br/>每 rank 每轮 size/N"]
+    KIND -->|AR| AR["内部：RS → AG，两阶段 ring"]
+    KIND -->|A2AV| A2A["内部：按 payload_matrix<br/>pairwise N-1 轮，对角项无网络传输"]
+    RING --> TRANS["Topology.transfer(src, dst, bytes, deps)"]
+    AR --> TRANS
+    A2A --> TRANS
+    TRANS --> PATH["Topology.path(src, dst)"]
+    PATH --> ROUTE["内部依次：缓存 → 显式 routes<br/>→ 同 SU full_mesh 懒建直连<br/>→ 确定性最少 hop 搜索"]
+    ROUTE --> WORK["transfer() 内部：端点内存、逐跳链路<br/>injection / shared group / NIC / bridge 工作量<br/>startup = 路径 latency 之和"]
+    WORK --> EVENT["返回 Event<br/>payload 与 physical bytes 分别记 metadata"]
+    EVENT --> BUFS["collective() 内部：添加 send / recv allocation<br/>完成时 release，设置 tx / rx slots<br/>追加到 graph.events"]
+    BUFS --> NEXT{"内部：还有轮次 / 阶段？"}
+    NEXT -->|是，前轮 terminals 作为 deps| TRANS
+    NEXT -->|否| TERMINALS["返回末轮 terminal event IDs"]
+    TERMINALS --> UNPACK["构图器：必要时 unpack 与 wire buffer 释放"]
+    IDENTITY --> UNPACK

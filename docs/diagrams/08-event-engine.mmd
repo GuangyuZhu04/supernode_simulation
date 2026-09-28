@@ -1,0 +1,25 @@
+flowchart TD
+    ENTRY["engine.simulate(graph)"] --> CHECK["内部：校验唯一 ID、资源、allocation、依赖和 DAG"]
+    CHECK --> VALID{"内部：图合法？"}
+    VALID -->|否| ERROR["闭包 fail(error, code, detail)<br/>result() 带 diagnostics"]
+    VALID -->|是| INIT["闭包 allocate(initial_allocations)<br/>记录 sequence / time / 占用 / 峰值"]
+    INIT --> CAP{"内部：驻留内存超容量？"}
+    CAP -->|是| OOM["fail(infeasible, initial_memory_exceeded)"]
+    CAP -->|否| FIN["循环内部：先完成事件<br/>release 内存与 slots，更新 ready，写 trace"]
+    FIN --> ALL{"内部：全部事件完成？"}
+    ALL -->|是| RESULT["排序 trace → result(feasible)"]
+    ALL -->|否| ADMIT["内部：按 ID 扫描 ready<br/>slot 空闲且内存可容纳 → 原子 allocate<br/>active = startup + remaining"]
+    ADMIT --> CHANGE{"内部：刚完成或准入了事件？"}
+    CHANGE -->|是| FIN
+    CHANGE -->|否| ACTIVE{"内部：存在 active？"}
+    ACTIVE -->|否，内存阻塞| DEAD["fail(infeasible, memory_admission_deadlock)"]
+    ACTIVE -->|否，其他情况| ERROR
+    ACTIVE -->|是| RATE["max_min_rates(startup 已结束的 active work)"]
+    RATE --> SOLO["函数内部：solo = min(capacity / work)<br/>归一化需求 = work × solo"]
+    SOLO --> FAIR["函数内部：等量提高未冻结事件的速度比例<br/>冻结瓶颈资源相关事件，重复至全部分配"]
+    FAIR --> SPEED["返回 rate = fraction × solo"]
+    SPEED --> DELTA["simulate 内部：delta = min<br/>下一 startup 结束、remaining/rate"]
+    DELTA --> OK{"内部：时间步可推进且合法？"}
+    OK -->|否| ERROR
+    OK -->|是| ADVANCE["内部：更新 remaining / work_done / busy<br/>now += delta"]
+    ADVANCE --> FIN

@@ -1,0 +1,17 @@
+flowchart TD
+    ENTRY["optimizer(step)<br/>依赖本步 backward / stage 尾部完成"] --> LOOP["内部：预算版遍历 rank × layer<br/>结构化版遍历 rank × layer × component"]
+    LOOP --> LIMIT["结构化可选 inflight_components_per_rank<br/>为组件接入有界在途链的前驱"]
+    LIMIT --> OFF{"内部：optimizer_offload？"}
+    OFF -->|是| D2H["Topology.transfer(D2H gradients)<br/>CPU gradient buffer"]
+    OFF -->|否| NPU["选择 NPU 本地更新资源"]
+    D2H --> KIND["结构化：optimizer_states()<br/>预算版：固定 Adam"]
+    NPU --> KIND
+    KIND --> UPDATE["内部：创建 update Event<br/>Adam / Muon 工作量、状态访问与 scratch"]
+    UPDATE --> PACK["内部：创建 pack Event<br/>master 转为传输 / 驻留权重精度"]
+    PACK --> BACK{"内部：optimizer_offload？"}
+    BACK -->|是| H2D["Topology.transfer(H2D weights)<br/>必要时另外传输 scale"]
+    BACK -->|否| REFRESH["内部：refresh Event<br/>更新持久权重，释放临时 buffer"]
+    H2D --> REFRESH
+    REFRESH --> MORE{"内部：还有更新项？"}
+    MORE -->|是| LOOP
+    MORE -->|否| DONE["barrier(train.stepN.done)<br/>外层 build() / training_graph() 汇总 step_end_events"]

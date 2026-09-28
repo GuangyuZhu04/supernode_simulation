@@ -1,0 +1,36 @@
+schema_version: '1.0'
+model:
+  name: synthetic-dense-demo
+  total_params: 1000000000
+  layers: 4
+  hidden_dim: 1024
+  intermediate_dim: 4096
+  num_heads: 8
+  kv_heads: 2
+  head_dim: 128
+hardware:
+  npu_count: 4
+  su_size: 2
+  npus_per_host: 2
+workload:
+  scenario: training
+  batch_size: 2
+  sequence_length: 128
+  gradient_accumulation: 3
+  training_steps: 2
+execution:
+  pp: 2
+  dp: 2
+  fsdp: 2
+  precision:
+    weight: fp8
+    weight_transfer: fp16
+  features:
+    optimizer_offload: true
+    activation_checkpointing: true
+targets:
+  step_time_s: 10
+sources:
+  '*':
+    status: assumed
+    description: Synthetic functional example; no specific commercial hardware or model is claimed.

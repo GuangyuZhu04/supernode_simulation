@@ -1,0 +1,10 @@
+source:
+  status: assumed
+  description: Example override format only; replace with actual independently measured values and source.
+hardware:
+  npu:
+    efficiency: 0.55
+  host_link:
+    bandwidth_Bps: 50000000000
+    injection_Bps: 50000000000
+    efficiency: 1

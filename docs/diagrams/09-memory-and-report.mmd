@@ -1,0 +1,22 @@
+flowchart TD
+    ENTRY["analysis.run() 的 graph / simulation / estimate"] --> MEM["build_memory_breakdown()"]
+    MEM --> INDEX["闭包 add_tensor() → _labels()<br/>索引全部 allocations 与释放事件<br/>可省略临时 buffers 的宽明细行"]
+    INDEX --> LOG{"内部：存在 memory_log？"}
+    LOG -->|是| REPLAY["内部：按 sequence 有序回放<br/>校验 ID、pool、bytes、时间与生命周期"]
+    REPLAY --> CHANGE["闭包 change()<br/>更新池/组件/状态与集群并发峰值"]
+    LOG -->|否| RESIDENT["对 initial residency 调用 change()<br/>mode = resident_only"]
+    CHANGE --> STATUS["内部：完整执行为 simulated<br/>提前停止为 observed_partial"]
+    STATUS --> TABLES["内部：生成 tensors / pools / component_state_rows<br/>state_rows / cluster / logical states"]
+    RESIDENT --> TABLES
+    TABLES --> GROUPS["_equivalent_groups()<br/>返回 memory_breakdown"]
+    GROUPS --> RUNRESULT["run() 返回完整结果对象"]
+    RUNRESULT --> WRITE["write_report(result, directory, full_detail)"]
+    WRITE --> PREP["_prepare_export()<br/>检测大图/已精简明细，生成 artifact_export"]
+    PREP --> DETAIL{"内部：请求 full detail 但明细已丢失？"}
+    DETAIL -->|是| ERROR["ValueError：必须从计算阶段重新保留完整明细"]
+    DETAIL -->|否| JSON["内部：写 result.json / config.resolved.json<br/>markdown_report() → report.md"]
+    JSON --> CSV["_csv()<br/>资源、内存、组件、状态、张量、峰值、参数"]
+    CSV --> SIM{"内部：存在 simulation？"}
+    SIM -->|是| TRACE["_csv(events.csv)<br/>_write_timeline(timeline.json)"]
+    SIM -->|否| OUT["返回输出目录"]
+    TRACE --> OUT

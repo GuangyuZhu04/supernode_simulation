@@ -1,0 +1,52 @@
+schema_version: '1.0'
+model:
+  name: synthetic-10t-moe-fp8
+  total_params: 10000000000000
+  layers: 80
+  hidden_dim: 32768
+  intermediate_dim: 131072
+  num_heads: 256
+  kv_heads: 8
+  head_dim: 128
+  num_experts: 64
+  top_k: 2
+  moe_layer_fraction: 1
+  expert_parameter_fraction: 0.98
+hardware:
+  npu_count: 16
+  su_size: 8
+  npus_per_host: 4
+  npu:
+    hbm_bytes: 4000000000000
+  cpu:
+    dram_bytes: 64000000000000
+workload:
+  scenario: training
+  batch_size: 1
+  sequence_length: 128
+  gradient_accumulation: 1
+execution:
+  tp: 2
+  pp: 2
+  dp: 4
+  fsdp: 4
+  precision:
+    weight: fp8
+    compute: fp16
+    gradient: fp16
+    master: fp32
+    optimizer: fp32
+    weight_transfer: fp8
+  features:
+    optimizer_offload: true
+    activation_checkpointing: true
+targets:
+  step_time_s: 1000
+sources:
+  '*':
+    status: assumed
+    description: Synthetic 10T capacity anchor. 4 TB HBM per device and 64 TB DRAM per host are hypothetical, not product specifications.
+assumptions:
+  - Total and active parameters are declared budgets; generated layer kernels are architectural approximations.
+  - Active parameters derive as dense 200B plus 306.25B routed experts per token.
+  - This small-rank giant-memory profile keeps the event graph practical for capacity validation.

@@ -1,0 +1,15 @@
+flowchart TB
+    U["用户问题：训练 / 推理 / 容量 / SU 选型"] --> S["Skill：SKILL.md + references + agents/openai.yaml"]
+    S --> C["场景 YAML/JSON：model / hardware / workload / execution / targets"]
+    C --> V["config.load_config() + Config.model_validate()"]
+    V --> A["analysis.run() / search.sweep() / search.size_su()"]
+    A --> G["analysis.compile_graph()"]
+    G --> B["构图器：structured.Builder / training._TrainingBuilder / inference.build_inference()"]
+    B --> D["core.Graph：Event + Resource + Allocation + metadata"]
+    T["Topology + components + kernel calibration"] --> D
+    D --> E["graph_estimate()：必要性能下界"]
+    D --> X["engine.simulate()：依赖、内存准入、slot、资源争用"]
+    E --> R["指标 / SLO / 组件内存账本"]
+    X --> R
+    R --> O["report.write_report()：JSON / Markdown / CSV / timeline"]
+    O --> S
