@@ -234,7 +234,7 @@ flowchart TD
     AR --> TRANS
     A2A --> TRANS
     TRANS --> PATH["Topology.path(src, dst)"]
-    PATH --> ROUTE["内部依次：缓存 → 显式 routes<br/>→ 同 SU full_mesh 懒建直连<br/>→ 确定性最少 hop 搜索"]
+    PATH --> ROUTE["内部依次：缓存 → 按 SU/SO 策略验证显式 routes<br/>→ 同 SU full_mesh 懒建直连<br/>→ 确定性最少 hop 搜索（按策略筛选链路）"]
     ROUTE --> WORK["transfer() 内部：端点内存、逐跳链路<br/>injection / shared group / NIC / bridge 工作量<br/>startup = 路径 latency 之和"]
     WORK --> EVENT["返回 Event<br/>payload 与 physical bytes 分别记 metadata"]
     EVENT --> BUFS["collective() 内部：添加 send / recv allocation<br/>完成时 release，设置 tx / rx slots<br/>追加到 graph.events"]

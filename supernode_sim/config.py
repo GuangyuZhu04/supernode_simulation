@@ -210,6 +210,7 @@ class HardwareSpec(Spec):
     su_size: int = Field(default=8, gt=0)
     npus_per_host: int = Field(default=8, gt=0)
     topology: Literal['full_mesh', 'mesh', 'clos', 'fat_tree', 'explicit'] = 'full_mesh'
+    routing_policy: Literal['shortest_hop', 'su_so'] = 'shortest_hop'
     mesh_width: int | None = Field(default=None, gt=0)
     leaf_size: int | None = Field(default=None, gt=0)
     npu: NPUSpec = Field(default_factory=NPUSpec)

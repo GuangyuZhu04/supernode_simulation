@@ -10,6 +10,8 @@
 
 `supernode-modeling` skill 是面向使用者的编排和解释层：收集参数、选择场景、调用命令、检查输出、解释假设。数值计算由 Python 包执行。Skill 目录没有独立仿真引擎，也没有常驻 agent 服务。
 
+拓扑输入扩展（2026-10-08）：父 skill 可接收独立 topology spec，包含 SU 结构、SO 域的 SU 成员分区与有向域间链路。嵌套子 skill [`supernode-topology`](../skills/supernode-modeling/subskills/supernode-topology/SKILL.md) 将自然语言转为规范，`build_topology.py` 编译成原生显式图，再进入同一 `Config` / `Topology` / 数值执行流程。它是配置生成器，不是另一套流量仿真器。生成的 `routing_policy: su_so` 防止 NPU 通信经其他链路类别绕行；旧显式图默认仍用 `shortest_hop`。
+
 ```mermaid
 flowchart TB
     U["用户问题：训练 / 推理 / 容量 / SU 选型"] --> S["Skill：SKILL.md + references + agents/openai.yaml"]
@@ -149,7 +151,7 @@ CLI 退出码：输入/图相关错误通常为 `2`，顶层 `infeasible` / `slo
 
 `Topology.collective()` 将 all-gather、reduce-scatter、all-reduce 展开为 ring 点对点轮次，all-to-all-v 按流量矩阵展开；`transfer()` 再调用 `path()`，给端点内存、沿途链路、注入带宽及共享组等资源记账，返回 Event。collective 的发送/接收临时 buffer 和 tx/rx slot 由 `collective()` 添加，普通点对点 buffer 由相应构图器管理。
 
-`path()` 依次检查缓存、显式 routes、同 SU full_mesh 懒建直连，再进行确定性最少 hop 搜索，以字典序打破平局。模板拓扑中同 SU 的 NPU 通信限走 SU，跨 SU 限走 SO；不按实时负载选路。AG/RS 的 size 表示每 rank 完整张量大小，共 N−1 轮，每 rank 每轮发送 size/N；AR 为 RS→AG 两阶段，A2AV 为按矩阵的 N−1 轮 pairwise。每轮所有 transfer 完成 ID 成为下一轮依赖。
+`path()` 依次检查缓存、显式 routes、同 SU full_mesh 懒建直连，再进行确定性最少 hop 搜索，以字典序打破平局。模板拓扑和显式 `routing_policy=su_so` 的同 SU NPU 通信限走 SU，跨 SU 限走 SO；显式 routes 也受 `su_so` 约束。旧显式图默认仍允许混合链路路径。路由不按实时负载选路。AG/RS 的 size 表示每 rank 完整张量大小，共 N−1 轮，每 rank 每轮发送 size/N；AR 为 RS→AG 两阶段，A2AV 为按矩阵的 N−1 轮 pairwise。每轮所有 transfer 完成 ID 成为下一轮依赖。
 
 流量有不同视图：`transport_payload_bytes` 是展开后的传输 payload 总量；`physical_bytes_by_domain` 是沿路逐跳字节量；semantic（如 dispatch/combine）与 collective（如 all-to-all-v）是同一 payload 的不同分类，不能再相加。
 

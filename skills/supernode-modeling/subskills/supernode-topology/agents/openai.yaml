@@ -1,0 +1,4 @@
+interface:
+  display_name: "超节点 SU/SO 拓扑生成"
+  short_description: "用自然语言生成SU与SO域拓扑、原生硬件配置和可校验结构示意图"
+  default_prompt: "使用 $supernode-topology 将我的超节点卡数、SU连接、SO域成员与链路要求转为可复现拓扑配置，并生成Mermaid图。"

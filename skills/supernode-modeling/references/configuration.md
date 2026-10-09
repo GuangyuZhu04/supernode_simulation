@@ -7,7 +7,7 @@
 | 对象 | 常用字段与口径 |
 |---|---|
 | `model` | `name`, `total_params`, `active_params`, `layers`, `hidden_dim`, `intermediate_dim`, `num_heads`, `kv_heads`, `head_dim`, `attention_kind`；MoE 另设 `num_experts`, `top_k`, `moe_layer_fraction`, `expert_parameter_fraction` |
-| `hardware` | `npu_count`, `su_size`, `npus_per_host`, `topology`, `npu`, `cpu`, `scale_up`, `scale_out`, `host_link`, `remote`, `ssd` |
+| `hardware` | `npu_count`, `su_size`, `npus_per_host`, `topology`, `routing_policy`, `npu`, `cpu`, `scale_up`, `scale_out`, `host_link`, `remote`, `ssd` |
 | `workload` | `scenario: training/inference`, `batch_size`；场景专用字段见训练/推理参考 |
 | `execution` | `tp`, `pp`, `ep`, `dp`, `fsdp`, `rank_order`, `precision`, `features` |
 | `targets` | `throughput_tokens_s`, `ttft_s`, `tpot_s`, `step_time_s`，及搜索候选字段 |
@@ -21,6 +21,12 @@
 `execution.precision` 包含 `weight`, `compute`, `gradient`, `master`, `optimizer`, `kv`, `weight_transfer`, `activation`, `communication`, `recurrent`，以及可选的 `routed_expert_weight`。通常先锁定独立梯度/优化器精度，再比较权重 FP8/FP16，避免把两种权重形态变成两种不同训练算法。
 
 组件建模使用 `model.architecture`：显式 `attention_by_layer` / `ffn_by_layer` 列表与 MLA/KDA/MoE 维度。此模式不需要手填总参数预算；保留 `reported_total_params` / `reported_active_params` 作为公开约数。Muon 通过 `execution.optimizer` 选择，参数分组需要张量形状。字段详情和参数账本以 CLI schema 与 [memory-breakdown.md](memory-breakdown.md) 为准。
+
+## 独立拓扑输入
+
+自然语言或拓扑文件可先经 [supernode-topology 子 skill](../subskills/supernode-topology/SKILL.md) 转为 topology spec，显式声明 SU 结构、SO 域成员及域间链路，再生成原生 `hardware` 片段或合入完整场景。该规范独立于引擎 schema；`scale_out.domains`、`inter_domain_links` 等编译输入不能直接写入 `hardware`。输入契约与域的口径见 [topology.md](topology.md)。
+
+生成的显式图使用 `hardware.routing_policy: su_so`，同 SU 的 NPU 通信限走 SU 边，跨 SU 限走 SO 边；原有显式图默认 `shortest_hop` 保持可使用混合路径。编译到新文件，保留模型/负载/执行/SLO 与来源。用 `--base` 合并时校验并行乘积与连通性，再 `validate` / `simulate`。仅有 `hardware` 的输出片段不是完整场景，不能单独送入 `snmodel simulate`。
 
 ## CLI
 

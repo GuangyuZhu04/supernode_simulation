@@ -92,6 +92,70 @@ def test_explicit_route_and_shared_half_duplex_link():
         topology.path("npu0", "npu3")
 
 
+def policy_links():
+    return [{"id": eid, "src": src, "dst": dst, "domain": domain, "bandwidth_Bps": 100}
+            for eid, src, dst, domain in (
+                ("su_attach", "npu0", "su0.leaf", "SU"),
+                ("su_exit", "su0.leaf", "npu1", "SU"),
+                ("so_shortcut", "npu0", "npu1", "SO"),
+                ("host_out", "npu0", "cpu0", "D2H"),
+                ("host_in", "cpu0", "npu1", "H2D"),
+                ("su_cross", "npu0", "npu2", "SU"),
+                ("so_attach", "npu0", "so0.gateway", "SO"),
+                ("so_exit", "so0.gateway", "npu2", "SO"),
+            )]
+
+
+def test_explicit_su_so_policy_prevents_so_and_host_shortcuts():
+    topology = Topology(hardware(topology="explicit", su_size=2, routing_policy="su_so",
+                                 explicit_links=policy_links()), {})
+    assert topology.path("npu0", "npu1") == ("su_attach", "su_exit")
+    assert topology.transfer("within", "npu0", "npu1", 100).metadata["domains"] == ["SU"]
+
+    without_su = [link for link in policy_links() if link["id"] not in ("su_attach", "su_exit")]
+    isolated = Topology(hardware(topology="explicit", su_size=2, routing_policy="su_so",
+                                explicit_links=without_su), {})
+    with pytest.raises(ValueError, match="No directed"):
+        isolated.path("npu0", "npu1")
+
+
+def test_explicit_su_so_policy_uses_so_for_cross_su_pairs():
+    topology = Topology(hardware(topology="explicit", su_size=2, routing_policy="su_so",
+                                 explicit_links=policy_links()), {})
+    assert topology.path("npu0", "npu2") == ("so_attach", "so_exit")
+    event = topology.transfer("cross", "npu0", "npu2", 100)
+    assert event.metadata["domains"] == ["SO"]
+    assert event.work["cpu0.nic.tx"] == 100
+    assert event.work["cpu1.nic.rx"] == 100
+
+
+@pytest.mark.parametrize("destination,route", [
+    ("npu1", ["so_shortcut"]),
+    ("npu1", ["host_out", "host_in"]),
+    ("npu2", ["su_cross"]),
+])
+def test_explicit_su_so_policy_rejects_override_that_changes_domains(destination, route):
+    topology = Topology(hardware(topology="explicit", su_size=2, routing_policy="su_so",
+                                 explicit_links=policy_links(), routes={f"npu0->{destination}": route}), {})
+    with pytest.raises(ValueError, match="violates su_so routing policy"):
+        topology.path("npu0", destination)
+
+
+def test_explicit_legacy_default_preserves_arbitrary_mixed_domain_path():
+    links = [{"id": eid, "src": src, "dst": dst, "domain": domain, "bandwidth_Bps": 100}
+             for eid, src, dst, domain in (
+                 ("local", "npu0", "switch", "SU"),
+                 ("external", "switch", "npu2", "SO"),
+             )]
+    topology = Topology(hardware(topology="explicit", su_size=2, explicit_links=links), {})
+    assert topology.path("npu0", "npu2") == ("local", "external")
+    assert topology.transfer("legacy", "npu0", "npu2", 100).metadata["domains"] == ["SO", "SU"]
+
+    override = Topology(hardware(topology="explicit", su_size=2, explicit_links=policy_links(),
+                                routes={"npu0->npu1": ["host_out", "host_in"]}), {})
+    assert override.path("npu0", "npu1") == ("host_out", "host_in")
+
+
 def test_remote_route_charges_bridge_and_endpoint():
     topology = Topology(hardware(remote={"enabled": True, "capacity_bytes": 1e12, "bandwidth_Bps": 1000, "latency_s": 0}), {})
     event = topology.transfer("fetch", "remote0", "npu0", 100)

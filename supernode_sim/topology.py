@@ -22,6 +22,7 @@ class Topology:
         self.su_size = int(hardware.get("su_size", self.npu_count))
         self.npus_per_host = int(hardware.get("npus_per_host", 8))
         self.kind = hardware.get("topology", "full_mesh").lower().replace("-", "_")
+        self.routing_policy = hardware.get("routing_policy", "shortest_hop")
         self.resources: dict[str, Resource] = {}
         self.memory_caps: dict[str, float] = {}
         self.links: dict[str, dict[str, Any]] = {}
@@ -156,9 +157,12 @@ class Topology:
         self.graphs.append(graph)
         graph.metadata.setdefault("topology", {"kind": self.kind, "npu_count": self.npu_count,
                                                "su_size": self.su_size, "npus_per_host": self.npus_per_host,
+                                               "routing_policy": self.routing_policy,
                                                "routing": "explicit or deterministic shortest-hop",
                                                "bandwidth_direction": "full_duplex",
-                                               "clos_model": "one deterministic spine; uplinks share capacity"})
+                                               "clos_model": ("explicit directed fabric; shared capacity from supplied links"
+                                                              if self.kind == "explicit" else
+                                                              "one deterministic spine; uplinks share capacity")})
 
     def path(self, src: str, dst: str) -> tuple[str, ...]:
         if src == dst:
@@ -166,22 +170,25 @@ class Topology:
         key = (src, dst)
         if key in self._route_cache:
             return self._route_cache[key]
+        allowed = None
+        if (self.kind != "explicit" or self.routing_policy == "su_so") and src.startswith("npu") and dst.startswith("npu"):
+            src_domain, dst_domain = int(src[3:]) // self.su_size, int(dst[3:]) // self.su_size
+            allowed = {"SU"} if src_domain == dst_domain else {"SO"}
         explicit = self.routes.get(f"{src}->{dst}")
         if explicit is not None:
             current = src
             for eid in explicit:
                 if eid not in self.links or self.links[eid]["src"] != current:
                     raise ValueError(f"Invalid explicit route {src}->{dst}: {eid}")
+                if self.routing_policy == "su_so" and allowed is not None and self.links[eid]["domain"] not in allowed:
+                    raise ValueError(f"Explicit route {src}->{dst} violates su_so routing policy: {eid}")
                 current = self.links[eid]["dst"]
             if current != dst:
                 raise ValueError(f"Explicit route {src}->{dst} does not reach destination")
             self._route_cache[key] = tuple(explicit)
             return tuple(explicit)
-        allowed = None
         if self.kind != "explicit" and src.startswith("npu") and dst.startswith("npu"):
-            src_domain, dst_domain = int(src[3:]) // self.su_size, int(dst[3:]) // self.su_size
-            allowed = {"SU"} if src_domain == dst_domain else {"SO"}
-            if src_domain == dst_domain and self.kind == "full_mesh":
+            if allowed == {"SU"} and self.kind == "full_mesh":
                 eid = f"{src}>{dst}:SU"
                 if eid not in self.links:
                     self._edge(eid, src, dst, self.su, "SU")

@@ -1,6 +1,6 @@
 ---
 name: supernode-modeling
-description: Model supernode training and inference memory, compute, and communication with supernode_sim. Use for component-level weights, activations, gradients and Adam/Muon state breakdowns; Kimi K3 and Ascend 950 scenarios; FP8/FP16 capacity, offload, KV/KDA state, SU/SO comparisons and minimum-SU searches.
+description: Model supernode training and inference memory, compute, and communication with supernode_sim. Use for component-level weights, activations, gradients and Adam/Muon state breakdowns; Kimi K3 and Ascend 950 scenarios; FP8/FP16 capacity, offload, KV/KDA state, scale-out domains, SU/SO topology inputs, natural-language topology generation and minimum-SU searches.
 ---
 
 # 超节点资源与通信建模
@@ -27,11 +27,26 @@ python -m supernode_sim schema
 - Kimi K3 / Ascend 950 样例和真实性边界：读 [ascend950-kimi-k3.md](references/ascend950-kimi-k3.md)。
 - 训练/FSDP2/optimizer offload/10T 容量：读 [training.md](references/training.md)。
 - 推理/KV 压缩与 offload/Engram：读 [inference.md](references/inference.md)。
-- 拓扑/SU 与 SO/链路瓶颈/最小域搜索：读 [topology.md](references/topology.md)。
+- 接收 SU/SO 拓扑、scale-out 域、分析链路瓶颈/最小域搜索：读 [topology.md](references/topology.md)。
+- 用户用自然语言生成或修改 scale-up / scale-out 拓扑：按子 skill [supernode-topology](subskills/supernode-topology/SKILL.md) 生成拓扑规范、原生配置和拓扑图，再回到本 skill 做流量仿真。仅生成拓扑时在子 skill 内完成，不要求模型或负载。
 
 先检查用户提供的配置与可核实资料，再补齐问题所需的参数。只询问会改变结论且无法从现有资料获得的缺失项，使用明确字段名。模型名称不是结构证据；对未公开结构采用用户认可或明确标注的 synthetic 假设，不把假设写成某模型的公开规格。
 
 保留用户场景，在工作目录创建可重跑配置。先 `validate`，再按任务运行 `estimate`、`simulate`、`sweep` 或 `size-su`；`estimate` 提供必要下界，不能证明 SLO 可行。硬件显然无法容纳的配置也有分析价值，保留失败原因而不自动放大硬件。
+
+## 拓扑作为输入
+
+把拓扑与模型、负载、并行布局一起作为场景输入，先读用户提供的原生场景、拓扑文件或自然语言描述。收集会影响实际路径的以下信息；已有配置足够时直接使用：
+
+- 总 NPU 数、每个 scale-up 域的 NPU 数、每主机 NPU 数，以及物理 NPU 与并行 rank 的映射。
+- scale-out 域的数量、标识和成员 SU 域；区分“SU 域内卡数”和“SO 域内超节点数”。多个 SO 域之间是否互联、连接方向、链路能力也要显式输入。
+- SU 域内拓扑、SO 域内拓扑与域间连接；带宽、延迟、效率、端点注入、共享上联及双向共享容量的口径。
+
+输入可以是已有 `hardware` 原生配置，也可以是子 skill 的独立 topology spec。后者先经 `build_topology.py` 编译；不能把 `scale_out.domains` 等高层字段直接放入严格的引擎 schema。详见 [拓扑输入契约](references/topology.md)。保持已有的模型、精度、负载、SLO 和 rank 放置；改变卡数后若并行乘积不匹配，报告冲突，不自动改 DP/global batch。
+
+先校验拓扑成员、连通性和实际 communicator 路径，再做数值分析。记录 SU/SO 域划分、链路来源、拓扑规范与编译后配置；报告同 SU、跨 SU 同 SO 域、跨 SO 域通信的路径及共享瓶颈。引擎原生字节统计按 SU/SO 链路类别汇总，SO 域级细分需要结合成员表和逐事件路径归因，不能把链路类别当成具体的 SO 域 ID。
+
+显式图的 `explicit_links` 随卡数与域成员固定。扫描或搜索改变 `npu_count` / `su_size` / 域成员时，每个候选必须重新生成拓扑并校验；不能直接复用原图跑 `size-su`，以免图与候选域划分不一致。普通内置模板继续使用原有搜索流程。
 
 ## 解释结果时的关键口径
 

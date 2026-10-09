@@ -1,0 +1,105 @@
+# Natural-language request and unit notes: ../references/specification.md
+# Synthetic demonstration rates; no production hardware or workload is implied.
+schema_version: '1.0'
+name: synthetic-8npu-two-so-domains
+npu_count: 8
+su_size: 2
+npus_per_host: 2
+scale_up:
+  topology: full_mesh
+  bandwidth_Bps: 9.0e+11
+  latency_s: 1.0e-6
+  efficiency: 0.85
+  injection_Bps: 9.0e+11
+scale_out:
+  topology: clos
+  bandwidth_Bps: 5.0e+10
+  latency_s: 5.0e-6
+  efficiency: 0.8
+  injection_Bps: 5.0e+10
+  uplink_Bps: 5.0e+10
+  leaf_size: 2
+  spine_count: 2
+  domains:
+    - id: so-a
+      su_domains: [0, 1]
+    - id: so-b
+      su_domains: [2, 3]
+host_link:
+  bandwidth_Bps: 6.4e+10
+  latency_s: 2.0e-6
+  efficiency: 0.85
+  injection_Bps: 6.4e+10
+inter_domain_links:
+  - id: so-a-to-so-b
+    src_domain: so-a
+    dst_domain: so-b
+    bandwidth_Bps: 5.0e+10
+    latency_s: 5.0e-6
+    efficiency: 0.8
+  - id: so-b-to-so-a
+    src_domain: so-b
+    dst_domain: so-a
+    bandwidth_Bps: 5.0e+10
+    latency_s: 5.0e-6
+    efficiency: 0.8
+sources:
+  hardware.npu_count:
+    status: user
+    description: User requested eight NPUs.
+  hardware.su_size:
+    status: user
+    description: User requested two NPUs in each contiguous SU domain.
+  hardware.npus_per_host:
+    status: user
+    description: User requested two NPUs per host.
+  hardware.scale_out.domains:
+    status: user
+    description: so-a contains SU 0 and 1; so-b contains SU 2 and 3.
+  hardware.scale_up.bandwidth_Bps:
+    status: assumed
+    description: Synthetic demonstration parameter; not a measured production hardware specification.
+  hardware.scale_up.latency_s:
+    status: assumed
+    description: Synthetic demonstration parameter; not a measured production hardware specification.
+  hardware.scale_up.efficiency:
+    status: assumed
+    description: Synthetic demonstration parameter; not a measured production hardware specification.
+  hardware.scale_up.injection_Bps:
+    status: assumed
+    description: Synthetic demonstration parameter; not a measured production hardware specification.
+  hardware.scale_out.bandwidth_Bps:
+    status: assumed
+    description: Synthetic demonstration parameter; not a measured production hardware specification.
+  hardware.scale_out.latency_s:
+    status: assumed
+    description: Synthetic demonstration parameter; not a measured production hardware specification.
+  hardware.scale_out.efficiency:
+    status: assumed
+    description: Synthetic demonstration parameter; not a measured production hardware specification.
+  hardware.scale_out.injection_Bps:
+    status: assumed
+    description: Synthetic demonstration parameter; not a measured production hardware specification.
+  hardware.scale_out.uplink_Bps:
+    status: assumed
+    description: Synthetic demonstration parameter; not a measured production hardware specification.
+  hardware.host_link.bandwidth_Bps:
+    status: assumed
+    description: Synthetic demonstration parameter; not a measured production hardware specification.
+  hardware.host_link.latency_s:
+    status: assumed
+    description: Synthetic demonstration parameter; not a measured production hardware specification.
+  hardware.host_link.efficiency:
+    status: assumed
+    description: Synthetic demonstration parameter; not a measured production hardware specification.
+  hardware.host_link.injection_Bps:
+    status: assumed
+    description: Synthetic demonstration parameter; not a measured production hardware specification.
+  hardware.explicit_links:
+    status: assumed
+    description: Structure and SO domain membership are user-specified; all link rates, latency and efficiency are synthetic, including both 400 Gb/s domain links.
+assumptions:
+  - All SU domains have equal size and contiguous NPU indices.
+  - 400 Gb/s is 50 GB/s per direction before efficiency; 900 GB/s is byte/s.
+  - Reverse SO domain links are independent full-duplex edges.
+  - Device memory, compute, model, workload and execution strategy are intentionally unspecified.

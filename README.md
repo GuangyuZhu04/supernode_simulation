@@ -110,9 +110,24 @@ python -m supernode_sim import-hf path/to/config.json --overrides path/to/model-
 
 ## 使用 Skill
 
-可复用 skill 源码在 `skills/supernode-modeling/`。使用该 skill 的运行环境必须能访问本项目或已安装的 `supernode_sim` 包；安装 skill 时复制完整目录到个人 skills 目录。项目不会自动修改全局 Codex 配置。
+可复用 skill 源码在 `skills/supernode-modeling/`。使用该 skill 的运行环境必须能访问本项目或已安装的 `supernode_sim` 包；安装 skill 时复制完整目录到个人 skills 目录，包括 `subskills/`。项目不会自动修改全局 Codex 配置。
 
-可以直接在任务中引用 `skills/supernode-modeling/SKILL.md`，请求分析、调整场景或运行参数扫描。Skill 只组织分析，不自行替代数值引擎计算。
+可以直接在任务中引用 `skills/supernode-modeling/SKILL.md`，请求分析、调整场景或运行参数扫描。Skill 接受模型、负载、并行策略、scale-out 域划分与 SU/SO 网络拓扑，数值分析调用现有引擎。自然语言生成拓扑由内置子 skill [supernode-topology](skills/supernode-modeling/subskills/supernode-topology/SKILL.md) 处理：先生成独立 topology spec，再编译为原生硬件片段或完整场景，并按生成链路给出拓扑图。
+
+例如：“4 个超节点，每个 2 张卡，前两个在 SO 域 A、后两个在域 B；SU 用 full-mesh，SO 用 Clos，两域双向 400 Gbit/s 连接。”子 skill 会区分 4 个 SU 域与 2 个 SO 域，补齐会影响计算的链路参数及其来源，不从型号推测拓扑。完整输入契约见 [拓扑输入说明](skills/supernode-modeling/references/topology.md)。
+
+从项目根目录运行示例：
+
+```powershell
+python skills/supernode-modeling/subskills/supernode-topology/scripts/build_topology.py --schema -o outputs/topology.schema.json
+python skills/supernode-modeling/subskills/supernode-topology/scripts/build_topology.py skills/supernode-modeling/subskills/supernode-topology/examples/two_domains.yaml -o outputs/topology.hardware.yaml
+# 与已有完整场景合并时添加 --base path/to/scenario.yaml；并行乘积必须匹配新卡数。
+python skills/supernode-modeling/subskills/supernode-topology/scripts/build_topology.py path/to/topology.yaml --base path/to/scenario.yaml -o outputs/scenario.topology.yaml
+python -m supernode_sim validate outputs/scenario.topology.yaml
+python -m supernode_sim simulate outputs/scenario.topology.yaml -o outputs/topology-simulation
+```
+
+`topology.hardware.yaml` 仅为硬件/来源/假设片段。SO 域成员是编译器输入，不能直接添加到严格的引擎配置中；编译器展开完整有向链路并使用 `routing_policy: su_so`，同 SU 仅走 SU 边、跨 SU 仅走 SO 边。生成图绑定卡数与域成员，改变域划分的搜索候选需逐个重新编译。子 skill 也可整目录单独安装后以 `$supernode-topology` 调用；仅随父 skill 安装时，由父 skill 读取其入口。
 
 
 ## Kimi K3 组件存储与 Ascend 950DT 样例
