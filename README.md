@@ -2,7 +2,7 @@
 
 `supernode_sim` 是面向架构分析的 Python 数值引擎。`supernode-modeling` skill 负责收集配置与解释结果；公式、通信映射和时序由可重跑代码执行。
 
-项目实现说明：[仿真 Skill 架构文档](docs/simulation-architecture.md) · [函数级仿真流程图](docs/simulation-function-flows.md)。
+项目设计与实现：[整体架构设计文档](docs/simulation-architecture.md) · [函数级仿真流程图](docs/simulation-function-flows.md)。
 
 支持训练与固定负载推理、FP8/FP16 权重、FSDP2/CPU optimizer offload、MoE、标准与 latent KV、KV offload、Engram 查询、SU/SO 拓扑和有限候选搜索。Demo 与 10T 容量锚点是明确标注的合成配置；Kimi K3 / Ascend 950DT 案例使用公开结构和硬件资料，并分别标明运行时、拓扑及效率假设，不将型号名称当作实测校准。
 
