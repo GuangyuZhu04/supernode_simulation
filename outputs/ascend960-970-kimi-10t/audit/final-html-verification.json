@@ -1,0 +1,122 @@
+{
+  "verified_at_Asia_Shanghai": "2026-10-15T20:21:22+08:00",
+  "passed": true,
+  "scope": "Final generated HTML data, JavaScript execution, filter behavior and SVG string generation in a minimal DOM harness. This is not a final browser visual refresh.",
+  "runtime_id": "sha256:78919546d7eb336972226e9f71cc396718eafeafc5999327c398eeb025c40620",
+  "report_status_complete": true,
+  "cases_complete": 288,
+  "issues": [],
+  "injected_rows": 288,
+  "injected_comparisons": 288,
+  "no_pending_or_stale_row_values": true,
+  "default_view": {
+    "rows": 36,
+    "ttft_svg": true,
+    "decode_svg": true,
+    "ttft_points": 24,
+    "decode_points": 36
+  },
+  "dimension_filter_trials": [
+    {
+      "filter": "platform",
+      "value": "ascend960dt",
+      "rows": 144
+    },
+    {
+      "filter": "platform",
+      "value": "ascend970",
+      "rows": 144
+    },
+    {
+      "filter": "parallel",
+      "value": "tp8",
+      "rows": 96
+    },
+    {
+      "filter": "parallel",
+      "value": "sp16",
+      "rows": 96
+    },
+    {
+      "filter": "parallel",
+      "value": "sp32",
+      "rows": 96
+    },
+    {
+      "filter": "top_k",
+      "value": 32,
+      "rows": 144
+    },
+    {
+      "filter": "top_k",
+      "value": 64,
+      "rows": 144
+    },
+    {
+      "filter": "context",
+      "value": "128k",
+      "rows": 72
+    },
+    {
+      "filter": "context",
+      "value": "256k",
+      "rows": 72
+    },
+    {
+      "filter": "context",
+      "value": "512k",
+      "rows": 72
+    },
+    {
+      "filter": "context",
+      "value": "1M",
+      "rows": 72
+    },
+    {
+      "filter": "batch_size",
+      "value": 1,
+      "rows": 48
+    },
+    {
+      "filter": "batch_size",
+      "value": 2,
+      "rows": 48
+    },
+    {
+      "filter": "batch_size",
+      "value": 4,
+      "rows": 48
+    },
+    {
+      "filter": "batch_size",
+      "value": 8,
+      "rows": 48
+    },
+    {
+      "filter": "batch_size",
+      "value": 16,
+      "rows": 48
+    },
+    {
+      "filter": "batch_size",
+      "value": 32,
+      "rows": 48
+    }
+  ],
+  "single_case_trials": {
+    "checked": 288,
+    "ttft_svgs": 240,
+    "decode_svgs": 288,
+    "conditional_decode_rows": 48
+  },
+  "assertions_passed": 1231,
+  "template_sha256": "69b4f3d4964e7fc02316cab047a7ddac8814bac1e456825718bbab2128f85f5b",
+  "template_sha256_at_89_case_qa": "69b4f3d4964e7fc02316cab047a7ddac8814bac1e456825718bbab2128f85f5b",
+  "template_unchanged_since_89_case_qa": true,
+  "prior_browser_visual_qa": "audit/browser-visual-qa.json",
+  "prior_browser_qa_scope": "Actual CUA Chrome layout screenshot at89 completed cases, same HTML template.",
+  "final_browser_visual_refresh_performed": false,
+  "final_browser_limitation": "Browser/CUA unavailable for final refresh; parent task reported listBrowsers=[]; no new browser screenshot was captured.",
+  "report_html_sha256": "f057472e47a9057986b6ce1f528e1ac773a4e89177d2c8b8524d5441d1d00bb5",
+  "report_status_sha256": "a7f7b21bee1a821f5f377b34f5abdae8302fe56300883bca736bd512a51e4a0f"
+}

@@ -1,0 +1,16 @@
+{
+  "at_utc": "2026-10-15T11:19:47.218Z",
+  "report_snapshot_completed_cases": 89,
+  "tool": "cua_repl Chrome",
+  "checks": [
+    "Header, assumption badges and KPI cards visually legible",
+    "top-k32 / 128k filter updates both TTFT and first-decode-step charts",
+    "No overlapping chart labels at observed 1521px viewport",
+    "Pending and stale provenance case values correctly blank"
+  ],
+  "scope": "Intermediate report layout only; final data verified separately",
+  "final_browser_refresh": "Not performed: browser unavailable; visual check applies to the unchanged template at89 cases.",
+  "final_data_ui_proof": "audit/final-html-verification.json",
+  "final_dom_assertions_passed": 1231,
+  "final_template_unchanged": true
+}

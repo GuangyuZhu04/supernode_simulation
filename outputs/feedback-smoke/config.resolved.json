@@ -1,0 +1,197 @@
+{
+  "schema_version": "1.0",
+  "model": {
+    "name": "synthetic-moe-demo",
+    "total_params": 2000000000.0,
+    "active_params": 799999999.9999999,
+    "layers": 4,
+    "hidden_dim": 1024,
+    "intermediate_dim": 4096,
+    "num_heads": 8,
+    "kv_heads": 2,
+    "head_dim": 128,
+    "attention_kind": "gqa",
+    "kv_latent_dim": 512,
+    "kv_rope_dim": 64,
+    "num_experts": 8,
+    "top_k": 2,
+    "moe_layer_fraction": 0.5,
+    "expert_parameter_fraction": 0.8,
+    "architecture": null,
+    "reported_total_params": null,
+    "reported_active_params": null
+  },
+  "hardware": {
+    "name": "unspecified hardware profile",
+    "npu_count": 4,
+    "su_size": 2,
+    "npus_per_host": 2,
+    "topology": "full_mesh",
+    "routing_policy": "shortest_hop",
+    "mesh_width": null,
+    "leaf_size": null,
+    "npu": {
+      "hbm_bytes": 80000000000.0,
+      "hbm_Bps": 3000000000000.0,
+      "flops": {
+        "fp8": 2000000000000000.0,
+        "fp16": 1000000000000000.0,
+        "bf16": 1000000000000000.0,
+        "fp32": 50000000000000.0
+      },
+      "efficiency": 0.6,
+      "runtime_bytes": 2000000000.0,
+      "workspace_bytes": 64000000.0
+    },
+    "cpu": {
+      "dram_bytes": 2000000000000.0,
+      "dram_Bps": 400000000000.0,
+      "flops": 1000000000000.0,
+      "efficiency": 0.7,
+      "iops": 100000000.0
+    },
+    "scale_up": {
+      "bandwidth_Bps": 900000000000.0,
+      "latency_s": 1e-06,
+      "efficiency": 0.85,
+      "injection_Bps": 900000000000.0,
+      "uplink_Bps": null
+    },
+    "scale_out": {
+      "bandwidth_Bps": 50000000000.0,
+      "latency_s": 5e-06,
+      "efficiency": 0.85,
+      "injection_Bps": 50000000000.0,
+      "uplink_Bps": null
+    },
+    "host_link": {
+      "bandwidth_Bps": 64000000000.0,
+      "latency_s": 2e-06,
+      "efficiency": 0.85,
+      "injection_Bps": 64000000000.0,
+      "uplink_Bps": null
+    },
+    "remote": {
+      "enabled": false,
+      "capacity_bytes": 100000000000000.0,
+      "bandwidth_Bps": 100000000000.0,
+      "latency_s": 5e-06,
+      "iops": 10000000.0
+    },
+    "ssd": {
+      "enabled": false,
+      "capacity_bytes": 100000000000000.0,
+      "bandwidth_Bps": 10000000000.0,
+      "latency_s": 0.0001,
+      "iops": 1000000.0
+    },
+    "explicit_links": [],
+    "routes": {},
+    "kernel_profiles": {}
+  },
+  "workload": {
+    "scenario": "inference",
+    "batch_size": 2,
+    "sequence_length": 2048,
+    "gradient_accumulation": 1,
+    "training_steps": 1,
+    "input_length": 1024,
+    "output_length": 16,
+    "input_lengths": [
+      128,
+      64
+    ],
+    "output_lengths": [
+      4,
+      2
+    ]
+  },
+  "execution": {
+    "tp": 2,
+    "sequence_parallel": false,
+    "pp": 1,
+    "ep": 2,
+    "dp": 1,
+    "fsdp": 1,
+    "rank_order": [],
+    "reshard_after_forward": true,
+    "sync_each_microbatch": false,
+    "prefetch": false,
+    "precision": {
+      "weight": "fp8",
+      "compute": "fp16",
+      "gradient": "fp16",
+      "master": "fp32",
+      "optimizer": "fp32",
+      "kv": "fp8",
+      "weight_transfer": "fp16",
+      "activation": "fp16",
+      "communication": "fp16",
+      "recurrent": "fp32",
+      "routed_expert_weight": null
+    },
+    "features": {
+      "optimizer_offload": false,
+      "activation_checkpointing": false,
+      "kv_offload": "host",
+      "kv_offload_fraction": 1.0,
+      "kv_page_tokens": 16,
+      "kv_page_entry_bytes": 8,
+      "weight_scale_block": 128,
+      "scale_bytes": 4,
+      "kv_scale_block": 128,
+      "extra_weight_copy_dtype": null,
+      "engram": {
+        "enabled": true,
+        "table_bytes": 1000000000.0,
+        "queries_per_token": 2.0,
+        "record_bytes": 1024,
+        "hit_rate": 0.0,
+        "cache_bytes": 0.0,
+        "location": "host",
+        "iops": 10000000.0,
+        "latency_s": 1e-06,
+        "layers": [
+          0
+        ]
+      }
+    },
+    "optimizer": {
+      "kind": "adam",
+      "muon_variant": "matrix",
+      "ns_iterations": 5,
+      "workspace_copies": 2
+    }
+  },
+  "targets": {
+    "throughput_tokens_s": 1.0,
+    "ttft_s": 1.0,
+    "tpot_s": 1.0,
+    "step_time_s": null,
+    "candidate_npu_counts": [
+      4,
+      8
+    ],
+    "candidate_su_sizes": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "parallel_candidates": [],
+    "total_npus": null,
+    "max_total_npus": 8,
+    "max_candidates": 128
+  },
+  "seed": 0,
+  "sources": {
+    "*": {
+      "status": "assumed",
+      "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+      "uri": null,
+      "revision": null
+    }
+  },
+  "assumptions": [],
+  "calibration": null
+}

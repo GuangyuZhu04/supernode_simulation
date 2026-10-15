@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "snapshot_at_Asia_Shanghai": "2026-10-15T19:31:52+08:00",
+  "snapshot_at_Asia_Shanghai": "2026-10-15T20:32:05+08:00",
   "repository": "GuangyuZhu04/supernode_simulation",
   "branch": "report",
-  "base_commit": "37d52e533172bb6a5f7a0704b474538dc26e82b6",
-  "report_count": 17,
-  "report_file_count": 21,
+  "base_commit": "ab92de4e601309fb262a1f386e13619c65f54aa3",
+  "report_count": 18,
+  "report_file_count": 22,
   "report_files": [
     "outputs/10t-fp16/report.md",
     "outputs/10t-fp8/report.md",
@@ -15,6 +15,7 @@
     "outputs/ascend960-970-kimi-10t/report.md",
     "outputs/ascend_a5_1024_long_context/report.md",
     "outputs/ascend_a5_1024_long_context/results.html",
+    "outputs/feedback-smoke/report.md",
     "outputs/kimi-k3-10t-1024/report.html",
     "outputs/kimi-k3-10t-1024/report.md",
     "outputs/kimi-k3-10t-sp/report.html",
@@ -30,13 +31,11 @@
     "outputs/topology-integration-smoke/simulation/report.md"
   ],
   "ascend960_970_status": {
-    "complete": false,
+    "complete": true,
     "cases_expected": 288,
-    "cases_complete": 152,
-    "generated_at_Asia_Shanghai": "2026-10-15T19:27:50+08:00",
-    "issues": [
-      "a7-sp32-top64-1M-b32: runtime/config provenance mismatch"
-    ]
+    "cases_complete": 288,
+    "generated_at_Asia_Shanghai": "2026-10-15T20:19:10+08:00",
+    "issues": []
   },
   "scope": "Report exports and linked summary/audit assets; excludes raw event/tensor timelines, checkpoints, complete case/raw sets, caches, logs and presentation build files.",
   "files": [
@@ -144,9 +143,39 @@
     },
     {
       "path": "outputs/ascend960-970-kimi-10t/README.md",
-      "bytes": 4153,
-      "sha256": "705f133a1eadf2894e5a052c3b874217b93cf2b58931acf5c8cd2e3f738c5deb",
-      "git_blob_sha1": "c6ac802f52e2792641967d8b2be8f19f2334c8b4"
+      "bytes": 5476,
+      "sha256": "b192a3b0bd8dcc54575b4a1a64fa6eab18b5b08adfd70d6b10d3a7281dccfb4c",
+      "git_blob_sha1": "fe905b68c69c31df0efebf42df7407ead34cdea8"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/audit/browser-visual-qa.json",
+      "bytes": 738,
+      "sha256": "cd09faa45576fdbfff9775b20f9acac4c1b89361ee11e3413a70ed31819e4c75",
+      "git_blob_sha1": "f0316e0269776ffadd652dabacf0223f9c378a5f"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/audit/final-data-schema-inspection.json",
+      "bytes": 7286,
+      "sha256": "8d0991921d818278f44aa44742e7ac71767f680f10dae348c1ab83779fbb32b8",
+      "git_blob_sha1": "2fda6aa3e988f3d6f06b49cff15923f87ff38a82"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/audit/final-data-verification.json",
+      "bytes": 35008,
+      "sha256": "fa5ef41f73e677c0ab47a9f413ef099aaf092fc5bb4a6762270af4cbf07757d2",
+      "git_blob_sha1": "3bbf012466640f6b572d4327deec3f6ce183e594"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/audit/final-html-verification.json",
+      "bytes": 3004,
+      "sha256": "fe0e828669f9130d4b73221bc63aca88d56dff78032fbe38abe8939716040cce",
+      "git_blob_sha1": "a99c3744862808492643c1f95d0e0f3731239723"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/audit/final-max-case-native-comparison.json",
+      "bytes": 24877,
+      "sha256": "dc455e3a687a15ee407f5727dc8e42bf8bb5f62f9721db881829751229b6fc2e",
+      "git_blob_sha1": "722a520f926427a3bdb78e252513953bb05f5e35"
     },
     {
       "path": "outputs/ascend960-970-kimi-10t/audit/final-reproducibility-audit.json",
@@ -180,15 +209,15 @@
     },
     {
       "path": "outputs/ascend960-970-kimi-10t/comparison.csv",
-      "bytes": 98959,
-      "sha256": "f236b329d7d5942fb7bcad636f70640d43ed79c467ec6036066b2135b2270dc1",
-      "git_blob_sha1": "51d11bd7cfed4b3682ac4f2f327f32aba1fe703e"
+      "bytes": 110030,
+      "sha256": "8886a8add08761a1dd7f2b1fabadca5961026b6de008987b9cddf5926dc91f05",
+      "git_blob_sha1": "8666e7ceae66d592c56b57468f4ad2dcb209fac6"
     },
     {
       "path": "outputs/ascend960-970-kimi-10t/failure_diagnostics.json",
-      "bytes": 368037,
-      "sha256": "d6a086cd49c3a50ee6e03b478cb1938f2bb3dc493bdf062c41209678d5d75c9c",
-      "git_blob_sha1": "2da039a69a629367bc78c99f5d9fe6e696a2859e"
+      "bytes": 736039,
+      "sha256": "d146400146e28bf453421f5b17ea650bb876db842a23fd95281f041844dee00e",
+      "git_blob_sha1": "ebe76cebf8fa9aadc3cec9d622b92e89a37e3224"
     },
     {
       "path": "outputs/ascend960-970-kimi-10t/input-manifest.json",
@@ -204,15 +233,15 @@
     },
     {
       "path": "outputs/ascend960-970-kimi-10t/node_traffic.csv",
-      "bytes": 10597152,
-      "sha256": "3efbe4b7d02b3c13ef1df03404762c3986ee9ac0a592daedb218da06c9c88f5d",
-      "git_blob_sha1": "108b1661351ef131b6e119305ff38e8c17d5a1d7"
+      "bytes": 12898034,
+      "sha256": "8283a34ff8b9b872b2f69f634ded160f709607143d373d60018180a506f79cf2",
+      "git_blob_sha1": "d6713183232d469cdbf182cc9a00afe8358f3a38"
     },
     {
       "path": "outputs/ascend960-970-kimi-10t/phase_traffic.csv",
-      "bytes": 140732,
-      "sha256": "0c6de74a6514bb0de8d966e17e98b5c52836413e5a15822cd4ddb2478d0ba918",
-      "git_blob_sha1": "0933ba295b3b59287da68f1247e649687b8afd62"
+      "bytes": 206866,
+      "sha256": "126d2fbbd3902e5802c7444d88ede2ee1857135de25c0283f5370e16ed5e1d06",
+      "git_blob_sha1": "5be305ba99361a13f8711afa0b494c49afd28872"
     },
     {
       "path": "outputs/ascend960-970-kimi-10t/planned_phase_traffic.csv",
@@ -228,33 +257,33 @@
     },
     {
       "path": "outputs/ascend960-970-kimi-10t/rack_traffic.csv",
-      "bytes": 1820734,
-      "sha256": "0f271f703150e35f9b381f7b9dbff416c3e4e84c4b148f0b93bd2559c92e3c20",
-      "git_blob_sha1": "90fe2fd3fe4eff320680cf5d64b297955945c70c"
+      "bytes": 2108102,
+      "sha256": "86528f0de11df9196990cf59d3dd9b60891134812ee38860ab3abe818333ce39",
+      "git_blob_sha1": "06c58067311115fe1ad2b76f0e621c411897fc86"
     },
     {
       "path": "outputs/ascend960-970-kimi-10t/report.html",
-      "bytes": 1105224,
-      "sha256": "b07c0c0069ff782bdf609c5f56347c1a31e7dc9b4c84f1980405bb982e0b2b28",
-      "git_blob_sha1": "44bbc0558e301084957eaf7f7bf2f6b4aa8bc010"
+      "bytes": 1284172,
+      "sha256": "f057472e47a9057986b6ce1f528e1ac773a4e89177d2c8b8524d5441d1d00bb5",
+      "git_blob_sha1": "a2489c48a37921c08d4145b942928b82ea066d55"
     },
     {
       "path": "outputs/ascend960-970-kimi-10t/report.md",
-      "bytes": 5285,
-      "sha256": "2560d2c5d5847b6b58b553ddda6e1af79a1a8e006cd2a1c93271f618933775c8",
-      "git_blob_sha1": "cdc9907a3d995395a847c46d2aed3c4aa499c0c9"
+      "bytes": 5327,
+      "sha256": "2baca6a2b1984e1663fe7463b15de37ac37e967e0c64a43f2e5be30c41f69478",
+      "git_blob_sha1": "13c3be96d6146719efdf113aeba5d1ad822bc769"
     },
     {
       "path": "outputs/ascend960-970-kimi-10t/report_status.json",
-      "bytes": 65239,
-      "sha256": "a2753504f653579a6cf6d884553635f1c4f71ea8e309eec5ca032eddd4cc5e82",
-      "git_blob_sha1": "8fd11a2218b43d9e73c3ee397fccd8cd1776f654"
+      "bytes": 65170,
+      "sha256": "a7f7b21bee1a821f5f377b34f5abdae8302fe56300883bca736bd512a51e4a0f",
+      "git_blob_sha1": "202b4e4a3686e22931dcdd135222fad03b6b7ca5"
     },
     {
       "path": "outputs/ascend960-970-kimi-10t/summary.csv",
-      "bytes": 259499,
-      "sha256": "e1a4c72e41fda005e979f1b839d8b555a9d529b4d364827bdc9138e701771405",
-      "git_blob_sha1": "e854203898890decf573f7fdfa4fd110924be509"
+      "bytes": 394800,
+      "sha256": "cab2dec3d784035cc2048ff0e9f92dc7c473376b7898e3404067273029668621",
+      "git_blob_sha1": "443cd7ccd37e2365c5aa1d8b6056efa07400c581"
     },
     {
       "path": "outputs/ascend_a5_1024_long_context/audit_calculations.json",
@@ -369,6 +398,36 @@
       "bytes": 387,
       "sha256": "8ed2f694917648ed009b5712a5963c0e3fcff070ca6074ed7f78dc4c6c81b67a",
       "git_blob_sha1": "2b50d693c3855491e8eb65802dbfb8001f4b3558"
+    },
+    {
+      "path": "outputs/feedback-smoke/best.config.json",
+      "bytes": 4768,
+      "sha256": "6135477c881f2a9ee04784e91095da08a7e752ba9f8e168bc5657bd30461e943",
+      "git_blob_sha1": "735a9dc7623e7e32a810d215b4dd01e250c8f200"
+    },
+    {
+      "path": "outputs/feedback-smoke/candidates.csv",
+      "bytes": 8595,
+      "sha256": "e266fe491d82062f260fa7bcb0c80d863af62aabc32db859ea0545bd56756f9a",
+      "git_blob_sha1": "e5fed7f00f4ede850a2cf1a138410d5a7e730741"
+    },
+    {
+      "path": "outputs/feedback-smoke/config.resolved.json",
+      "bytes": 4774,
+      "sha256": "d5a24c1d78f00bc25a2c6f30a9d15553105a5a6e7f2d0b7d0822350aa53d4854",
+      "git_blob_sha1": "a86933b7d53fea7cfb9ed2531117eeaab3ae27b4"
+    },
+    {
+      "path": "outputs/feedback-smoke/report.md",
+      "bytes": 4585,
+      "sha256": "c6fc27a7a001606064c7ff7746a8961964b1bdfdc7321880bf94c7cc8abec094",
+      "git_blob_sha1": "c006cff31c9776ed07eca127361c33fc8069821d"
+    },
+    {
+      "path": "outputs/feedback-smoke/result.json",
+      "bytes": 37920,
+      "sha256": "65bae66458de8da45b85e93c4d6f3d8314c9fdc7caa6008b59f8f2e435bdbd17",
+      "git_blob_sha1": "6b85d397bbdbd7a1590f61e1a37eae75ad802051"
     },
     {
       "path": "outputs/kimi-k3-10t-1024/failure_diagnostics.json",
@@ -894,9 +953,9 @@
     },
     {
       "path": "REPORTS.md",
-      "bytes": 3766,
-      "sha256": "d9ba9448ca4f193a9417aa0f18d02f138d8b4b66ce8150adfc7d868a9c3edf58",
-      "git_blob_sha1": "07133b5f9229508185eaefed019fae6cbb9ae0e6"
+      "bytes": 4205,
+      "sha256": "fdfebf49c8912a525d1868e4391780e80d9c65ee19b416f34ba4941fcc564f68",
+      "git_blob_sha1": "78ff3ee59db18218cd920e5668328b72157ab1af"
     }
   ]
 }

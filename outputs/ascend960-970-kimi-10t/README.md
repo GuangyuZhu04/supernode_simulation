@@ -26,3 +26,17 @@
 ~~~
 
 建议最多使用 3 个 worker，每进程 --cache-mib 128，并为同一运行器设置 --shards 3 和不同 --shard-index 0/1/2；内存紧张时使用上述串行命令。每进程分别占用图和缓存内存，缓存预算不是进程 RSS 上限。数值复现不要求使用原进程数量或缓存预算。核验工具 verify_synchronous_eligibility.py 只检查条件；benchmark_synchronous_rounds.py 从永久原生参考目录重放比较，会额外执行仿真。
+
+## 本机恢复与最终数据验收
+
+本机因系统分页文件与磁盘空间波动，最终主循环采用两个分片、每进程64MiB缓存；额外worker只预计算部分未来案例，主循环仍按相同指纹复用。缓存预算和分片数量只影响仿真器的主机资源与重算次数，不改变场景数值。磁盘紧张时，优先使用下面两个独立终端命令；不要重新执行prepare：
+
+    .\.venv\Scripts\python.exe -u outputs/ascend960-970-kimi-10t/code/run_experiment_rounds.py --run --shards 2 --shard-index 0 --cache-mib 64
+    .\.venv\Scripts\python.exe -u outputs/ascend960-970-kimi-10t/code/run_experiment_rounds.py --run --shards 2 --shard-index 1 --cache-mib 64
+
+所有worker退出后，依次汇总和严格验收：
+
+    .\.venv\Scripts\python.exe outputs/ascend960-970-kimi-10t/code/summarize_experiment.py
+    .\.venv\Scripts\python.exe outputs/ascend960-970-kimi-10t/code/verify_completed_experiment.py
+
+验收输出audit/final-data-verification.json；仅在288组当前版本均完成且全部检查通过时通过。Windows NTFS/LZX透明压缩仅改变物理磁盘占用，逻辑JSON内容和SHA256保持不变。压缩前后证明见audit/completed-cases-lzx-compression.json及audit/baseline-transparent-compression.json；本轮不删除任何基线或结果。

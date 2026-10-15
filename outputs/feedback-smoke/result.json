@@ -1,0 +1,1293 @@
+{
+  "schema_version": "1.0",
+  "engine_version": "0.1.0",
+  "mode": "feedback",
+  "status": "feasible",
+  "search_complete": true,
+  "objective": "decode_throughput_tokens_s",
+  "targets": {
+    "ttft_s": 1.0,
+    "tpot_s": 0.01
+  },
+  "config": {
+    "schema_version": "1.0",
+    "model": {
+      "name": "synthetic-moe-demo",
+      "total_params": 2000000000.0,
+      "active_params": 799999999.9999999,
+      "layers": 4,
+      "hidden_dim": 1024,
+      "intermediate_dim": 4096,
+      "num_heads": 8,
+      "kv_heads": 2,
+      "head_dim": 128,
+      "attention_kind": "gqa",
+      "kv_latent_dim": 512,
+      "kv_rope_dim": 64,
+      "num_experts": 8,
+      "top_k": 2,
+      "moe_layer_fraction": 0.5,
+      "expert_parameter_fraction": 0.8,
+      "architecture": null,
+      "reported_total_params": null,
+      "reported_active_params": null
+    },
+    "hardware": {
+      "name": "unspecified hardware profile",
+      "npu_count": 4,
+      "su_size": 2,
+      "npus_per_host": 2,
+      "topology": "full_mesh",
+      "routing_policy": "shortest_hop",
+      "mesh_width": null,
+      "leaf_size": null,
+      "npu": {
+        "hbm_bytes": 80000000000.0,
+        "hbm_Bps": 3000000000000.0,
+        "flops": {
+          "fp8": 2000000000000000.0,
+          "fp16": 1000000000000000.0,
+          "bf16": 1000000000000000.0,
+          "fp32": 50000000000000.0
+        },
+        "efficiency": 0.6,
+        "runtime_bytes": 2000000000.0,
+        "workspace_bytes": 64000000.0
+      },
+      "cpu": {
+        "dram_bytes": 2000000000000.0,
+        "dram_Bps": 400000000000.0,
+        "flops": 1000000000000.0,
+        "efficiency": 0.7,
+        "iops": 100000000.0
+      },
+      "scale_up": {
+        "bandwidth_Bps": 900000000000.0,
+        "latency_s": 1e-06,
+        "efficiency": 0.85,
+        "injection_Bps": 900000000000.0,
+        "uplink_Bps": null
+      },
+      "scale_out": {
+        "bandwidth_Bps": 50000000000.0,
+        "latency_s": 5e-06,
+        "efficiency": 0.85,
+        "injection_Bps": 50000000000.0,
+        "uplink_Bps": null
+      },
+      "host_link": {
+        "bandwidth_Bps": 64000000000.0,
+        "latency_s": 2e-06,
+        "efficiency": 0.85,
+        "injection_Bps": 64000000000.0,
+        "uplink_Bps": null
+      },
+      "remote": {
+        "enabled": false,
+        "capacity_bytes": 100000000000000.0,
+        "bandwidth_Bps": 100000000000.0,
+        "latency_s": 5e-06,
+        "iops": 10000000.0
+      },
+      "ssd": {
+        "enabled": false,
+        "capacity_bytes": 100000000000000.0,
+        "bandwidth_Bps": 10000000000.0,
+        "latency_s": 0.0001,
+        "iops": 1000000.0
+      },
+      "explicit_links": [],
+      "routes": {},
+      "kernel_profiles": {}
+    },
+    "workload": {
+      "scenario": "inference",
+      "batch_size": 2,
+      "sequence_length": 2048,
+      "gradient_accumulation": 1,
+      "training_steps": 1,
+      "input_length": 1024,
+      "output_length": 16,
+      "input_lengths": [
+        128,
+        64
+      ],
+      "output_lengths": [
+        4,
+        2
+      ]
+    },
+    "execution": {
+      "tp": 2,
+      "sequence_parallel": false,
+      "pp": 1,
+      "ep": 2,
+      "dp": 1,
+      "fsdp": 1,
+      "rank_order": [],
+      "reshard_after_forward": true,
+      "sync_each_microbatch": false,
+      "prefetch": false,
+      "precision": {
+        "weight": "fp8",
+        "compute": "fp16",
+        "gradient": "fp16",
+        "master": "fp32",
+        "optimizer": "fp32",
+        "kv": "fp8",
+        "weight_transfer": "fp16",
+        "activation": "fp16",
+        "communication": "fp16",
+        "recurrent": "fp32",
+        "routed_expert_weight": null
+      },
+      "features": {
+        "optimizer_offload": false,
+        "activation_checkpointing": false,
+        "kv_offload": "host",
+        "kv_offload_fraction": 1.0,
+        "kv_page_tokens": 16,
+        "kv_page_entry_bytes": 8,
+        "weight_scale_block": 128,
+        "scale_bytes": 4,
+        "kv_scale_block": 128,
+        "extra_weight_copy_dtype": null,
+        "engram": {
+          "enabled": true,
+          "table_bytes": 1000000000.0,
+          "queries_per_token": 2.0,
+          "record_bytes": 1024,
+          "hit_rate": 0.0,
+          "cache_bytes": 0.0,
+          "location": "host",
+          "iops": 10000000.0,
+          "latency_s": 1e-06,
+          "layers": [
+            0
+          ]
+        }
+      },
+      "optimizer": {
+        "kind": "adam",
+        "muon_variant": "matrix",
+        "ns_iterations": 5,
+        "workspace_copies": 2
+      }
+    },
+    "targets": {
+      "throughput_tokens_s": 1.0,
+      "ttft_s": 1.0,
+      "tpot_s": 1.0,
+      "step_time_s": null,
+      "candidate_npu_counts": [
+        4,
+        8
+      ],
+      "candidate_su_sizes": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "parallel_candidates": [],
+      "total_npus": null,
+      "max_total_npus": 8,
+      "max_candidates": 128
+    },
+    "seed": 0,
+    "sources": {
+      "*": {
+        "status": "assumed",
+        "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+        "uri": null,
+        "revision": null
+      }
+    },
+    "assumptions": [],
+    "calibration": null
+  },
+  "config_sha256": "9c2a97d0680f5aa31db1b28bb0d401c15a3698f7c678210379ce9f22b37847fd",
+  "search_space": {
+    "layouts": [
+      {
+        "tp": 1,
+        "ep": 4,
+        "sequence_parallel": false,
+        "sp": 1
+      },
+      {
+        "tp": 2,
+        "ep": 2,
+        "sequence_parallel": false,
+        "sp": 1
+      },
+      {
+        "tp": 4,
+        "ep": 1,
+        "sequence_parallel": false,
+        "sp": 1
+      }
+    ],
+    "prefill_lengths": [
+      8,
+      16
+    ],
+    "decode_batch_sizes": [
+      1,
+      2
+    ],
+    "output_length": 4,
+    "max_candidates": 128,
+    "defaults": []
+  },
+  "counts": {
+    "feasible": 12,
+    "invalid_config": 0,
+    "slo_failed": 0,
+    "infeasible": 0,
+    "error": 0,
+    "total": 12
+  },
+  "best": {
+    "id": 5,
+    "parameters": {
+      "tp": 2,
+      "ep": 2,
+      "sequence_parallel": false,
+      "sp": 1,
+      "prefill_length": 8,
+      "decode_batch_size": 2
+    },
+    "engine": "simulate",
+    "metrics": {
+      "duration_s": 0.0032570310824622407,
+      "ttft_s": 0.0010927211938347896,
+      "tpot_s": 0.0007214366295424836,
+      "input_tokens": 16,
+      "output_tokens": 8,
+      "input_throughput_tokens_s": 4912.4492812344815,
+      "throughput_tokens_s": 2456.2246406172408,
+      "throughput_per_replica_tokens_s": 2456.2246406172408,
+      "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.",
+      "decode_tokens": 6,
+      "decode_window_s": 0.002164309888627451,
+      "decode_throughput_tokens_s": 2772.246262666685
+    },
+    "slo": {
+      "specified": true,
+      "satisfied": true,
+      "checks": [
+        {
+          "metric": "throughput_tokens_s",
+          "target": 1.0,
+          "actual": 2456.2246406172408,
+          "passed": true
+        },
+        {
+          "metric": "ttft_s",
+          "target": 1.0,
+          "actual": 0.0010927211938347896,
+          "passed": true
+        },
+        {
+          "metric": "tpot_s",
+          "target": 0.01,
+          "actual": 0.0007214366295424836,
+          "passed": true
+        }
+      ]
+    },
+    "memory_peaks_bytes": {
+      "npu0.hbm": 3178906913.696953,
+      "npu1.hbm": 3178906913.696953,
+      "npu2.hbm": 3178906913.696953,
+      "npu3.hbm": 3178906913.696953,
+      "cpu0.dram": 1000033856.0,
+      "cpu1.dram": 1000033856.0
+    },
+    "diagnostics": [],
+    "status": "feasible",
+    "config": {
+      "schema_version": "1.0",
+      "model": {
+        "name": "synthetic-moe-demo",
+        "total_params": 2000000000.0,
+        "active_params": 799999999.9999999,
+        "layers": 4,
+        "hidden_dim": 1024,
+        "intermediate_dim": 4096,
+        "num_heads": 8,
+        "kv_heads": 2,
+        "head_dim": 128,
+        "attention_kind": "gqa",
+        "kv_latent_dim": 512,
+        "kv_rope_dim": 64,
+        "num_experts": 8,
+        "top_k": 2,
+        "moe_layer_fraction": 0.5,
+        "expert_parameter_fraction": 0.8,
+        "architecture": null,
+        "reported_total_params": null,
+        "reported_active_params": null
+      },
+      "hardware": {
+        "name": "unspecified hardware profile",
+        "npu_count": 4,
+        "su_size": 2,
+        "npus_per_host": 2,
+        "topology": "full_mesh",
+        "routing_policy": "shortest_hop",
+        "mesh_width": null,
+        "leaf_size": null,
+        "npu": {
+          "hbm_bytes": 80000000000.0,
+          "hbm_Bps": 3000000000000.0,
+          "flops": {
+            "fp8": 2000000000000000.0,
+            "fp16": 1000000000000000.0,
+            "bf16": 1000000000000000.0,
+            "fp32": 50000000000000.0
+          },
+          "efficiency": 0.6,
+          "runtime_bytes": 2000000000.0,
+          "workspace_bytes": 64000000.0
+        },
+        "cpu": {
+          "dram_bytes": 2000000000000.0,
+          "dram_Bps": 400000000000.0,
+          "flops": 1000000000000.0,
+          "efficiency": 0.7,
+          "iops": 100000000.0
+        },
+        "scale_up": {
+          "bandwidth_Bps": 900000000000.0,
+          "latency_s": 1e-06,
+          "efficiency": 0.85,
+          "injection_Bps": 900000000000.0,
+          "uplink_Bps": null
+        },
+        "scale_out": {
+          "bandwidth_Bps": 50000000000.0,
+          "latency_s": 5e-06,
+          "efficiency": 0.85,
+          "injection_Bps": 50000000000.0,
+          "uplink_Bps": null
+        },
+        "host_link": {
+          "bandwidth_Bps": 64000000000.0,
+          "latency_s": 2e-06,
+          "efficiency": 0.85,
+          "injection_Bps": 64000000000.0,
+          "uplink_Bps": null
+        },
+        "remote": {
+          "enabled": false,
+          "capacity_bytes": 100000000000000.0,
+          "bandwidth_Bps": 100000000000.0,
+          "latency_s": 5e-06,
+          "iops": 10000000.0
+        },
+        "ssd": {
+          "enabled": false,
+          "capacity_bytes": 100000000000000.0,
+          "bandwidth_Bps": 10000000000.0,
+          "latency_s": 0.0001,
+          "iops": 1000000.0
+        },
+        "explicit_links": [],
+        "routes": {},
+        "kernel_profiles": {}
+      },
+      "workload": {
+        "scenario": "inference",
+        "batch_size": 2,
+        "sequence_length": 2048,
+        "gradient_accumulation": 1,
+        "training_steps": 1,
+        "input_length": 8,
+        "output_length": 4,
+        "input_lengths": [
+          8,
+          8
+        ],
+        "output_lengths": [
+          4,
+          4
+        ]
+      },
+      "execution": {
+        "tp": 2,
+        "sequence_parallel": false,
+        "pp": 1,
+        "ep": 2,
+        "dp": 1,
+        "fsdp": 1,
+        "rank_order": [],
+        "reshard_after_forward": true,
+        "sync_each_microbatch": false,
+        "prefetch": false,
+        "precision": {
+          "weight": "fp8",
+          "compute": "fp16",
+          "gradient": "fp16",
+          "master": "fp32",
+          "optimizer": "fp32",
+          "kv": "fp8",
+          "weight_transfer": "fp16",
+          "activation": "fp16",
+          "communication": "fp16",
+          "recurrent": "fp32",
+          "routed_expert_weight": null
+        },
+        "features": {
+          "optimizer_offload": false,
+          "activation_checkpointing": false,
+          "kv_offload": "host",
+          "kv_offload_fraction": 1.0,
+          "kv_page_tokens": 16,
+          "kv_page_entry_bytes": 8,
+          "weight_scale_block": 128,
+          "scale_bytes": 4,
+          "kv_scale_block": 128,
+          "extra_weight_copy_dtype": null,
+          "engram": {
+            "enabled": true,
+            "table_bytes": 1000000000.0,
+            "queries_per_token": 2.0,
+            "record_bytes": 1024,
+            "hit_rate": 0.0,
+            "cache_bytes": 0.0,
+            "location": "host",
+            "iops": 10000000.0,
+            "latency_s": 1e-06,
+            "layers": [
+              0
+            ]
+          }
+        },
+        "optimizer": {
+          "kind": "adam",
+          "muon_variant": "matrix",
+          "ns_iterations": 5,
+          "workspace_copies": 2
+        }
+      },
+      "targets": {
+        "throughput_tokens_s": 1.0,
+        "ttft_s": 1.0,
+        "tpot_s": 0.01,
+        "step_time_s": null,
+        "candidate_npu_counts": [
+          4,
+          8
+        ],
+        "candidate_su_sizes": [
+          1,
+          2,
+          4,
+          8
+        ],
+        "parallel_candidates": [],
+        "total_npus": null,
+        "max_total_npus": 8,
+        "max_candidates": 128
+      },
+      "seed": 0,
+      "sources": {
+        "*": {
+          "status": "assumed",
+          "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+          "uri": null,
+          "revision": null
+        }
+      },
+      "assumptions": [],
+      "calibration": null
+    }
+  },
+  "candidates": [
+    {
+      "id": 0,
+      "parameters": {
+        "tp": 1,
+        "ep": 4,
+        "sequence_parallel": false,
+        "sp": 1,
+        "prefill_length": 8,
+        "decode_batch_size": 1
+      },
+      "engine": "simulate",
+      "metrics": {
+        "duration_s": 0.004441337271804029,
+        "ttft_s": 0.0014365392429412786,
+        "tpot_s": 0.00100159934295425,
+        "input_tokens": 8,
+        "output_tokens": 4,
+        "input_throughput_tokens_s": 1801.2592853031574,
+        "throughput_tokens_s": 900.6296426515787,
+        "throughput_per_replica_tokens_s": 900.6296426515787,
+        "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.",
+        "decode_tokens": 3,
+        "decode_window_s": 0.0030047980288627502,
+        "decode_throughput_tokens_s": 998.4032108592116
+      },
+      "slo": {
+        "specified": true,
+        "satisfied": true,
+        "checks": [
+          {
+            "metric": "throughput_tokens_s",
+            "target": 1.0,
+            "actual": 900.6296426515787,
+            "passed": true
+          },
+          {
+            "metric": "ttft_s",
+            "target": 1.0,
+            "actual": 0.0014365392429412786,
+            "passed": true
+          },
+          {
+            "metric": "tpot_s",
+            "target": 0.01,
+            "actual": 0.00100159934295425,
+            "passed": true
+          }
+        ]
+      },
+      "memory_peaks_bytes": {
+        "npu0.hbm": 3449040977.984375,
+        "npu1.hbm": 3249003985.984375,
+        "npu2.hbm": 3249003985.984375,
+        "npu3.hbm": 3249003985.984375,
+        "cpu0.dram": 1000033824.0,
+        "cpu1.dram": 1000000000.0
+      },
+      "diagnostics": [],
+      "status": "feasible"
+    },
+    {
+      "id": 1,
+      "parameters": {
+        "tp": 1,
+        "ep": 4,
+        "sequence_parallel": false,
+        "sp": 1,
+        "prefill_length": 8,
+        "decode_batch_size": 2
+      },
+      "engine": "simulate",
+      "metrics": {
+        "duration_s": 0.005182672399691005,
+        "ttft_s": 0.001574253939455706,
+        "tpot_s": 0.0012028061534117664,
+        "input_tokens": 16,
+        "output_tokens": 8,
+        "input_throughput_tokens_s": 3087.210374507548,
+        "throughput_tokens_s": 1543.605187253774,
+        "throughput_per_replica_tokens_s": 1543.605187253774,
+        "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.",
+        "decode_tokens": 6,
+        "decode_window_s": 0.003608418460235299,
+        "decode_throughput_tokens_s": 1662.7783241106547
+      },
+      "slo": {
+        "specified": true,
+        "satisfied": true,
+        "checks": [
+          {
+            "metric": "throughput_tokens_s",
+            "target": 1.0,
+            "actual": 1543.605187253774,
+            "passed": true
+          },
+          {
+            "metric": "ttft_s",
+            "target": 1.0,
+            "actual": 0.001574253939455706,
+            "passed": true
+          },
+          {
+            "metric": "tpot_s",
+            "target": 0.01,
+            "actual": 0.0012028061534117664,
+            "passed": true
+          }
+        ]
+      },
+      "memory_peaks_bytes": {
+        "npu0.hbm": 3485122033.696953,
+        "npu1.hbm": 3485126257.696953,
+        "npu2.hbm": 3285081073.696953,
+        "npu3.hbm": 3285081073.696953,
+        "cpu0.dram": 1000067648.0,
+        "cpu1.dram": 1000000000.0
+      },
+      "diagnostics": [],
+      "status": "feasible"
+    },
+    {
+      "id": 2,
+      "parameters": {
+        "tp": 1,
+        "ep": 4,
+        "sequence_parallel": false,
+        "sp": 1,
+        "prefill_length": 16,
+        "decode_batch_size": 1
+      },
+      "engine": "simulate",
+      "metrics": {
+        "duration_s": 0.004503390393625648,
+        "ttft_s": 0.0014985473087628955,
+        "tpot_s": 0.0010016143616209175,
+        "input_tokens": 16,
+        "output_tokens": 4,
+        "input_throughput_tokens_s": 3552.8787427906095,
+        "throughput_tokens_s": 888.2196856976524,
+        "throughput_per_replica_tokens_s": 888.2196856976524,
+        "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.",
+        "decode_tokens": 3,
+        "decode_window_s": 0.0030048430848627523,
+        "decode_throughput_tokens_s": 998.3882403420165
+      },
+      "slo": {
+        "specified": true,
+        "satisfied": true,
+        "checks": [
+          {
+            "metric": "throughput_tokens_s",
+            "target": 1.0,
+            "actual": 888.2196856976524,
+            "passed": true
+          },
+          {
+            "metric": "ttft_s",
+            "target": 1.0,
+            "actual": 0.0014985473087628955,
+            "passed": true
+          },
+          {
+            "metric": "tpot_s",
+            "target": 0.01,
+            "actual": 0.0010016143616209175,
+            "passed": true
+          }
+        ]
+      },
+      "memory_peaks_bytes": {
+        "npu0.hbm": 3485163249.696953,
+        "npu1.hbm": 3285089265.696953,
+        "npu2.hbm": 3285089265.696953,
+        "npu3.hbm": 3285089265.696953,
+        "cpu0.dram": 1000067648.0,
+        "cpu1.dram": 1000000000.0
+      },
+      "diagnostics": [],
+      "status": "feasible"
+    },
+    {
+      "id": 3,
+      "parameters": {
+        "tp": 1,
+        "ep": 4,
+        "sequence_parallel": false,
+        "sp": 1,
+        "prefill_length": 16,
+        "decode_batch_size": 2
+      },
+      "engine": "simulate",
+      "metrics": {
+        "duration_s": 0.005192934554539722,
+        "ttft_s": 0.0015844710383044222,
+        "tpot_s": 0.0012028211720784333,
+        "input_tokens": 32,
+        "output_tokens": 8,
+        "input_throughput_tokens_s": 6162.21900428636,
+        "throughput_tokens_s": 1540.55475107159,
+        "throughput_per_replica_tokens_s": 1540.55475107159,
+        "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.",
+        "decode_tokens": 6,
+        "decode_window_s": 0.0036084635162353,
+        "decode_throughput_tokens_s": 1662.7575623266337
+      },
+      "slo": {
+        "specified": true,
+        "satisfied": true,
+        "checks": [
+          {
+            "metric": "throughput_tokens_s",
+            "target": 1.0,
+            "actual": 1540.55475107159,
+            "passed": true
+          },
+          {
+            "metric": "ttft_s",
+            "target": 1.0,
+            "actual": 0.0015844710383044222,
+            "passed": true
+          },
+          {
+            "metric": "tpot_s",
+            "target": 0.01,
+            "actual": 0.0012028211720784333,
+            "passed": true
+          }
+        ]
+      },
+      "memory_peaks_bytes": {
+        "npu0.hbm": 3489221963.0297117,
+        "npu1.hbm": 3489230411.0297117,
+        "npu2.hbm": 3289140043.0297117,
+        "npu3.hbm": 3289140043.0297117,
+        "cpu0.dram": 1000135296.0,
+        "cpu1.dram": 1000000000.0
+      },
+      "diagnostics": [],
+      "status": "feasible"
+    },
+    {
+      "id": 4,
+      "parameters": {
+        "tp": 2,
+        "ep": 2,
+        "sequence_parallel": false,
+        "sp": 1,
+        "prefill_length": 8,
+        "decode_batch_size": 1
+      },
+      "engine": "simulate",
+      "metrics": {
+        "duration_s": 0.0028219708696079434,
+        "ttft_s": 0.0010326609809804938,
+        "tpot_s": 0.0005964366295424832,
+        "input_tokens": 8,
+        "output_tokens": 4,
+        "input_throughput_tokens_s": 2834.898150848538,
+        "throughput_tokens_s": 1417.449075424269,
+        "throughput_per_replica_tokens_s": 1417.449075424269,
+        "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.",
+        "decode_tokens": 3,
+        "decode_window_s": 0.0017893098886274496,
+        "decode_throughput_tokens_s": 1676.624054372857
+      },
+      "slo": {
+        "specified": true,
+        "satisfied": true,
+        "checks": [
+          {
+            "metric": "throughput_tokens_s",
+            "target": 1.0,
+            "actual": 1417.449075424269,
+            "passed": true
+          },
+          {
+            "metric": "ttft_s",
+            "target": 1.0,
+            "actual": 0.0010326609809804938,
+            "passed": true
+          },
+          {
+            "metric": "tpot_s",
+            "target": 0.01,
+            "actual": 0.0005964366295424832,
+            "passed": true
+          }
+        ]
+      },
+      "memory_peaks_bytes": {
+        "npu0.hbm": 3142805249.984375,
+        "npu1.hbm": 3142805249.984375,
+        "npu2.hbm": 3042770369.984375,
+        "npu3.hbm": 3042770369.984375,
+        "cpu0.dram": 1000033856.0,
+        "cpu1.dram": 1000000000.0
+      },
+      "diagnostics": [],
+      "status": "feasible"
+    },
+    {
+      "id": 5,
+      "parameters": {
+        "tp": 2,
+        "ep": 2,
+        "sequence_parallel": false,
+        "sp": 1,
+        "prefill_length": 8,
+        "decode_batch_size": 2
+      },
+      "engine": "simulate",
+      "metrics": {
+        "duration_s": 0.0032570310824622407,
+        "ttft_s": 0.0010927211938347896,
+        "tpot_s": 0.0007214366295424836,
+        "input_tokens": 16,
+        "output_tokens": 8,
+        "input_throughput_tokens_s": 4912.4492812344815,
+        "throughput_tokens_s": 2456.2246406172408,
+        "throughput_per_replica_tokens_s": 2456.2246406172408,
+        "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.",
+        "decode_tokens": 6,
+        "decode_window_s": 0.002164309888627451,
+        "decode_throughput_tokens_s": 2772.246262666685
+      },
+      "slo": {
+        "specified": true,
+        "satisfied": true,
+        "checks": [
+          {
+            "metric": "throughput_tokens_s",
+            "target": 1.0,
+            "actual": 2456.2246406172408,
+            "passed": true
+          },
+          {
+            "metric": "ttft_s",
+            "target": 1.0,
+            "actual": 0.0010927211938347896,
+            "passed": true
+          },
+          {
+            "metric": "tpot_s",
+            "target": 0.01,
+            "actual": 0.0007214366295424836,
+            "passed": true
+          }
+        ]
+      },
+      "memory_peaks_bytes": {
+        "npu0.hbm": 3178906913.696953,
+        "npu1.hbm": 3178906913.696953,
+        "npu2.hbm": 3178906913.696953,
+        "npu3.hbm": 3178906913.696953,
+        "cpu0.dram": 1000033856.0,
+        "cpu1.dram": 1000033856.0
+      },
+      "diagnostics": [],
+      "status": "feasible"
+    },
+    {
+      "id": 6,
+      "parameters": {
+        "tp": 2,
+        "ep": 2,
+        "sequence_parallel": false,
+        "sp": 1,
+        "prefill_length": 16,
+        "decode_batch_size": 1
+      },
+      "engine": "simulate",
+      "metrics": {
+        "duration_s": 0.0028854565348021104,
+        "ttft_s": 0.0010961241181746595,
+        "tpot_s": 0.000596444138875817,
+        "input_tokens": 16,
+        "output_tokens": 4,
+        "input_throughput_tokens_s": 5545.04973719776,
+        "throughput_tokens_s": 1386.26243429944,
+        "throughput_per_replica_tokens_s": 1386.26243429944,
+        "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.",
+        "decode_tokens": 3,
+        "decode_window_s": 0.0017893324166274509,
+        "decode_throughput_tokens_s": 1676.6029453903404
+      },
+      "slo": {
+        "specified": true,
+        "satisfied": true,
+        "checks": [
+          {
+            "metric": "throughput_tokens_s",
+            "target": 1.0,
+            "actual": 1386.26243429944,
+            "passed": true
+          },
+          {
+            "metric": "ttft_s",
+            "target": 1.0,
+            "actual": 0.0010961241181746595,
+            "passed": true
+          },
+          {
+            "metric": "tpot_s",
+            "target": 0.01,
+            "actual": 0.000596444138875817,
+            "passed": true
+          }
+        ]
+      },
+      "memory_peaks_bytes": {
+        "npu0.hbm": 3178941793.696953,
+        "npu1.hbm": 3178941793.696953,
+        "npu2.hbm": 3078872033.696953,
+        "npu3.hbm": 3078872033.696953,
+        "cpu0.dram": 1000067712.0,
+        "cpu1.dram": 1000000000.0
+      },
+      "diagnostics": [],
+      "status": "feasible"
+    },
+    {
+      "id": 7,
+      "parameters": {
+        "tp": 2,
+        "ep": 2,
+        "sequence_parallel": false,
+        "sp": 1,
+        "prefill_length": 16,
+        "decode_batch_size": 2
+      },
+      "engine": "simulate",
+      "metrics": {
+        "duration_s": 0.003267071297023377,
+        "ttft_s": 0.0011027388803959246,
+        "tpot_s": 0.0007214441388758175,
+        "input_tokens": 32,
+        "output_tokens": 8,
+        "input_throughput_tokens_s": 9794.705132133218,
+        "throughput_tokens_s": 2448.6762830333046,
+        "throughput_per_replica_tokens_s": 2448.6762830333046,
+        "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.",
+        "decode_tokens": 6,
+        "decode_window_s": 0.0021643324166274527,
+        "decode_throughput_tokens_s": 2772.217407042045
+      },
+      "slo": {
+        "specified": true,
+        "satisfied": true,
+        "checks": [
+          {
+            "metric": "throughput_tokens_s",
+            "target": 1.0,
+            "actual": 2448.6762830333046,
+            "passed": true
+          },
+          {
+            "metric": "ttft_s",
+            "target": 1.0,
+            "actual": 0.0011027388803959246,
+            "passed": true
+          },
+          {
+            "metric": "tpot_s",
+            "target": 0.01,
+            "actual": 0.0007214441388758175,
+            "passed": true
+          }
+        ]
+      },
+      "memory_peaks_bytes": {
+        "npu0.hbm": 3183041723.0297117,
+        "npu1.hbm": 3183041723.0297117,
+        "npu2.hbm": 3183041723.0297117,
+        "npu3.hbm": 3183041723.0297117,
+        "cpu0.dram": 1000067712.0,
+        "cpu1.dram": 1000067712.0
+      },
+      "diagnostics": [],
+      "status": "feasible"
+    },
+    {
+      "id": 8,
+      "parameters": {
+        "tp": 4,
+        "ep": 1,
+        "sequence_parallel": false,
+        "sp": 1,
+        "prefill_length": 8,
+        "decode_batch_size": 1
+      },
+      "engine": "simulate",
+      "metrics": {
+        "duration_s": 0.005613158919699472,
+        "ttft_s": 0.0017313431992288613,
+        "tpot_s": 0.0012939385734902036,
+        "input_tokens": 8,
+        "output_tokens": 4,
+        "input_throughput_tokens_s": 1425.2224307998604,
+        "throughput_tokens_s": 712.6112153999302,
+        "throughput_per_replica_tokens_s": 712.6112153999302,
+        "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.",
+        "decode_tokens": 3,
+        "decode_window_s": 0.0038818157204706105,
+        "decode_throughput_tokens_s": 772.8342136850061
+      },
+      "slo": {
+        "specified": true,
+        "satisfied": true,
+        "checks": [
+          {
+            "metric": "throughput_tokens_s",
+            "target": 1.0,
+            "actual": 712.6112153999302,
+            "passed": true
+          },
+          {
+            "metric": "ttft_s",
+            "target": 1.0,
+            "actual": 0.0017313431992288613,
+            "passed": true
+          },
+          {
+            "metric": "tpot_s",
+            "target": 0.01,
+            "actual": 0.0012939385734902036,
+            "passed": true
+          }
+        ]
+      },
+      "memory_peaks_bytes": {
+        "npu0.hbm": 2989686329.984375,
+        "npu1.hbm": 2989686329.984375,
+        "npu2.hbm": 2989686329.984375,
+        "npu3.hbm": 2989686329.984375,
+        "cpu0.dram": 1000033856.0,
+        "cpu1.dram": 1000033856.0
+      },
+      "diagnostics": [],
+      "status": "feasible"
+    },
+    {
+      "id": 9,
+      "parameters": {
+        "tp": 4,
+        "ep": 1,
+        "sequence_parallel": false,
+        "sp": 1,
+        "prefill_length": 8,
+        "decode_batch_size": 2
+      },
+      "engine": "simulate",
+      "metrics": {
+        "duration_s": 0.006054786662279261,
+        "ttft_s": 0.0017961552213380584,
+        "tpot_s": 0.0014195438136470676,
+        "input_tokens": 16,
+        "output_tokens": 8,
+        "input_throughput_tokens_s": 2642.5373662921043,
+        "throughput_tokens_s": 1321.2686831460521,
+        "throughput_per_replica_tokens_s": 1321.2686831460521,
+        "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.",
+        "decode_tokens": 6,
+        "decode_window_s": 0.0042586314409412025,
+        "decode_throughput_tokens_s": 1408.903325682942
+      },
+      "slo": {
+        "specified": true,
+        "satisfied": true,
+        "checks": [
+          {
+            "metric": "throughput_tokens_s",
+            "target": 1.0,
+            "actual": 1321.2686831460521,
+            "passed": true
+          },
+          {
+            "metric": "ttft_s",
+            "target": 1.0,
+            "actual": 0.0017961552213380584,
+            "passed": true
+          },
+          {
+            "metric": "tpot_s",
+            "target": 0.01,
+            "actual": 0.0014195438136470676,
+            "passed": true
+          }
+        ]
+      },
+      "memory_peaks_bytes": {
+        "npu0.hbm": 3025828953.696953,
+        "npu1.hbm": 3025828953.696953,
+        "npu2.hbm": 3025828953.696953,
+        "npu3.hbm": 3025828953.696953,
+        "cpu0.dram": 1000067712.0,
+        "cpu1.dram": 1000067712.0
+      },
+      "diagnostics": [],
+      "status": "feasible"
+    },
+    {
+      "id": 10,
+      "parameters": {
+        "tp": 4,
+        "ep": 1,
+        "sequence_parallel": false,
+        "sp": 1,
+        "prefill_length": 16,
+        "decode_batch_size": 1
+      },
+      "engine": "simulate",
+      "metrics": {
+        "duration_s": 0.005677993469808665,
+        "ttft_s": 0.0017961552213380584,
+        "tpot_s": 0.0012939460828235356,
+        "input_tokens": 16,
+        "output_tokens": 4,
+        "input_throughput_tokens_s": 2817.896865340911,
+        "throughput_tokens_s": 704.4742163352278,
+        "throughput_per_replica_tokens_s": 704.4742163352278,
+        "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.",
+        "decode_tokens": 3,
+        "decode_window_s": 0.003881838248470607,
+        "decode_throughput_tokens_s": 772.8297285910768
+      },
+      "slo": {
+        "specified": true,
+        "satisfied": true,
+        "checks": [
+          {
+            "metric": "throughput_tokens_s",
+            "target": 1.0,
+            "actual": 704.4742163352278,
+            "passed": true
+          },
+          {
+            "metric": "ttft_s",
+            "target": 1.0,
+            "actual": 0.0017961552213380584,
+            "passed": true
+          },
+          {
+            "metric": "tpot_s",
+            "target": 0.01,
+            "actual": 0.0012939460828235356,
+            "passed": true
+          }
+        ]
+      },
+      "memory_peaks_bytes": {
+        "npu0.hbm": 3025828953.696953,
+        "npu1.hbm": 3025828953.696953,
+        "npu2.hbm": 3025828953.696953,
+        "npu3.hbm": 3025828953.696953,
+        "cpu0.dram": 1000067712.0,
+        "cpu1.dram": 1000067712.0
+      },
+      "diagnostics": [],
+      "status": "feasible"
+    },
+    {
+      "id": 11,
+      "parameters": {
+        "tp": 4,
+        "ep": 1,
+        "sequence_parallel": false,
+        "sp": 1,
+        "prefill_length": 16,
+        "decode_batch_size": 2
+      },
+      "engine": "simulate",
+      "metrics": {
+        "duration_s": 0.006070950099010333,
+        "ttft_s": 0.0018122736020691308,
+        "tpot_s": 0.0014195588323137342,
+        "input_tokens": 32,
+        "output_tokens": 8,
+        "input_throughput_tokens_s": 5271.003628446318,
+        "throughput_tokens_s": 1317.7509071115794,
+        "throughput_per_replica_tokens_s": 1317.7509071115794,
+        "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.",
+        "decode_tokens": 6,
+        "decode_window_s": 0.004258676496941203,
+        "decode_throughput_tokens_s": 1408.8884197495404
+      },
+      "slo": {
+        "specified": true,
+        "satisfied": true,
+        "checks": [
+          {
+            "metric": "throughput_tokens_s",
+            "target": 1.0,
+            "actual": 1317.7509071115794,
+            "passed": true
+          },
+          {
+            "metric": "ttft_s",
+            "target": 1.0,
+            "actual": 0.0018122736020691308,
+            "passed": true
+          },
+          {
+            "metric": "tpot_s",
+            "target": 0.01,
+            "actual": 0.0014195588323137342,
+            "passed": true
+          }
+        ]
+      },
+      "memory_peaks_bytes": {
+        "npu0.hbm": 3030010803.0297117,
+        "npu1.hbm": 3030010803.0297117,
+        "npu2.hbm": 3030010803.0297117,
+        "npu3.hbm": 3030010803.0297117,
+        "cpu0.dram": 1000135424.0,
+        "cpu1.dram": 1000135424.0
+      },
+      "diagnostics": [],
+      "status": "feasible"
+    }
+  ],
+  "pareto_frontier": [
+    5,
+    7
+  ],
+  "feasible_boundaries": [
+    {
+      "tp": 1,
+      "ep": 4,
+      "sequence_parallel": false,
+      "sp": 1,
+      "max_prefill_length": 16,
+      "max_decode_batch_size": 2,
+      "candidate_ids": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "tp": 2,
+      "ep": 2,
+      "sequence_parallel": false,
+      "sp": 1,
+      "max_prefill_length": 16,
+      "max_decode_batch_size": 2,
+      "candidate_ids": [
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "tp": 4,
+      "ep": 1,
+      "sequence_parallel": false,
+      "sp": 1,
+      "max_prefill_length": 16,
+      "max_decode_batch_size": 2,
+      "candidate_ids": [
+        8,
+        9,
+        10,
+        11
+      ]
+    }
+  ],
+  "assumptions": [
+    "Optimality is limited to the complete declared finite candidate grid and fixed simulator scheduler; no global optimum is claimed.",
+    "Model, hardware/topology, PP, DP, FSDP, rank_order, precision and features are held fixed.",
+    "Prefill length is uniform per request; prefill and decode share the same fixed batch per DP replica and the same parallel layout. No PD disaggregation or chunked prefill is modeled.",
+    "SP shares TP ranks: degree is TP when enabled and 1 otherwise; SP does not multiply the device count.",
+    "TPOP is accepted as an input alias of TPOT. TTFT is the maximum request TTFT; TPOT is the maximum per-request mean token interval.",
+    "Decode throughput = total output tokens after each request first token / (latest last-token completion - earliest first-token completion), aggregated over fixed DP replicas.",
+    "For PP>1 or DP>1, this decode window may overlap other requests remaining prefill; it is not an isolated decode benchmark.",
+    "Both latency targets and any existing throughput target must pass; full prefill/decode memory admission must also succeed.",
+    "Throughput ties prefer longer prefill, then larger batch, then lower TTFT/TPOT, then TP/EP/SP in ascending order.",
+    "Per-layout maximum length and maximum batch can belong to different candidates; only an actual feasible candidate is a jointly validated recommendation.",
+    "The frontier maximizes prefill length, decode batch and measured decode throughput simultaneously.",
+    "Two output tokens measure one decode interval, not steady-state throughput; output length is fixed throughout a search.",
+    "Execution latency excludes request queueing and cold weight loading; results are model predictions, not production P99 guarantees."
+  ]
+}

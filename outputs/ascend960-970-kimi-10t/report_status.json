@@ -1,5 +1,5 @@
 {
-  "generated_at_Asia_Shanghai": "2026-10-15T19:27:50+08:00",
+  "generated_at_Asia_Shanghai": "2026-10-15T20:19:10+08:00",
   "runtime_id": "sha256:78919546d7eb336972226e9f71cc396718eafeafc5999327c398eeb025c40620",
   "input_snapshot_id": "sha256:ce1202280337bedc62489a0f01b1b444c8677493eacedbeb86c313c7057288c7",
   "runtime_manifest": "code/runtime-synchronous-rounds-manifest.json",
@@ -588,17 +588,15 @@
     "resolved/a7-tp8-top64-512k-b8.json": "8b2c4afce357a7bde6d956c8e0320f736925e2955dd22bf76506d8c959f4318e"
   },
   "cases_expected": 288,
-  "cases_complete": 152,
+  "cases_complete": 288,
   "phase_rows": 576,
   "planned_phase_rows": 576,
   "node_rows": 73728,
   "group64_rows": 9216,
   "comparison_rows": 288,
-  "stale_case_count": 1,
-  "verified_case_count": 152,
+  "stale_case_count": 0,
+  "verified_case_count": 288,
   "independent_traffic_checks_passed": true,
-  "complete": false,
-  "issues": [
-    "a7-sp32-top64-1M-b32: runtime/config provenance mismatch"
-  ]
+  "complete": true,
+  "issues": []
 }
