@@ -7,6 +7,7 @@ import json
 import pytest
 
 from scripts import run_reference_experiment as reference
+from scripts import summarize_references
 from supernode_sim.analysis import run
 from supernode_sim.config import Config
 from supernode_sim.core import Allocation, Event, Graph
@@ -41,7 +42,9 @@ def checkpoint(directory, fingerprint='known-fingerprint'):
                 'simulation': {'status': 'feasible', 'duration_s': 1}, 'file_sizes': {}}
     for key, records in data.items():
         path = directory / (key + '.jsonl.gz')
-        manifest[key + '_count'] = reference.save_records(path, records)
+        # Older checkpoints used level 1. Their manifest and records remain
+        # readable after changing the default compression for new runs.
+        manifest[key + '_count'] = reference.save_records(path, records, compresslevel=1)
         manifest['file_sizes'][key] = path.stat().st_size
     (directory / 'manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
     return manifest, data
@@ -155,8 +158,25 @@ def test_streamed_compact_export_preserves_summary_and_csv_counts(workspace, mon
         assert count_csv(streamed_dir / name) == count_csv(materialized_dir / name)
     timeline = json.loads((streamed_dir / 'timeline.json').read_text(encoding='utf-8'))
     assert len(timeline['traceEvents']) == actual['artifact_export']['events']['exported_rows']
-    with pytest.raises(ValueError, match='Streamed checkpoint records require compact export'):
-        report.write_report(streamed, workspace / 'full', full_detail=True)
+    report.write_report(result, workspace / 'full_materialized', full_detail=True)
+    report.write_report(streamed, workspace / 'full_streamed', full_detail=True)
+    expected_full = json.loads((workspace / 'full_materialized' / 'result.json').read_text(encoding='utf-8'))
+    actual_full = json.loads((workspace / 'full_streamed' / 'result.json').read_text(encoding='utf-8'))
+    assert actual_full == expected_full
+    assert actual_full['simulation']['trace'] == json.loads(json.dumps(result['simulation']['trace']))
+    assert actual_full['simulation']['memory_log'] == json.loads(json.dumps(result['simulation']['memory_log']))
+
+
+def test_small_streamed_report_preserves_complete_json_without_compaction(workspace):
+    result = run(small_config())
+    expected = json.loads(json.dumps(result))
+    for key in ('trace', 'memory_log'):
+        path = workspace / (key + '.jsonl.gz')
+        count = reference.save_records(path, result['simulation'][key])
+        result['simulation'][key] = reference.JSONLRecords(path, count)
+    report.write_report(result, workspace / 'report', full_detail=True)
+    saved = json.loads((workspace / 'report' / 'result.json').read_text(encoding='utf-8'))
+    assert saved == expected
 
 
 def test_fingerprint_tracks_config_changes_without_recomputing_physics():
@@ -205,3 +225,64 @@ def test_resume_uses_checkpoint_without_calling_simulator_again(workspace, monke
     assert stages.count('checkpoint_committed') == 1
     assert stages.count('loading_completed_simulation_checkpoint') == 1
     assert stages.count('complete') == 2
+
+
+def test_failed_checkpoint_write_preserves_previous_file_and_removes_temporary(workspace):
+    path = workspace / 'records.jsonl.gz'
+    values = [{'id': 'previous'}]
+    reference.save_records(path, values)
+    with pytest.raises(ValueError, match='Out of range float'):
+        reference.save_records(path, [{'value': float('nan')}])
+    assert list(reference.JSONLRecords(path, 1)) == values
+    assert not path.with_suffix(path.suffix + '.tmp').exists()
+
+
+def test_full_detail_reference_uses_separate_streamed_checkpoint(workspace, monkeypatch, capsys):
+    monkeypatch.setattr(reference, 'STREAM_THRESHOLD', 0)
+    monkeypatch.setattr(report, 'AUTO_DETAIL_THRESHOLD', 1)
+    config_path, output = workspace / 'case.json', workspace / 'output'
+    config_path.write_text(json.dumps(small_config()), encoding='utf-8')
+    assert reference.main([str(config_path), '--output', str(output), '--full-detail',
+                           '--checkpoint-compression', '6']) == 0
+    saved = json.loads((output / 'result.json').read_text(encoding='utf-8'))
+    assert not saved['artifact_export']['compacted']
+    assert saved['simulation']['trace_payload_fields_omitted'] == []
+    assert isinstance(saved['simulation']['trace'], list)
+    assert isinstance(saved['simulation']['memory_log'], list)
+    manifests = list((output / 'checkpoint').glob('*/manifest.json'))
+    assert len(manifests) == 1 and manifests[0].parent.name.endswith('-full')
+
+    def fail_if_recomputed(*args, **kwargs):
+        raise AssertionError('Full-detail checkpoint should be reusable')
+
+    monkeypatch.setattr(reference.analysis, 'simulate_graph', fail_if_recomputed)
+    assert reference.main([str(config_path), '--output', str(output), '--full-detail']) == 0
+    assert json.loads((output / 'result.json').read_text(encoding='utf-8')) == saved
+
+
+@pytest.mark.parametrize('declared,available,complete', [
+    (None, 'tensors.csv', True),
+    ('tensors.csv', 'tensors.csv', True),
+    ('tensors.csv.gz', 'tensors.csv.gz', True),
+    ('tensors.csv.gz', 'tensors.csv', False),
+])
+def test_reference_summary_follows_declared_tensor_artifact(workspace, monkeypatch, declared, available, complete):
+    case = 'kimi-k3-ascend950-fp8'
+    directory = workspace / 'outputs' / case
+    directory.mkdir(parents=True)
+    for name in ('report.md', 'component_memory.csv', 'state_memory.csv', 'model_parameters.csv', available):
+        (directory / name).touch()
+    result = {'config': {'hardware': {'npu_count': 64}}, 'status': 'feasible',
+              'memory_breakdown': {'pools': [{'pool_kind': 'device_hbm', 'peak_bytes': 8e9}]}}
+    if declared is not None:
+        result['artifact_export'] = {'tensors': {'artifact': declared}}
+    (directory / 'result.json').write_text(json.dumps(result), encoding='utf-8')
+    monkeypatch.setattr(summarize_references, '__file__', str(workspace / 'scripts' / 'summarize_references.py'))
+    summarize_references.main()
+    text = (workspace / 'outputs' / 'kimi-k3-ascend950-comparison.md').read_text(encoding='utf-8')
+    assert (f'[FP8 推理]({case}/report.md)' in text) is complete
+    if complete:
+        assert f'[张量明细]({case}/{available})' in text
+        assert '| 64 | 8.000 | 0.000 | 在当前模型下可行 |' in text
+    else:
+        assert '| FP8 推理 | — | — | — | 尚未生成完整报告 |' in text

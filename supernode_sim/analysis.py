@@ -108,32 +108,39 @@ def graph_estimate(graph: Graph) -> dict:
             allocs[allocation.id] = allocation
     ready = [key for key, value in indegree.items() if value == 0]
     heapq.heapify(ready)
-    ends, starts = {}, {}
+    ends = {}
     while ready:
         eid = heapq.heappop(ready)
         event = events[eid]
-        starts[eid] = max((ends[d] for d in event.deps), default=0.0)
+        start = max((ends[d] for d in event.deps), default=0.0)
         duration = event.startup_s + max((v / graph.resources[r].capacity for r, v in event.work.items()), default=0.0)
-        ends[eid] = starts[eid] + duration
-        for child in children[eid]:
+        ends[eid] = start + duration
+        for child in children.pop(eid, ()):
             indegree[child] -= 1
             if indegree[child] == 0:
                 heapq.heappush(ready, child)
     if len(ends) != len(events):
         raise ValueError('cyclic execution dependency graph')
+    del events, children, indegree, ready
     changes = []
     for event in graph.events:
+        # Recompute starts from dependency ends instead of keeping a second
+        # full event timing table alive while constructing memory changes.
+        start = max((ends[dep] for dep in event.deps), default=0.0) if event.allocs else 0.0
         for allocation in event.allocs:
-            changes.append((starts[event.id], 0, allocation.id, allocation.pool, allocation.size_bytes))
+            changes.append((start, 0, allocation.id, allocation.pool, allocation.size_bytes))
         for aid in event.releases:
             if aid not in allocs:
                 raise ValueError(f'{event.id}: release of unknown allocation {aid}')
             a = allocs[aid]
             changes.append((ends[event.id], 1, aid, a.pool, -a.size_bytes))
+    del allocs
     current, optimistic_peak = dict(initial), dict(initial)
-    for _, _, _, pool, delta in sorted(changes):
+    changes.sort()
+    for _, _, _, pool, delta in changes:
         current[pool] = current.get(pool, 0) + delta
         optimistic_peak[pool] = max(optimistic_peak.get(pool, 0), current[pool])
+    del changes
     resource_bounds = {r: v / graph.resources[r].capacity for r, v in work.items()}
     critical = max(ends.values(), default=0.0)
     logical_payload = 0.0
@@ -163,7 +170,7 @@ def graph_estimate(graph: Graph) -> dict:
                           'payload_by_semantic_bytes': dict(semantic),
                           'payload_by_collective_bytes': dict(collective),
                           'classification_note': 'Semantic and collective breakdowns are two views of the same payload; do not add them.'},
-        'event_count': len(events),
+        'event_count': len(graph.events),
         'memory_note': 'Resident memory is a necessary bound; optimistic schedule peaks ignore contention/slots and are not feasibility proofs.',
     }
 
@@ -179,15 +186,18 @@ def execution_metrics(config: Config, graph: Graph, simulation: dict) -> dict:
         metrics.update(training_tokens=tokens, step_time_s=duration / w.training_steps,
                        throughput_tokens_s=tokens / duration if duration else 0,
                        throughput_per_replica_tokens_s=tokens / e.dp / duration if duration else 0)
-        times = {row['id']: row['end_s'] for row in simulation['trace']}
-        step_ends = [times[eid] for eid in meta.get('step_end_events', [])]
+        step_ids = meta.get('step_end_events', [])
+        needed = set(step_ids)
+        times = {row['id']: row['end_s'] for row in simulation['trace'] if row['id'] in needed}
+        step_ends = [times[eid] for eid in step_ids]
         step_times = [b - a for a, b in zip([0.0] + step_ends, step_ends)]
         metrics['step_times_s'] = step_times
         metrics['first_step_time_s'] = step_times[0] if step_times else duration
         metrics['steady_step_time_s'] = sum(step_times[1:]) / len(step_times[1:]) if len(step_times) > 1 else None
     else:
-        times = {row['id']: row['end_s'] for row in simulation['trace']}
         completion = meta.get('sequence_token_completion_events', {})
+        needed = {eid for sequences in completion.values() for ids in sequences.values() for eid in ids}
+        times = {row['id']: row['end_s'] for row in simulation['trace'] if row['id'] in needed}
         requests = []
         for replica, sequences in completion.items():
             for seq, ids in sequences.items():

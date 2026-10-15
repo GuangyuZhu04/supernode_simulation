@@ -49,3 +49,33 @@ KV offload 与查询会共享实际 host DRAM、host 链路或 remote 资源。�
 `total_params` 决定驻留权重；`active_params` 决定每 token 参数计算量。200B–800B 是活跃参数范围，不是 activation 容量。专家路由均匀、专家计算均衡，专家权重访存按均匀 top-k 触达专家的期望估算。真实路由倾斜需额外 trace 或实现扩展，不能据现有结果声称覆盖热点。
 
 当前是层级粗粒度算子图，TP reduction 位于层边界，Attention 假设融合/流式执行；不存在常驻的完整二次 attention score 矩阵。读实际输出中的 assumptions，结合 kernel profile 和平台实测校准后再讨论绝对精度。
+
+## 大规模结构化推理
+
+`supernode_sim.streaming.run_streaming(config, phase='all')` 支持 `model.architecture`、DP=PP=1 的逐组件执行。它保留原编译器的组件间依赖、kernel、collective、争用与内存准入；源路由树和满足当前显存约束的重复组件时序可复用，避免一次驻留完整的大型事件图。返回紧凑数值结果、`phase_metrics`、峰值、诊断和组件时间汇总，不提供完整逐事件 trace，不能直接交给普通 `write_report`。
+
+`phase='prefill'` 只执行首 token；`phase='decode'` 预置原编译器生成的持久 KV/KDA 状态，跳过 prefill 执行。独立 decode 可行不代表该场景能完成 prefill，其 TTFT 必须为空。`output_length=2` 只测量一次首步 decode 间隔，不能称为稳态多 token 平均。专家数仍须整除 EP。
+
+本仓库的 1024 卡 Kimi K3 扩容矩阵可重跑：
+
+```powershell
+python scripts/run_kimi_10t_inference.py --prepare --run
+python scripts/summarize_kimi_10t_inference.py
+```
+
+这组场景在 `outputs/kimi-k3-10t-1024/` 保存共享硬件 profile、48 个配置和逐案例 JSON；先按该目录的 topology/README.md 编译拓扑。10T 目标在保持专家宽度、EP128 整除的条件下取 3328 专家，实际约 10.1714T，分别测试 top-32/top-64。报告区分完整阶段实际流量、不可行阶段已完成部分及全阶段解析需求，不为 prefill 失败场景填入有限 TTFT。
+
+## Megatron 式 sequence parallel
+
+结构化推理可以设置 `execution.sequence_parallel: true`，要求 TP>1、PP=1；暂不支持预算模型或训练。SP 与 TP 共用 rank，设备关系仍是 `TP × EP × PP × DP`，不能再乘一次 SP。它分片 Norm、AttnRes 工作区和持久残差，在 Attention/FFN 前 all-gather、后 reduce-scatter；attention heads/矩阵仍由 TP 分片。MLA compressed KV 仍在 TP 间复制，KDA recurrent heads 按 TP 分片，不能套用 context-parallel KV 或 KDA prefix-scan 流量。
+
+Embedding 使用 reduce-scatter；Output 只 gather 每条序列最后一个隐藏向量用于首 token logits。为使用等长 collective，SP 行数采用 `ceil(valid_source_tokens/TP)`；decode 只有一行时会补到 TP 行。Attention/FFN 计算和 KV/state 只计有效 token。新增 gather 输入缓冲保留至相应组件完成；现有 MoE 仍在每条 TP lane 分派完整 latent，未表达 DeepEP 融合或 decode 关闭 SP 的策略。
+
+下面的扫描保留原 TP8 归档，在同一 1024 卡拓扑测试 TP16/SP16/EP64 与 TP32/SP32/EP32，输出 96 组结果及与 TP8 的对比：
+
+```powershell
+python scripts/run_kimi_sp_inference.py --prepare --run
+python scripts/summarize_kimi_sp_inference.py
+```
+
+输出目录为 `outputs/kimi-k3-10t-sp/`。SP 数值必须核对 AG、RS、embedding/output 边界和 decode padding；不能把 TP 参数改名后直接称为序列并行仿真。

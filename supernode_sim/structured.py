@@ -23,6 +23,7 @@ class Builder:
         self.p, self.f, self.opt = self.x['precision'], self.x['features'], self.x['optimizer']
         self.a = self.m['architecture']
         self.tp, self.pp, self.ep, self.dp = (self.x[k] for k in ('tp', 'pp', 'ep', 'dp'))
+        self.sp = self.x.get('sequence_parallel', False)
         self.fsdp = self.x['fsdp']
         self.training = self.w['scenario'] == 'training'
         self.g = Graph()
@@ -57,6 +58,18 @@ class Builder:
             ])
         if self.a.get('attnres_block_size'):
             self.g.metadata['assumptions'].append('AttnRes retains residual blocks across layers; FP32 reference attention workspace is included. PP>1 is rejected until residual forwarding is modeled.')
+        self.g.metadata['sequence_parallel'] = {
+            'enabled': self.sp, 'degree': self.tp if self.sp else 1,
+            'world_axis': 'shared_with_tp',
+            'padding_policy': 'ceil(valid_source_tokens / TP) rows per rank; padding is excluded from attention/FFN kernels and KV state',
+        }
+        if self.sp:
+            self.g.metadata['assumptions'].extend([
+                'Megatron-style sequence parallelism shares TP ranks: norms/AttnRes/residuals store sequence shards, attention/FFN gather valid sequences and retain TP head/matrix sharding.',
+                'Equal-chunk SP collectives pad each EP source to a TP multiple, including single-token decode and selected final output rows; pointwise kernels process padded local rows, attention/FFN and KV process valid rows only.',
+                'SP uses a TP all-gather before attention/FFN and TP reduce-scatter afterwards; gathered full-hidden input remains allocated through the component. Embedding enters SP by reduce-scatter; output gathers selected positions before vocabulary-sharded projection.',
+                'SP MoE retains full latent dispatch/combine independently on each TP lane; fused DeepEP dispatch and cross-lane deduplication are not modeled.',
+            ])
 
     def pool(self, node):
         return node + ('.hbm' if node.startswith('npu') else '.dram' if node.startswith('cpu') else '.memory')
@@ -105,7 +118,7 @@ class Builder:
         buffers = []
         if activation and self.p['activation'] != self.p['communication'] and len(ranks) > 1:
             for i, rank in enumerate(ranks):
-                payload = sum(matrix[i]) if matrix is not None else size
+                payload = sum(matrix[i]) if matrix is not None else size / len(ranks) if kind == 'all_gather' else size
                 aid = f'{prefix}.{rank}.wire'
                 buffers.append(aid)
                 amount = payload / DTYPE_BYTES[self.p['communication']]
@@ -118,7 +131,7 @@ class Builder:
         if buffers:
             ends = []
             for i, rank in enumerate(ranks):
-                payload = sum(row[i] for row in matrix) if matrix is not None else size
+                payload = sum(row[i] for row in matrix) if matrix is not None else size / len(ranks) if kind == 'reduce_scatter' else size
                 count = payload / DTYPE_BYTES[self.p['communication']]
                 ends.append(self.add(Event(prefix + f'.{rank}.unpack', tuple(terminals),
                     {self.scalar(rank): 2 * count, rank + '.hbm': payload + count * DTYPE_BYTES[self.p['activation']]},
@@ -286,7 +299,9 @@ class Builder:
         return self.add(Event(name, tuple(pending), work, slots=(rank + '.compute_stream',),
             allocs=tuple(allocations), releases=tuple(releases) + ((conversion_id,) if conversion_id else ()),
             metadata={'kernel': component.lower(), 'component': component, 'layer': layer, 'phase': phase,
-                      'flops': flops, 'working_set_bytes': weight_reads + working + cache_reads}))
+                      'flops': flops, 'working_set_bytes': weight_reads + working + cache_reads,
+                      'tokens': tokens, 'sequence_parallel': self.sp,
+                      'sequence_parallel_degree': self.tp if self.sp else 1}))
 
     def annotate_collective_allocations(self):
         for event in self.g.events:
@@ -395,6 +410,16 @@ class Builder:
                 active = [i for i, length in enumerate(self.w['output_lengths']) if length > step]
                 local = {e: [i for i in active if i % self.ep == e] for e in range(self.ep)}
                 tokens = {e: sum(self.w['input_lengths'][i] if step == 0 else 1 for i in local[e]) for e in range(self.ep)}
+                sp_rows = {e: ceil(tokens[e] / self.tp) for e in range(self.ep)} if self.sp else tokens
+                sp_full_tokens = {e: sp_rows[e] * self.tp for e in range(self.ep)} if self.sp else tokens
+                if self.sp:
+                    self.g.metadata['sequence_parallel'].setdefault('steps', []).append({
+                        'replica': d, 'token_index': step, 'phase': phase,
+                        'valid_source_tokens_by_ep': dict(tokens),
+                        'padded_local_rows_by_ep': dict(sp_rows),
+                        'gathered_padded_tokens_by_ep': dict(sp_full_tokens),
+                        'selected_output_padded_tokens_by_ep': {e: ceil(len(local[e]) / self.tp) * self.tp for e in range(self.ep)},
+                    })
                 total_tokens = sum(tokens.values())
                 residuals = []
                 incoming_receives = []
@@ -431,13 +456,43 @@ class Builder:
                                 for f, node, suffix in [(1 - fraction, rank, 'local'), (fraction, store, 'offload')]:
                                     if growth * f:
                                         allocations.append(self.allocation(prefix + f'.{rank}.{category}.{suffix}', node, growth * f, component, category, layer, self.p['kv'] if category == 'kv_cache' else None))
-                        block = attnres_state(self.m, layer, tokens[e])
+                        block = attnres_state(self.m, layer, sp_rows[e] if self.sp else tokens[e])
                         if block['new_elements']:
                             aid = prefix + f'.{rank}.attnres_block'
                             allocations.append(self.allocation(aid, rank, block['new_elements'] * DTYPE_BYTES[self.p['activation']], 'AttnRes', 'attnres_residual', layer, self.p['activation']))
                             residuals.append(aid)
                         ready.append(self.barrier(prefix + f'.{rank}.state', previous, allocations))
+                    state_hook = getattr(self, '_inference_state_hook', None)
+                    if state_hook:
+                        ready = state_hook(prefix, layer, ready, step)
                     for component in self.component_order(layer):
+                        before_hook = getattr(self, '_inference_component_before', None)
+                        if before_hook:
+                            replacement = before_hook(prefix, layer, component, ready, step)
+                            if replacement is not None:
+                                ready = replacement
+                                continue
+                        sp_buffers = []
+                        if self.sp and component in (self.a['attention_by_layer'][layer], self.a['ffn_by_layer'][layer], 'Output'):
+                            gather_rows = ({e: ceil(len(local[e]) / self.tp) * self.tp for e in range(self.ep)}
+                                           if component == 'Output' else sp_full_tokens)
+                            gathered = []
+                            for rank in ranks:
+                                e = self.coords[rank][2]
+                                if gather_rows[e]:
+                                    aid = prefix + f'.{component}.{rank}.sp_gathered_input'
+                                    sp_buffers.append(aid)
+                                    gathered.append(self.allocation(aid, rank, gather_rows[e] * self.m['hidden_dim'] * DTYPE_BYTES[self.p['activation']],
+                                        component, 'sp_gathered_input', layer, self.p['activation'],
+                                        valid_source_tokens=len(local[e]) if component == 'Output' else tokens[e], padded_tokens=gather_rows[e], sequence_parallel_degree=self.tp))
+                            gather_start = self.barrier(prefix + f'.{component}.sp_gather_allocate', ready, gathered)
+                            terminals = []
+                            for e in range(self.ep):
+                                if gather_rows[e]:
+                                    group = [self.ranks[d, stage, e, t] for t in range(self.tp)]
+                                    terminals += self.collective(prefix + f'.{component}.e{e}.sp_all_gather', 'all_gather', group,
+                                        gather_rows[e] * self.m['hidden_dim'] * DTYPE_BYTES[self.p['communication']], (gather_start,), component, layer, activation=True)
+                            ready = terminals or [gather_start]
                         if component == 'MoE':
                             terminals = []
                             for t in range(self.tp):
@@ -450,6 +505,8 @@ class Builder:
                         for rank in ranks:
                             e = self.coords[rank][2]
                             count = total_tokens / self.ep if component == 'MoE' else tokens[e]
+                            if self.sp and component in ('PreNorm', 'PostNorm', 'AttnRes'):
+                                count = sp_rows[e]
                             if component == 'Output' and step == 0:
                                 count = len(local[e])
                             if count == 0:
@@ -493,7 +550,8 @@ class Builder:
                                     allocations_to_release = [aid]
                             engram = self.f['engram']
                             if component == 'PreNorm' and engram['enabled'] and layer in engram['layers']:
-                                misses = count * engram['queries_per_token'] * (1 - engram['hit_rate']) / self.tp
+                                query_tokens = tokens[e] if self.sp else count
+                                misses = query_tokens * engram['queries_per_token'] * (1 - engram['hit_rate']) / self.tp
                                 amount = misses * engram['record_bytes']
                                 if amount:
                                     source = self.host(rank) if engram['location'] == 'host' else 'remote0'
@@ -546,13 +604,22 @@ class Builder:
                                 matrix = [[tokens[e] * self.m['top_k'] * width * DTYPE_BYTES[self.p['communication']] / self.ep for _ in group] for e in range(self.ep)]
                                 terminals += self.collective(prefix + f'.t{t}.combine', 'all_to_all_v', group, 0, ready, component, layer, list(map(list, zip(*matrix))), True)
                             ready = terminals
-                        if component in (self.a['attention_by_layer'][layer], self.a['ffn_by_layer'][layer]) and self.tp > 1:
+                        if (component in (self.a['attention_by_layer'][layer], self.a['ffn_by_layer'][layer]) or self.sp and component == 'WordEmbedding') and self.tp > 1:
                             reductions = []
                             for e in range(self.ep):
+                                if self.sp and not sp_full_tokens[e]:
+                                    continue
                                 group = [self.ranks[d, stage, e, t] for t in range(self.tp)]
-                                reductions += self.collective(prefix + f'.{component}.e{e}.tp', 'all_reduce', group,
-                                    tokens[e] * self.m['hidden_dim'] * DTYPE_BYTES[self.p['communication']], ready, component, layer, activation=True)
+                                reduction = 'reduce_scatter' if self.sp else 'all_reduce'
+                                wire_tokens = sp_full_tokens[e] if self.sp else tokens[e]
+                                reductions += self.collective(prefix + f'.{component}.e{e}.tp', reduction, group,
+                                    wire_tokens * self.m['hidden_dim'] * DTYPE_BYTES[self.p['communication']], ready, component, layer, activation=True)
                             ready = reductions
+                        if sp_buffers:
+                            ready = [self.barrier(prefix + f'.{component}.sp_gather_release', ready, releases=sp_buffers)]
+                        after_hook = getattr(self, '_inference_component_after', None)
+                        if after_hook:
+                            ready = after_hook(prefix, layer, component, ready, step)
                     previous = [self.barrier(prefix + '.layer_done', ready, releases=incoming_receives)]
                     incoming_receives = []
                     next_stage = (layer + 1) * self.pp // self.m['layers']

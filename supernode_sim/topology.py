@@ -6,11 +6,11 @@ on demand, so very large synthetic capacity studies do not build O(N²) links.
 """
 from __future__ import annotations
 
-import heapq
 import math
-from collections import defaultdict
+from collections import defaultdict, deque
 from typing import Any
 
+from .cache import BoundedCache
 from .core import Allocation, Event, Graph, Resource
 
 
@@ -29,7 +29,15 @@ class Topology:
         self.adjacency: dict[str, list[str]] = defaultdict(list)
         self.graphs: list[Graph] = []
         self.routes = hardware.get("routes") or {}
-        self._route_cache: dict[tuple[str, str], tuple[str, ...]] = {}
+        # Lazy full-mesh edges make historical pair routes observable: after a
+        # shortcut is added, an existing pair must still use its earlier route.
+        # Preserve that behavior; static topologies can safely evict and reroute.
+        self._route_cache = ({} if self.kind == "full_mesh" else
+                             BoundedCache(max_bytes=16 * 1024 * 1024, max_entries=65_536))
+        # Reuse shortest-path trees without retaining all O(N²) source/destination
+        # combinations. Each of the unrestricted, SU and SO modes has a budget.
+        self._route_trees: dict[tuple[str, ...] | None, BoundedCache] = {}
+        self._route_adjacency: dict[tuple[str, ...] | None, dict[str, tuple[str, ...]]] = {}
         self.su = {"bandwidth_Bps": 4e11, "latency_s": 1e-6, "efficiency": .85, **hardware.get("scale_up", {})}
         self.so = {"bandwidth_Bps": 5e10, "latency_s": 5e-6, "efficiency": .8, **hardware.get("scale_out", {})}
         self.host = {"bandwidth_Bps": 64e9, "latency_s": 2e-6, "efficiency": .85, **hardware.get("host_link", {})}
@@ -100,6 +108,11 @@ class Topology:
                            "bandwidth_Bps": bandwidth, "latency_s": float(params.get("latency_s", 0)),
                            "domain": domain, "shared_resource": shared}
         self.adjacency[src].append(eid)
+        # Lazy full-mesh SU edges must not invalidate cached SO routing trees.
+        # Pair routes retain their existing cache semantics.
+        for mode in (None, (domain,)):
+            self._route_trees.pop(mode, None)
+            self._route_adjacency.pop(mode, None)
 
     def _pair(self, src: str, dst: str, params: dict[str, Any], domain: str) -> None:
         self._edge(f"{src}>{dst}:{domain}", src, dst, params, domain)
@@ -194,21 +207,45 @@ class Topology:
                     self._edge(eid, src, dst, self.su, "SU")
                 self._route_cache[key] = (eid,)
                 return (eid,)
-        heap: list[tuple[int, tuple[str, ...], str]] = [(0, (), src)]
-        seen: set[str] = set()
-        while heap:
-            hops, route, node = heapq.heappop(heap)
-            if node == dst:
-                self._route_cache[key] = route
-                return route
-            if node in seen:
-                continue
-            seen.add(node)
-            for eid in sorted(self.adjacency.get(node, [])):
-                edge = self.links[eid]
-                if (allowed is None or edge["domain"] in allowed) and edge["dst"] not in seen:
-                    heapq.heappush(heap, (hops + 1, route + (eid,), edge["dst"]))
-        raise ValueError(f"No directed network route from {src} to {dst}")
+        mode = None if allowed is None else tuple(sorted(allowed))
+        trees = self._route_trees.get(mode)
+        if trees is None:
+            trees = BoundedCache(max_bytes=16 * 1024 * 1024, max_entries=128)
+            self._route_trees[mode] = trees
+        previous = trees.get(src)
+        if previous is None:
+            adjacent = self._route_adjacency.get(mode)
+            if adjacent is None:
+                adjacent = {
+                    node: tuple(eid for eid in sorted(edges)
+                                if allowed is None or self.links[eid]["domain"] in allowed)
+                    for node, edges in self.adjacency.items()
+                }
+                self._route_adjacency[mode] = adjacent
+            previous = {src: None}
+            pending = deque([src])
+            # FIFO traversal of sorted edges visits equal-hop routes in lexical
+            # edge-ID order, matching the old (hops, full_route) heap ordering.
+            while pending:
+                node = pending.popleft()
+                for eid in adjacent.get(node, ()):
+                    target = self.links[eid]["dst"]
+                    if target not in previous:
+                        previous[target] = (node, eid)
+                        pending.append(target)
+            trees[src] = previous
+        # Oversized trees are deliberately not retained. The locally computed
+        # tree still serves this query, so budgets never change reachability.
+        if dst not in previous:
+            raise ValueError(f"No directed network route from {src} to {dst}")
+        reverse_route: list[str] = []
+        node = dst
+        while node != src:
+            node, eid = previous[node]
+            reverse_route.append(eid)
+        route = tuple(reversed(reverse_route))
+        self._route_cache[key] = route
+        return route
 
     def transfer(self, id: str, src: str, dst: str, size_bytes: float, deps: tuple[str, ...] = (), metadata: dict[str, Any] | None = None) -> Event:
         if not math.isfinite(size_bytes) or size_bytes < 0:

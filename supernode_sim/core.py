@@ -7,7 +7,7 @@ from typing import Any
 DTYPE_BYTES = {"fp4": 0.5, "fp8": 1, "fp16": 2, "bf16": 2, "fp32": 4, "int8": 1}
 
 
-@dataclass
+@dataclass(slots=True)
 class Allocation:
     id: str
     pool: str
@@ -18,7 +18,7 @@ class Allocation:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(slots=True)
 class Resource:
     id: str
     capacity: float
@@ -26,7 +26,7 @@ class Resource:
     kind: str = "bandwidth"
 
 
-@dataclass
+@dataclass(slots=True)
 class Event:
     id: str
     deps: tuple[str, ...] = ()
@@ -38,7 +38,7 @@ class Event:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(slots=True)
 class Graph:
     resources: dict[str, Resource] = field(default_factory=dict)
     memory_caps: dict[str, float] = field(default_factory=dict)

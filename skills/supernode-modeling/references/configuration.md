@@ -51,6 +51,8 @@ execution.precision.weight_transfer: [fp8, fp16]
 
 输出包括 `report.md`, `result.json`, `config.resolved.json`；估算/仿真包含资源与内存 CSV，仿真另有事件 CSV 与 Chrome/Perfetto `timeline.json`。实际文件以命令结果为准。`status=estimated` 不是可行性证明；`infeasible` 表示资源/执行约束失败，`slo_failed` 表示完成执行但不满足 SLO。搜索根状态可为 `completed`，仍须检查每个子搜索和候选的状态。
 
+大型默认导出的张量表可能是无损压缩的 `tensors.csv.gz`，以 `artifact_export` 为准；`--full-detail` 保留全部明细和普通 CSV。主机内存紧张、批量实验或检查点压缩选项见 [resource-usage.md](resource-usage.md)。
+
 ## 外部 profile 与 HF 导入
 
 ```text

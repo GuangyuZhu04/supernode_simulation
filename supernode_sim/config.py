@@ -322,6 +322,7 @@ class FeatureSpec(Spec):
 
 class ExecutionSpec(Spec):
     tp: int = Field(default=1, gt=0)
+    sequence_parallel: bool = False
     pp: int = Field(default=1, gt=0)
     ep: int = Field(default=1, gt=0)
     dp: int = Field(default=1, gt=0)
@@ -380,6 +381,13 @@ class Config(Spec):
         e, h, m = self.execution, self.hardware, self.model
         if e.tp * e.pp * e.ep * e.dp != h.npu_count:
             raise ValueError('tp * pp * ep * dp must equal hardware.npu_count; fsdp is a DP subgroup')
+        if e.sequence_parallel:
+            if e.tp == 1:
+                raise ValueError('sequence_parallel requires TP > 1; SP shares the TP ranks')
+            if self.workload.scenario != 'inference' or m.architecture is None:
+                raise ValueError('sequence_parallel currently requires structured inference')
+            if e.pp != 1:
+                raise ValueError('sequence_parallel currently requires PP=1; SP pipeline forwarding is not modeled')
         if e.dp % e.fsdp:
             raise ValueError('fsdp must divide dp')
         if e.optimizer.kind == 'muon' and m.architecture is None:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from dataclasses import asdict
+from itertools import chain
 from typing import Any
 
 from .core import Graph
@@ -73,8 +74,7 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
     memory_log: list[dict[str, Any]] = []
     busy: dict[str, float] = defaultdict(float)
     work_done: dict[str, float] = defaultdict(float)
-    completed: set[str] = set()
-    started: set[str] = set()
+    completed_count = 0
     active: dict[str, dict[str, Any]] = {}
     held_slots: set[str] = set()
     diagnostics: list[dict[str, Any]] = []
@@ -97,7 +97,7 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
             "memory_categories_at_peak_bytes": category_peaks,
             "memory_final_bytes": dict(used), "resources": metrics,
             "resource_busy_s": dict(busy), "resource_work": dict(work_done),
-            "diagnostics": diagnostics, "completed_events": len(completed),
+            "diagnostics": diagnostics, "completed_events": completed_count,
             "total_events": len(graph.events),
         }
 
@@ -114,12 +114,13 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
         if not math.isfinite(capacity) or capacity < 0:
             return fail("error", "invalid_memory", "Memory capacity must be finite and nonnegative", pool=key)
     allocation_ids: set[str] = set()
-    for alloc in list(graph.initial_allocations) + [a for event in graph.events for a in event.allocs]:
+    for alloc in chain(graph.initial_allocations, (a for event in graph.events for a in event.allocs)):
         if alloc.id in allocation_ids:
             return fail("error", "duplicate_allocation", "Allocation IDs must be unique", allocation=alloc.id)
         allocation_ids.add(alloc.id)
         if alloc.pool not in graph.memory_caps or not math.isfinite(alloc.size_bytes) or alloc.size_bytes < 0:
             return fail("error", "invalid_allocation", "Allocation has unknown pool or invalid size", allocation=alloc.id)
+    del allocation_ids
     for event in graph.events:
         missing = set(event.deps).difference(events)
         if missing:
@@ -140,12 +141,13 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
     while queue:
         eid = queue.pop()
         visited += 1
-        for successor in successors[eid]:
+        for successor in successors.get(eid, ()):
             indegree[successor] -= 1
             if indegree[successor] == 0:
                 queue.append(successor)
     if visited != len(events):
         return fail("error", "dependency_cycle", "Dependency graph contains a cycle")
+    del indegree, queue
 
     def allocate(alloc: Any) -> None:
         allocations[alloc.id] = alloc
@@ -164,7 +166,7 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
 
     waiting_dependencies = {eid: len(set(event.deps)) for eid, event in events.items()}
     ready = {eid for eid, count in waiting_dependencies.items() if count == 0}
-    while len(completed) < len(events):
+    while completed_count < len(events):
         # Complete events before admitting new ones, so same-time releases can
         # unblock allocations without introducing artificial overlap.
         finished = []
@@ -185,8 +187,9 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
                 memory_log.append({"sequence": len(memory_log), "time_s": now, "action": "release", "allocation_id": alloc.id, "pool": alloc.pool, "bytes": alloc.size_bytes})
                 category_used[alloc.pool][alloc.category] -= alloc.size_bytes
             held_slots.difference_update(event.slots)
-            completed.add(eid)
-            for successor in successors[eid]:
+            completed_count += 1
+            # Dependency edges have no further use after their source finishes.
+            for successor in successors.pop(eid, ()):
                 waiting_dependencies[successor] -= 1
                 if waiting_dependencies[successor] == 0:
                     ready.add(successor)
@@ -213,8 +216,8 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
                 continue
             for alloc in event.allocs:
                 allocate(alloc)
-            started.add(eid)
             ready.remove(eid)
+            del waiting_dependencies[eid]
             held_slots.update(event.slots)
             active[eid] = {"start": now, "ready": now + event.startup_s, "remaining": 1.0}
             admitted = True
@@ -223,7 +226,7 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
         if not active:
             if blocked:
                 return fail("infeasible", "memory_admission_deadlock", "Ready events cannot fit and no running event can release memory", blocked=blocked)
-            if len(completed) == len(events):
+            if completed_count == len(events):
                 break
             return fail("error", "scheduler_deadlock", "No executable event remains")
         working = {eid: events[eid].work for eid, state in active.items() if now >= state["ready"]}

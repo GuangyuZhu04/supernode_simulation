@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import gzip
 import json
 from pathlib import Path
 import re
@@ -9,6 +10,7 @@ from typing import Iterable
 
 
 AUTO_DETAIL_THRESHOLD = 50_000
+COMPRESS_TABLE_THRESHOLD = 50_000
 
 
 def _number(value):
@@ -46,7 +48,7 @@ def _display_pool_label(group: dict) -> str:
     return f'{pools[0]} … {pools[-1]} ({len(pools)} pools)'
 
 
-def _memory_markdown(breakdown: dict) -> list[str]:
+def _memory_markdown(breakdown: dict, tensor_artifact: str = 'tensors.csv') -> list[str]:
     mode = breakdown['mode']
     basis = {'simulated': '仿真实际并发峰值', 'observed_partial': '中断前已观测并发峰值',
              'resident_only': '初始固定驻留，未计算执行峰值'}[mode]
@@ -114,7 +116,7 @@ def _memory_markdown(breakdown: dict) -> list[str]:
     if mode == 'observed_partial':
         lines += ['', '执行未完成：已观测峰值仅覆盖成功申请的内存，不能用来证明完整任务能运行。初始驻留和失败诊断仍须单独检查。']
     elif mode == 'resident_only':
-        lines += ['', '没有有序执行内存日志，以下组件分解仅代表初始驻留。解析乐观峰值没有附会组件构成；临时张量的计划生命周期见 tensors.csv。']
+        lines += ['', f'没有有序执行内存日志，以下组件分解仅代表初始驻留。解析乐观峰值没有附会组件构成；临时张量的计划生命周期见 {tensor_artifact}。']
     lines += ['', '### 每池同一峰值时刻的构成', '', '每组中各组件和状态可以相加得到上表的单池总值。不同池的峰值时刻可能不同。']
     for group in groups:
         rows = group['composition_at_peak_per_pool']
@@ -144,7 +146,7 @@ def _memory_markdown(breakdown: dict) -> list[str]:
         cluster = breakdown['cluster']
         lines += ['', f"所有内存池同一时刻的合计峰值为 {_number(cluster['peak_bytes'] / 1e9)} GB，"
                   f"发生于 {_number(cluster['peak_time_s'])} s。该数值按全局时间线重放得到，未相加各池独立峰值；不同内存类型的容量不能互相替代。"]
-    lines += ['', '张量、层号、形状、精度、组件来源与申请/释放时刻见 tensors.csv；组件状态交叉表见 component_memory.csv，状态汇总见 state_memory.csv，逐池峰值见 memory_peaks.csv。',
+    lines += ['', f'张量、层号、形状、精度、组件来源与申请/释放时刻见 {tensor_artifact}；组件状态交叉表见 component_memory.csv，状态汇总见 state_memory.csv，逐池峰值见 memory_peaks.csv。',
               '', '缺失组件归属保留为 `Unassigned`；通用缓冲和运行时归为 `System`。已知优化器按其状态语义拆分；无法确定语义的合并状态才保持未拆分，不推定 Adam/Muon 的具体张量。']
     return lines
 
@@ -152,14 +154,17 @@ def _memory_markdown(breakdown: dict) -> list[str]:
 def markdown_report(result: dict) -> str:
     lines = ['# 超节点资源建模报告', '', f"状态：**{result['status']}**；模式：`{result['mode']}`。", '']
     export = result.get('artifact_export', {})
+    tensor_artifact = export.get('tensors', {}).get('artifact') or 'tensors.csv'
     if export.get('compacted'):
         lines += ['大图使用精简导出，数值仿真仍包含全部事件。所有容量、通信、性能、组件状态和并发峰值汇总均保持完整。', '',
                   '| 明细 | 原始行数 | 导出行数 | 未导出行数 | 文件/处理 |', '|---|---:|---:|---:|---|']
         for label, key in (('事件时间线', 'events'), ('物理张量', 'tensors'), ('原始申请/释放日志', 'memory_log')):
             detail = export[key]
             lines.append(f"| {label} | {detail['total_rows']} | {detail['exported_rows']} | {detail['omitted_rows']} | {_safe_cell(detail.get('artifact') or '保留精确峰值汇总')} |")
-        lines += ['', 'events.csv / timeline.json 保留模型 kernel、token/step 完成标记和模型张量申请事件，省略 collective 搬运与缓冲控制事件。tensors.csv 省略临时 `buffers` 明细；这些缓冲仍完整计入组件状态和并发峰值。',
+        lines += ['', f'events.csv / timeline.json 保留模型 kernel、token/step 完成标记和模型张量申请事件，省略 collective 搬运与缓冲控制事件。{tensor_artifact} 省略临时 `buffers` 明细；这些缓冲仍完整计入组件状态和并发峰值。',
                   '', '需要全部原始事件、张量和有序内存日志时，用相同配置在 estimate/simulate 命令添加 `--full-detail` 重新导出。原始日志未写入其他隐藏文件。', '']
+        if tensor_artifact.endswith('.gz'):
+            lines += ['大型张量明细使用 gzip 无损压缩；解压后是完整 CSV，列名和导出行数保持不变。', '']
     if result['mode'] in ('sweep', 'size-su'):
         lines += ['结果限定于显式候选集合和给定调度策略，完整配置与失败原因见 JSON。', '', '| 候选 | 状态 | SU 卡数 | 总卡数 | 执行时间 / s |', '|---|---|---:|---:|---:|']
         if result['mode'] == 'sweep':
@@ -202,7 +207,7 @@ def markdown_report(result: dict) -> str:
                 if isinstance(value, (int, float)):
                     lines.append(f'| {key} | {_number(value / 1e12)} |')
         if result.get('memory_breakdown'):
-            lines += _memory_markdown(result['memory_breakdown'])
+            lines += _memory_markdown(result['memory_breakdown'], tensor_artifact)
             lines += ['', '## 通信']
         else:
             peaks = result.get('simulation', {}).get('memory_peaks_bytes', result['estimate']['resident_memory_bytes'])
@@ -240,7 +245,9 @@ def markdown_report(result: dict) -> str:
 
 
 def _csv(path: Path, fields: list[str], rows: Iterable[dict]):
-    with path.open('w', newline='', encoding='utf-8-sig') as handle:
+    stream = (gzip.open(path, 'wt', newline='', encoding='utf-8-sig', compresslevel=6)
+              if path.suffix == '.gz' else path.open('w', newline='', encoding='utf-8-sig'))
+    with stream as handle:
         writer = csv.DictWriter(handle, fieldnames=fields, extrasaction='ignore')
         writer.writeheader()
         writer.writerows(rows)
@@ -264,10 +271,8 @@ def _prepare_export(result: dict, full_detail: bool):
         raise ValueError('Full event payloads were not retained; rerun with retain_event_payload=True before requesting --full-detail export')
     if full_detail and prefiltered_count:
         raise ValueError('Full tensor details were not materialized; rerun with full detail enabled (include_ephemeral_details=True) before requesting --full-detail export')
-    large = len(trace) > AUTO_DETAIL_THRESHOLD or original_tensor_count > AUTO_DETAIL_THRESHOLD
+    large = max(len(trace), original_tensor_count, len(memory_log)) > AUTO_DETAIL_THRESHOLD
     compact = (large and not full_detail) or bool(prefiltered_count)
-    if not compact and (not isinstance(trace, (list, tuple)) or not isinstance(memory_log, (list, tuple))):
-        raise ValueError('Streamed checkpoint records require compact export; materialize records before full-detail export')
     keep_tensor = lambda row: not compact or row.get('state') != 'buffers' or bool(row.get('is_initial'))
     model_allocators = ({row['allocation_event'] for row in tensors
                          if keep_tensor(row) and row.get('allocation_event')} if compact else set())
@@ -297,21 +302,25 @@ def _prepare_export(result: dict, full_detail: bool):
 
     if not large and not prefiltered_count:
         return result, trace, tensors, keep_event, keep_tensor
-    event_count = sum(keep_event(row) for row in trace) if compact else len(trace)
+    # Count retained events while writing both event artifacts. A checkpoint
+    # can otherwise be decompressed three times merely to export one report.
+    event_count = 0 if compact else len(trace)
     tensor_count = sum(keep_tensor(row) for row in tensors) if compact else len(tensors)
+    tensor_artifact = ('tensors.csv.gz' if compact and tensor_count > COMPRESS_TABLE_THRESHOLD else 'tensors.csv')
     manifest = {
         'compacted': compact, 'detail_mode': 'compact' if compact else 'full',
         'requested_full_detail': full_detail, 'auto_detail_threshold_rows': AUTO_DETAIL_THRESHOLD,
         'trace_payload_fields_omitted': list(omitted_trace_fields),
         'reason': ('Ephemeral buffer details were omitted during memory report construction; numerical replay remains complete.'
-                   if prefiltered_count else 'Raw trace or physical allocation row count exceeds the automatic detail threshold.'),
+                   if prefiltered_count else 'Raw trace, physical allocation, or memory log row count exceeds the automatic detail threshold.'),
         'events': {'total_rows': len(trace), 'exported_rows': event_count,
                    'omitted_rows': len(trace) - event_count, 'artifact': 'events.csv' if 'simulation' in result else None,
                    'timeline_artifact': 'timeline.json' if 'simulation' in result else None},
         'tensors': {'total_rows': original_tensor_count, 'available_rows': len(tensors),
                     'prefiltered_rows': prefiltered_count, 'exported_rows': tensor_count,
                     'omitted_rows': original_tensor_count - tensor_count,
-                    'artifact': 'tensors.csv' if 'memory_breakdown' in result else None},
+                    'artifact': tensor_artifact if 'memory_breakdown' in result else None,
+                    'compression': 'gzip' if tensor_artifact.endswith('.gz') else None},
         'memory_log': {'total_rows': len(memory_log), 'exported_rows': 0 if compact else len(memory_log),
                        'omitted_rows': len(memory_log) if compact else 0,
                        'representation': 'omitted_raw_log' if compact else 'inline_result_json',
@@ -336,20 +345,69 @@ def _prepare_export(result: dict, full_detail: bool):
     return exported, trace, tensors, keep_event, keep_tensor
 
 
-def _write_timeline(path: Path, rows: Iterable[dict]):
-    with path.open('w', encoding='utf-8') as handle:
+def _write_event_artifacts(directory: Path, rows: Iterable[dict]) -> int:
+    """Write CSV and Perfetto in one pass, including for gzip-backed records."""
+    count = 0
+    with (directory / 'timeline.json').open('w', encoding='utf-8') as handle, \
+            (directory / 'events.csv').open('w', newline='', encoding='utf-8-sig') as csv_handle:
+        writer = csv.DictWriter(csv_handle, fieldnames=['id', 'start_s', 'end_s', 'duration_s', 'metadata'])
+        writer.writeheader()
         handle.write('{"traceEvents":[')
-        first = True
         for row in rows:
-            if not first:
+            metadata = row.get('metadata', {})
+            duration = row['end_s'] - row['start_s']
+            writer.writerow({'id': row['id'], 'start_s': row['start_s'], 'end_s': row['end_s'],
+                             'duration_s': duration,
+                             'metadata': json.dumps(metadata, ensure_ascii=False, allow_nan=False, separators=(',', ':'))})
+            if count:
                 handle.write(',')
-            first = False
+            count += 1
             event = {'name': row['id'], 'ph': 'X', 'ts': row['start_s'] * 1e6,
-                     'dur': (row['end_s'] - row['start_s']) * 1e6,
-                     'pid': 1, 'tid': str(row.get('slots') or row.get('metadata', {}).get('src') or 'events'),
-                     'args': row.get('metadata', {})}
+                     'dur': duration * 1e6,
+                     'pid': 1, 'tid': str(row.get('slots') or metadata.get('src') or 'events'),
+                     'args': metadata}
             json.dump(event, handle, ensure_ascii=False, allow_nan=False, separators=(',', ':'))
         handle.write('],"displayTimeUnit":"ms"}')
+    return count
+
+
+class _RecordArray(list):
+    """Let json.dump iterate a sized record stream without copying it to a list.
+
+    The standard encoder's streaming path handles list subclasses through their
+    public iteration and length methods. No JSON encoder internals are replaced.
+    """
+    def __init__(self, records):
+        self.records = records
+
+    def __iter__(self):
+        return iter(self.records)
+
+    def __len__(self):
+        return len(self.records)
+
+
+def _write_result_json(path: Path, exported: dict):
+    simulation = exported.get('simulation')
+    if simulation:
+        simulation = dict(simulation)
+        for key in ('trace', 'memory_log'):
+            records = simulation.get(key)
+            if records is not None and not isinstance(records, (dict, list, tuple)):
+                simulation[key] = _RecordArray(records)
+        exported = {**exported, 'simulation': simulation}
+    # Indentation dominates large repetitive pool/tensor tables. Keep small
+    # reports human-readable and large reports losslessly compact.
+    compact = bool(exported.get('artifact_export'))
+    temporary = path.with_suffix(path.suffix + '.tmp')
+    try:
+        with temporary.open('w', encoding='utf-8') as handle:
+            json.dump(exported, handle, ensure_ascii=False, allow_nan=False,
+                      indent=None if compact else 2,
+                      separators=(',', ':') if compact else None)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def write_report(result: dict, directory: str | Path, *, full_detail: bool = False) -> Path:
@@ -362,9 +420,6 @@ def write_report(result: dict, directory: str | Path, *, full_detail: bool = Fal
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     exported, trace, tensors, keep_event, keep_tensor = _prepare_export(result, full_detail)
-    with (directory / 'result.json').open('w', encoding='utf-8') as handle:
-        json.dump(exported, handle, ensure_ascii=False, indent=2, allow_nan=False)
-    (directory / 'report.md').write_text(markdown_report(exported), encoding='utf-8')
     if 'config' in result:
         snapshot = dict(result['config'])
         # The normalized snapshot already includes the calibration values.
@@ -383,10 +438,12 @@ def write_report(result: dict, directory: str | Path, *, full_detail: bool = Fal
              'simulated_peak_bytes': peaks.get(pool)}
             for pool in sorted(set(result['estimate']['resident_memory_bytes']) | set(result['estimate']['optimistic_schedule_memory_peak_bytes']) | set(peaks))))
     if 'simulation' in result:
-        _csv(directory / 'events.csv', ['id', 'start_s', 'end_s', 'duration_s', 'metadata'], (
-            {**row, 'duration_s': row['end_s'] - row['start_s'], 'metadata': json.dumps(row.get('metadata', {}), ensure_ascii=False)}
-            for row in trace if keep_event(row)))
-        _write_timeline(directory / 'timeline.json', (row for row in trace if keep_event(row)))
+        event_count = _write_event_artifacts(directory, (row for row in trace if keep_event(row)))
+        manifest = exported.get('artifact_export')
+        if manifest:
+            manifest['events'].update(exported_rows=event_count, omitted_rows=len(trace) - event_count)
+            if manifest['compacted']:
+                exported['simulation']['trace'].update(manifest['events'])
     if result.get('memory_breakdown'):
         breakdown = result['memory_breakdown']
         _csv(directory / 'component_memory.csv', [
@@ -396,7 +453,8 @@ def write_report(result: dict, directory: str | Path, *, full_detail: bool = Fal
         _csv(directory / 'state_memory.csv', [
             'pool', 'pool_kind', 'state', 'resident_bytes', 'bytes_at_pool_peak',
             'independent_state_peak_bytes', 'pool_peak_bytes', 'pool_peak_time_s', 'peak_basis'], breakdown['state_rows'])
-        _csv(directory / 'tensors.csv', [
+        tensor_artifact = exported.get('artifact_export', {}).get('tensors', {}).get('artifact') or 'tensors.csv'
+        _csv(directory / tensor_artifact, [
             'allocation_id', 'pool', 'pool_kind', 'component', 'layer', 'tensor_name', 'tensor_members', 'state',
             'category', 'dtype', 'shape', 'bytes', 'is_initial', 'allocation_event', 'release_events',
             'observed', 'allocated_at_s', 'released_at_s', 'attribution', 'metadata'], (
@@ -420,4 +478,6 @@ def write_report(result: dict, directory: str | Path, *, full_detail: bool = Fal
             _csv(directory / 'model_parameters.csv', fields, (
                 {key: json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list, tuple)) else value
                  for key, value in row.items()} for row in inventory_tensors))
+    _write_result_json(directory / 'result.json', exported)
+    (directory / 'report.md').write_text(markdown_report(exported), encoding='utf-8')
     return directory.resolve()

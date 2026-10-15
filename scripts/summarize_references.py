@@ -22,18 +22,22 @@ def main():
     details = []
     for label, case in cases:
         directory = root / 'outputs' / case
-        required = ('report.md', 'result.json', 'component_memory.csv', 'state_memory.csv', 'model_parameters.csv', 'tensors.csv')
+        required = ('report.md', 'result.json', 'component_memory.csv', 'state_memory.csv', 'model_parameters.csv')
         if not all((directory / name).exists() for name in required):
             lines.append(f'| {label} | — | — | — | 尚未生成完整报告 |')
             continue
         result = json.loads((directory / 'result.json').read_text(encoding='utf-8'))
+        tensor_artifact = result.get('artifact_export', {}).get('tensors', {}).get('artifact') or 'tensors.csv'
+        if not (directory / tensor_artifact).is_file():
+            lines.append(f'| {label} | — | — | — | 尚未生成完整报告 |')
+            continue
         pools = result['memory_breakdown']['pools']
         hbm = max((r['peak_bytes'] for r in pools if r['pool_kind'] == 'device_hbm'), default=0) / 1e9
         dram = max((r['peak_bytes'] for r in pools if r['pool_kind'] == 'host_dram'), default=0) / 1e9
         count = result['config']['hardware']['npu_count']
         status = {'feasible': '在当前模型下可行', 'infeasible': '容量/调度不可行', 'slo_failed': 'SLO 不满足'}.get(result['status'], result['status'])
         lines.append(f'| [{label}]({case}/report.md) | {count} | {hbm:,.3f} | {dram:,.3f} | {status} |')
-        details.append(f'- **{label}**：[{case}/component_memory.csv]({case}/component_memory.csv)；[参数形状]({case}/model_parameters.csv)；[JSON]({case}/result.json)。')
+        details.append(f'- **{label}**：[{case}/component_memory.csv]({case}/component_memory.csv)；[参数形状]({case}/model_parameters.csv)；[张量明细]({case}/{tensor_artifact})；[JSON]({case}/result.json)。')
     lines += ['', '初始状态已超过容量的案例不能执行，其表中数值是必需驻留量，不是成功运行的实测峰值。不同设备/内存类型的容量不能互相替代。', '',
         '## 明细内容', '',
         '每个报告按 WordEmbedding、PreNorm、PostNorm、MLA、KDA、Dense、MoE、Output 和 AttnRes 分解：权重、激活、梯度、主权重、Adam 动量/方差、Muon 动量、KV、循环状态、量化元数据及缓冲。', '',

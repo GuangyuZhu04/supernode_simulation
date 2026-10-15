@@ -23,6 +23,7 @@ python -m supernode_sim schema
 ## 按问题选择资料和命令
 
 - 配置、来源、单位、CLI：读 [configuration.md](references/configuration.md)。
+- 大型仿真、批量实验或本机内存/磁盘紧张：读 [resource-usage.md](references/resource-usage.md)，选择流式运行、缓存预算与导出粒度。
 - 按组件分析存储、activation、梯度、Adam/Muon：读 [memory-breakdown.md](references/memory-breakdown.md)。
 - Kimi K3 / Ascend 950 样例和真实性边界：读 [ascend950-kimi-k3.md](references/ascend950-kimi-k3.md)。
 - 训练/FSDP2/optimizer offload/10T 容量：读 [training.md](references/training.md)。
@@ -65,7 +66,9 @@ python -m supernode_sim schema
 
 继续中断的大型实验时，先检查输出文件与 `checkpoint/`，区分数值执行已完成和明细导出已完成。可用 `python -u scripts/run_reference_experiment.py <配置> -o <原输出目录>` 恢复已提交的匹配检查点。它会校验配置和数值模块指纹，跳过已完成的数值计算。精简结果 JSON 不能补造缺失的逐张量生命周期；若没有原始记录，须重放并保存检查点。
 
-大型场景默认按报告中的导出清单精简原始事件和临时通信缓冲记录，容量统计与真实并发峰值保持完整。优先阅读 `report.md`、`component_memory.csv`、`state_memory.csv` 和 `model_parameters.csv`；需要检查全部逐事件生命周期时，在 `estimate` 或 `simulate` 命令添加 `--full-detail`。不要把导出行数减少解释为仿真忽略了这些资源。
+大型场景默认按报告中的导出清单精简原始事件和临时通信缓冲记录，容量统计与真实并发峰值保持完整；超过 50,000 行的保留张量明细无损压缩为 `tensors.csv.gz`。优先阅读 `report.md`、`component_memory.csv`、`state_memory.csv` 和 `model_parameters.csv`；需要检查全部逐事件生命周期时，在 `estimate` 或 `simulate` 命令添加 `--full-detail`。读取明细前检查 `artifact_export` 的实际文件名，不整份加载大型 CSV/JSON。不要把导出行数减少解释为仿真忽略了这些资源。
+
+只需要性能、流量、容量峰值和失败诊断的大型结构化推理，DP=PP=1 时优先使用 [流式推理](references/inference.md#大规模结构化推理)。需要完整组件/张量生命周期、训练或其他并行布局时继续使用普通引擎。批量实验默认串行并复用匹配结果；每个并发进程会分别占用图和缓存内存。
 
 大型 optimizer offload 场景可显式配置 `execution.optimizer.inflight_components_per_rank: 2`，限制同时在途的组件更新并保留搬运/计算重叠；这是执行策略，会影响峰值和耗时，应随结果说明。未设置时保留原有全部提交策略。
 

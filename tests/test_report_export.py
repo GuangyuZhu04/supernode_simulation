@@ -1,6 +1,7 @@
 """Large-run export is a reversible presentation filter, never a numeric filter."""
 import contextlib
 import csv
+import gzip
 import json
 from pathlib import Path
 import shutil
@@ -208,3 +209,63 @@ def test_full_detail_rejects_event_payloads_not_retained_by_engine(monkeypatch):
         assert saved['artifact_export']['trace_payload_fields_omitted'] == ['work', 'allocations', 'releases']
         with pytest.raises(ValueError, match='Full event payloads were not retained'):
             report.write_report(result, directory / 'full', full_detail=True)
+
+
+def test_compact_checkpoint_trace_is_read_once_for_counts_csv_and_timeline(monkeypatch):
+    monkeypatch.setattr(report, 'AUTO_DETAIL_THRESHOLD', 2)
+    result = sample_result()
+
+    class CountingRecords:
+        def __init__(self, rows):
+            self.rows, self.passes = rows, 0
+
+        def __len__(self):
+            return len(self.rows)
+
+        def __iter__(self):
+            self.passes += 1
+            yield from self.rows
+
+    trace = CountingRecords(result['simulation']['trace'])
+    result['simulation']['trace'] = trace
+    with artifact_directory() as directory:
+        report.write_report(result, directory)
+        saved = json.loads((directory / 'result.json').read_text(encoding='utf-8'))
+        assert saved['artifact_export']['events']['exported_rows'] == 3
+        assert len(csv_rows(directory / 'events.csv')) == 3
+        assert len(json.loads((directory / 'timeline.json').read_text(encoding='utf-8'))['traceEvents']) == 3
+        assert trace.passes == 1
+        assert '\n' not in (directory / 'result.json').read_text(encoding='utf-8')
+
+
+def test_large_tensor_csv_is_losslessly_compressed_only_in_default_export(monkeypatch):
+    monkeypatch.setattr(report, 'AUTO_DETAIL_THRESHOLD', 2)
+    monkeypatch.setattr(report, 'COMPRESS_TABLE_THRESHOLD', 2)
+    result = sample_result()
+    with artifact_directory() as directory:
+        report.write_report(result, directory)
+        saved = json.loads((directory / 'result.json').read_text(encoding='utf-8'))
+        details = saved['artifact_export']['tensors']
+        assert details['artifact'] == 'tensors.csv.gz'
+        assert details['compression'] == 'gzip'
+        assert not (directory / 'tensors.csv').exists()
+        with gzip.open(directory / details['artifact'], 'rt', encoding='utf-8-sig', newline='') as stream:
+            compressed_rows = list(csv.DictReader(stream))
+        assert len(compressed_rows) == details['exported_rows'] == 10
+        text = (directory / 'report.md').read_text(encoding='utf-8')
+        assert 'tensors.csv.gz' in text and 'gzip 无损压缩' in text
+        report.write_report(result, directory / 'full', full_detail=True)
+        all_rows = csv_rows(directory / 'full' / 'tensors.csv')
+        assert compressed_rows == [row for row in all_rows if row['allocation_id'] != 'ephemeral_buffer']
+        assert not (directory / 'full' / 'tensors.csv.gz').exists()
+
+
+def test_large_memory_log_alone_triggers_compact_export(monkeypatch):
+    monkeypatch.setattr(report, 'AUTO_DETAIL_THRESHOLD', 20)
+    result = sample_result()
+    result['simulation']['memory_log'] *= 30
+    with artifact_directory() as directory:
+        report.write_report(result, directory)
+        saved = json.loads((directory / 'result.json').read_text(encoding='utf-8'))
+        assert saved['artifact_export']['compacted']
+        assert saved['artifact_export']['memory_log']['omitted_rows'] == 30
