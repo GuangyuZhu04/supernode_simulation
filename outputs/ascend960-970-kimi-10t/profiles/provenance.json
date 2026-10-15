@@ -1,0 +1,506 @@
+{
+  "researched_on": "2026-10-15",
+  "timezone": "Asia/Shanghai",
+  "schema_note": "Each profile contains only Config-compatible hardware and Source fields. This companion maps fields into full Config.sources paths and lists Config.assumptions.",
+  "baseline_profile": "../../../profiles/hardware/ascend950dt_64.yaml",
+  "profiles": {
+    "ascend960dt.json": {
+      "sources": {
+        "hardware.name": {
+          "status": "assumed",
+          "description": "Announced Atlas 960E UnifiedBus/NPO 4096-NPU shared-address scale-up architecture approximated as a 1024-NPU logical nonblocking fabric; physical switch graph and bisection are not published.",
+          "uri": "https://www.huawei.com/cn/news/2026/9/hc-wang-keynote",
+          "revision": "2026-09-17 official announcement"
+        },
+        "hardware.npu_count": {
+          "status": "user",
+          "description": "Requested 1024-card comparable experiment.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.npus_per_host": {
+          "status": "assumed",
+          "description": "Prior 8-card host grouping, not verified 960E/A7 chassis.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.su_size": {
+          "status": "assumed",
+          "description": "Announced Atlas 960E UnifiedBus/NPO 4096-NPU shared-address scale-up architecture approximated as a 1024-NPU logical nonblocking fabric; physical switch graph and bisection are not published.",
+          "uri": "https://www.huawei.com/cn/news/2026/9/hc-wang-keynote",
+          "revision": "2026-09-17 official announcement"
+        },
+        "hardware.topology": {
+          "status": "assumed",
+          "description": "Announced Atlas 960E UnifiedBus/NPO 4096-NPU shared-address scale-up architecture approximated as a 1024-NPU logical nonblocking fabric; physical switch graph and bisection are not published.",
+          "uri": "https://www.huawei.com/cn/news/2026/9/hc-wang-keynote",
+          "revision": "2026-09-17 official announcement"
+        },
+        "hardware.npu.hbm_bytes": {
+          "status": "public",
+          "description": "Manufacturer HUAWEI CONNECT 2026 roadmap slide, visually verified; future specification, not an achieved benchmark. Dense/sparse qualification is not stated.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "2026-09-17 conference"
+        },
+        "hardware.npu.hbm_Bps": {
+          "status": "public",
+          "description": "Manufacturer HUAWEI CONNECT 2026 roadmap slide, visually verified; future specification, not an achieved benchmark. Dense/sparse qualification is not stated.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "2026-09-17 conference"
+        },
+        "hardware.npu.flops.fp8": {
+          "status": "public",
+          "description": "Manufacturer HUAWEI CONNECT 2026 roadmap slide, visually verified; future specification, not an achieved benchmark. Dense/sparse qualification is not stated.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "2026-09-17 conference"
+        },
+        "hardware.npu.flops.fp16": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.flops.bf16": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.flops.fp32": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.efficiency": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.runtime_bytes": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.workspace_bytes": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.cpu.*": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.host_link.*": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.scale_out.*": {
+          "status": "assumed",
+          "description": "Unused in main all-SU profiles; repository legacy 400Gb/s/host fields retained solely to satisfy profile defaults. Not asserted as A6/A7 scale-out specification.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.scale_up.bandwidth_Bps": {
+          "status": "assumed",
+          "description": "Published chip total divided by two because direction is unspecified; applies to logical per-card edge and injection capacity.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.scale_up.injection_Bps": {
+          "status": "assumed",
+          "description": "Same one-way nominal budget as scale_up.bandwidth_Bps; endpoint injection contention constrains logical paths.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.scale_up.latency_s": {
+          "status": "assumed",
+          "description": "2us published all-domain D2D RTT divided by two to approximate 1us end-to-end one-way logical path.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_1.jpg",
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.scale_up.efficiency": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.remote.enabled": {
+          "status": "user",
+          "description": "No external-memory offload requested in the repeated workload; keep disabled.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.ssd.enabled": {
+          "status": "user",
+          "description": "No SSD offload requested in the repeated workload; keep disabled.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        }
+      },
+      "assumptions": [
+        "Total 1024 NPUs is the user comparison constraint. 8 NPUs/host and contiguous 64-NPU rack groups are retained experimental grouping assumptions, not verified Atlas 960E or A7 physical BOM.",
+        "Main 960DT and 970 profiles set su_size=1024: all NPU-to-NPU traffic inside the selected 1024-card slice is scale-up. Zero scale-out payload does not mean zero cross-rack communication. Under uniform 16-rack placement, MoE traffic can still cross rack groups with approximately 15/16 probability.",
+        "topology=full_mesh represents direct logical end-to-end reachability through an ideal nonblocking switching fabric, not a claim of one physical hop or 1024-card all-to-all cables. No switch bisection, port allocation or oversubscription is invented.",
+        "Published chip interconnect bandwidth is 2.2 TB/s for 960 and 4.4 TB/s for 970. Direction is not stated. Simulation uses one-way nominal/injection values of 1.1 and 2.2 TB/s by halving the published totals, with inherited network efficiency 0.8.",
+        "Published 2us is an all-domain D2D RTT. Simulation uses 1us one-way latency for each logical path, an explicit conversion assumption; software collective cost is separate.",
+        "NPU efficiency 0.5 and all link efficiencies are uncalibrated prior assumptions. No measured 960/970 collective kernel or FP8 execution efficiency is implied.",
+        "FP16 and BF16 0.5 PFLOPS/card and FP32 50 TFLOPS/card remain prior baseline placeholders because verified 960/970 figures were not found. These are not extrapolated generation claims. FP32 may affect the KDA recurrent kernels even in a nominal FP8 inference workload.",
+        "CPU DRAM/capacity/IOPS, H2D and unused scale-out fields retain baseline placeholders. Remote memory and SSD remain disabled; no KV offload or OceanStor M900 is modeled.",
+        "Runtime reserve 8 GB/card and workspace 256 MB/card remain prior assumptions. All quantities use decimal SI bytes and bytes/s.",
+        "Selected 960DT continues the prior 950DT homogeneous hardware comparison. 960PR is not mixed into prefill; its different HBM subsystem requires a separate PD-disaggregation experiment.",
+        "The 2026 Ascend 970 roadmap photo specifies 3.6 PFLOPS FP8, 288 GB HBM, 14.4 TB/s and 4.4 TB/s interconnect; earlier 2025 4 PFLOPS/4 TB/s chip roadmap is historical.",
+        "2025 Atlas 960 15488-card/220-cabinet roadmap is not combined with the 2026 Atlas 960E 4096-card NPO system.",
+        "Switch 176 ports x 1.6 Tb/s and 280 Tb/s aggregate are link-device figures; Hi-ONE 7.2 Tb/s is per optical engine. None is directly assigned as per-NPU injection bandwidth.",
+        "Dense versus sparse qualification of peak FP8 FLOPS is unknown from inspected official material; the simulation applies the stated FP8 number with no extra sparse multiplier."
+      ]
+    },
+    "ascend970.json": {
+      "sources": {
+        "hardware.name": {
+          "status": "user",
+          "description": "User explicitly authorized inheriting Atlas 960E scale-up topology for 970; this remains an assumed proxy, not a published A7 topology.",
+          "uri": "https://www.huawei.com/cn/news/2026/9/hc-wang-keynote",
+          "revision": "user confirmation 2026-10-15"
+        },
+        "hardware.npu_count": {
+          "status": "user",
+          "description": "Requested 1024-card comparable experiment.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.npus_per_host": {
+          "status": "assumed",
+          "description": "Prior 8-card host grouping, not verified 960E/A7 chassis.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.su_size": {
+          "status": "user",
+          "description": "User explicitly authorized inheriting Atlas 960E scale-up topology for 970; this remains an assumed proxy, not a published A7 topology.",
+          "uri": "https://www.huawei.com/cn/news/2026/9/hc-wang-keynote",
+          "revision": "user confirmation 2026-10-15"
+        },
+        "hardware.topology": {
+          "status": "user",
+          "description": "User explicitly authorized inheriting Atlas 960E scale-up topology for 970; this remains an assumed proxy, not a published A7 topology.",
+          "uri": "https://www.huawei.com/cn/news/2026/9/hc-wang-keynote",
+          "revision": "user confirmation 2026-10-15"
+        },
+        "hardware.npu.hbm_bytes": {
+          "status": "public",
+          "description": "Manufacturer HUAWEI CONNECT 2026 roadmap slide, visually verified; 970 uses updated 3.6 PFLOPS FP8 rather than 2025 4 PFLOPS target. Future roadmap, not achieved benchmark.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "2026-09-17 conference"
+        },
+        "hardware.npu.hbm_Bps": {
+          "status": "public",
+          "description": "Manufacturer HUAWEI CONNECT 2026 roadmap slide, visually verified; 970 uses updated 3.6 PFLOPS FP8 rather than 2025 4 PFLOPS target. Future roadmap, not achieved benchmark.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "2026-09-17 conference"
+        },
+        "hardware.npu.flops.fp8": {
+          "status": "public",
+          "description": "Manufacturer HUAWEI CONNECT 2026 roadmap slide, visually verified; 970 uses updated 3.6 PFLOPS FP8 rather than 2025 4 PFLOPS target. Future roadmap, not achieved benchmark.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "2026-09-17 conference"
+        },
+        "hardware.npu.flops.fp16": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.flops.bf16": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.flops.fp32": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.efficiency": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.runtime_bytes": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.workspace_bytes": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.cpu.*": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.host_link.*": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.scale_out.*": {
+          "status": "assumed",
+          "description": "Unused in main all-SU profiles; repository legacy 400Gb/s/host fields retained solely to satisfy profile defaults. Not asserted as A6/A7 scale-out specification.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.scale_up.bandwidth_Bps": {
+          "status": "assumed",
+          "description": "Published chip total divided by two because direction is unspecified; applies to logical per-card edge and injection capacity.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.scale_up.injection_Bps": {
+          "status": "assumed",
+          "description": "Same one-way nominal budget as scale_up.bandwidth_Bps; endpoint injection contention constrains logical paths.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.scale_up.latency_s": {
+          "status": "assumed",
+          "description": "2us published all-domain D2D RTT divided by two to approximate 1us end-to-end one-way logical path.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_1.jpg",
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.scale_up.efficiency": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.remote.enabled": {
+          "status": "user",
+          "description": "No external-memory offload requested in the repeated workload; keep disabled.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.ssd.enabled": {
+          "status": "user",
+          "description": "No SSD offload requested in the repeated workload; keep disabled.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        }
+      },
+      "assumptions": [
+        "Total 1024 NPUs is the user comparison constraint. 8 NPUs/host and contiguous 64-NPU rack groups are retained experimental grouping assumptions, not verified Atlas 960E or A7 physical BOM.",
+        "Main 960DT and 970 profiles set su_size=1024: all NPU-to-NPU traffic inside the selected 1024-card slice is scale-up. Zero scale-out payload does not mean zero cross-rack communication. Under uniform 16-rack placement, MoE traffic can still cross rack groups with approximately 15/16 probability.",
+        "topology=full_mesh represents direct logical end-to-end reachability through an ideal nonblocking switching fabric, not a claim of one physical hop or 1024-card all-to-all cables. No switch bisection, port allocation or oversubscription is invented.",
+        "Published chip interconnect bandwidth is 2.2 TB/s for 960 and 4.4 TB/s for 970. Direction is not stated. Simulation uses one-way nominal/injection values of 1.1 and 2.2 TB/s by halving the published totals, with inherited network efficiency 0.8.",
+        "Published 2us is an all-domain D2D RTT. Simulation uses 1us one-way latency for each logical path, an explicit conversion assumption; software collective cost is separate.",
+        "NPU efficiency 0.5 and all link efficiencies are uncalibrated prior assumptions. No measured 960/970 collective kernel or FP8 execution efficiency is implied.",
+        "FP16 and BF16 0.5 PFLOPS/card and FP32 50 TFLOPS/card remain prior baseline placeholders because verified 960/970 figures were not found. These are not extrapolated generation claims. FP32 may affect the KDA recurrent kernels even in a nominal FP8 inference workload.",
+        "CPU DRAM/capacity/IOPS, H2D and unused scale-out fields retain baseline placeholders. Remote memory and SSD remain disabled; no KV offload or OceanStor M900 is modeled.",
+        "Runtime reserve 8 GB/card and workspace 256 MB/card remain prior assumptions. All quantities use decimal SI bytes and bytes/s.",
+        "Selected 960DT continues the prior 950DT homogeneous hardware comparison. 960PR is not mixed into prefill; its different HBM subsystem requires a separate PD-disaggregation experiment.",
+        "The 2026 Ascend 970 roadmap photo specifies 3.6 PFLOPS FP8, 288 GB HBM, 14.4 TB/s and 4.4 TB/s interconnect; earlier 2025 4 PFLOPS/4 TB/s chip roadmap is historical.",
+        "2025 Atlas 960 15488-card/220-cabinet roadmap is not combined with the 2026 Atlas 960E 4096-card NPO system.",
+        "Switch 176 ports x 1.6 Tb/s and 280 Tb/s aggregate are link-device figures; Hi-ONE 7.2 Tb/s is per optical engine. None is directly assigned as per-NPU injection bandwidth.",
+        "Dense versus sparse qualification of peak FP8 FLOPS is unknown from inspected official material; the simulation applies the stated FP8 number with no extra sparse multiplier."
+      ]
+    },
+    "ascend970-legacy64su.json": {
+      "selected": false,
+      "description": "Optional archived legacy control only. User confirmed native all-SU 970 proxy; do not include this in main sweep.",
+      "sources": {
+        "hardware.name": {
+          "status": "user",
+          "description": "User explicitly authorized inheriting Atlas 960E scale-up topology for 970; this remains an assumed proxy, not a published A7 topology.",
+          "uri": "https://www.huawei.com/cn/news/2026/9/hc-wang-keynote",
+          "revision": "user confirmation 2026-10-15"
+        },
+        "hardware.npu_count": {
+          "status": "user",
+          "description": "Requested 1024-card comparable experiment.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.npus_per_host": {
+          "status": "assumed",
+          "description": "Prior 8-card host grouping, not verified 960E/A7 chassis.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.su_size": {
+          "status": "assumed",
+          "description": "Legacy optional 64-card SU domain control, not an A7 topology claim.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.topology": {
+          "status": "user",
+          "description": "User explicitly authorized inheriting Atlas 960E scale-up topology for 970; this remains an assumed proxy, not a published A7 topology.",
+          "uri": "https://www.huawei.com/cn/news/2026/9/hc-wang-keynote",
+          "revision": "user confirmation 2026-10-15"
+        },
+        "hardware.npu.hbm_bytes": {
+          "status": "public",
+          "description": "Manufacturer HUAWEI CONNECT 2026 roadmap slide, visually verified; 970 uses updated 3.6 PFLOPS FP8 rather than 2025 4 PFLOPS target. Future roadmap, not achieved benchmark.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "2026-09-17 conference"
+        },
+        "hardware.npu.hbm_Bps": {
+          "status": "public",
+          "description": "Manufacturer HUAWEI CONNECT 2026 roadmap slide, visually verified; 970 uses updated 3.6 PFLOPS FP8 rather than 2025 4 PFLOPS target. Future roadmap, not achieved benchmark.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "2026-09-17 conference"
+        },
+        "hardware.npu.flops.fp8": {
+          "status": "public",
+          "description": "Manufacturer HUAWEI CONNECT 2026 roadmap slide, visually verified; 970 uses updated 3.6 PFLOPS FP8 rather than 2025 4 PFLOPS target. Future roadmap, not achieved benchmark.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "2026-09-17 conference"
+        },
+        "hardware.npu.flops.fp16": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.flops.bf16": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.flops.fp32": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.efficiency": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.runtime_bytes": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.npu.workspace_bytes": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.cpu.*": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.host_link.*": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.scale_out.*": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.scale_up.bandwidth_Bps": {
+          "status": "assumed",
+          "description": "Published chip total divided by two because direction is unspecified; applies to logical per-card edge and injection capacity.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.scale_up.injection_Bps": {
+          "status": "assumed",
+          "description": "Same one-way nominal budget as scale_up.bandwidth_Bps; endpoint injection contention constrains logical paths.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_2-1.jpg",
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.scale_up.latency_s": {
+          "status": "assumed",
+          "description": "2us published all-domain D2D RTT divided by two to approximate 1us end-to-end one-way logical path.",
+          "uri": "https://cdn.wccftech.com/wp-content/uploads/2026/09/Huawei-Ascend-960DT-960PR-970-980-Chips-and-Atlas-SuperPods-_1.jpg",
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.scale_up.efficiency": {
+          "status": "assumed",
+          "description": "Uncalibrated value preserved exactly from prior Ascend 950DT experiment for comparability; not an announced 960/970 specification.",
+          "uri": "profiles/hardware/ascend950dt_64.yaml",
+          "revision": "repository baseline"
+        },
+        "hardware.remote.enabled": {
+          "status": "user",
+          "description": "No external-memory offload requested in the repeated workload; keep disabled.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        },
+        "hardware.ssd.enabled": {
+          "status": "user",
+          "description": "No SSD offload requested in the repeated workload; keep disabled.",
+          "uri": null,
+          "revision": "research cutoff 2026-10-15"
+        }
+      },
+      "assumptions": [
+        "Total 1024 NPUs is the user comparison constraint. 8 NPUs/host and contiguous 64-NPU rack groups are retained experimental grouping assumptions, not verified Atlas 960E or A7 physical BOM.",
+        "Main 960DT and 970 profiles set su_size=1024: all NPU-to-NPU traffic inside the selected 1024-card slice is scale-up. Zero scale-out payload does not mean zero cross-rack communication. Under uniform 16-rack placement, MoE traffic can still cross rack groups with approximately 15/16 probability.",
+        "topology=full_mesh represents direct logical end-to-end reachability through an ideal nonblocking switching fabric, not a claim of one physical hop or 1024-card all-to-all cables. No switch bisection, port allocation or oversubscription is invented.",
+        "Published chip interconnect bandwidth is 2.2 TB/s for 960 and 4.4 TB/s for 970. Direction is not stated. Simulation uses one-way nominal/injection values of 1.1 and 2.2 TB/s by halving the published totals, with inherited network efficiency 0.8.",
+        "Published 2us is an all-domain D2D RTT. Simulation uses 1us one-way latency for each logical path, an explicit conversion assumption; software collective cost is separate.",
+        "NPU efficiency 0.5 and all link efficiencies are uncalibrated prior assumptions. No measured 960/970 collective kernel or FP8 execution efficiency is implied.",
+        "FP16 and BF16 0.5 PFLOPS/card and FP32 50 TFLOPS/card remain prior baseline placeholders because verified 960/970 figures were not found. These are not extrapolated generation claims. FP32 may affect the KDA recurrent kernels even in a nominal FP8 inference workload.",
+        "CPU DRAM/capacity/IOPS, H2D and unused scale-out fields retain baseline placeholders. Remote memory and SSD remain disabled; no KV offload or OceanStor M900 is modeled.",
+        "Runtime reserve 8 GB/card and workspace 256 MB/card remain prior assumptions. All quantities use decimal SI bytes and bytes/s.",
+        "Selected 960DT continues the prior 950DT homogeneous hardware comparison. 960PR is not mixed into prefill; its different HBM subsystem requires a separate PD-disaggregation experiment.",
+        "The 2026 Ascend 970 roadmap photo specifies 3.6 PFLOPS FP8, 288 GB HBM, 14.4 TB/s and 4.4 TB/s interconnect; earlier 2025 4 PFLOPS/4 TB/s chip roadmap is historical.",
+        "2025 Atlas 960 15488-card/220-cabinet roadmap is not combined with the 2026 Atlas 960E 4096-card NPO system.",
+        "Switch 176 ports x 1.6 Tb/s and 280 Tb/s aggregate are link-device figures; Hi-ONE 7.2 Tb/s is per optical engine. None is directly assigned as per-NPU injection bandwidth.",
+        "Dense versus sparse qualification of peak FP8 FLOPS is unknown from inspected official material; the simulation applies the stated FP8 number with no extra sparse multiplier.",
+        "Legacy optional profile uses su_size64 and old scale-out 400Gb/s per host; this is not selected after user confirmation."
+      ]
+    }
+  },
+  "topology_audit": {
+    "announced_960e_max_npus": 4096,
+    "simulation_npus": 1024,
+    "simulation_hosts": 128,
+    "simulation_rack_groups": 16,
+    "simulation_npus_per_rack_group": 64,
+    "published_all_domain_rtt_us": 2,
+    "one_way_logical_path_us": 1,
+    "native_scaleup_groups": 1,
+    "physical_switch_graph": "not published / not invented",
+    "rack_groups_for_traffic_accounting": "contiguous ranks 64 per group; cross-rack probability assumes uniform router distribution",
+    "reference_source": "https://e.huawei.com/cn/news/2026/solutions/computing/hc-lingqu-agent-ai"
+  },
+  "research_files": [
+    "../research/ascend960.json",
+    "../research/ascend960-notes.md",
+    "../research/ascend970.json",
+    "../research/ascend970-notes.md",
+    "../research/huawei-2026-ascend-roadmap-slide.jpg",
+    "../research/huawei-2026-atlas960e-slide.jpg"
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "read_only_review_of": [
+    "prepare_cases.py",
+    "run_suite.py",
+    "audit_calculations.json"
+  ],
+  "checks": {
+    "decode_steps_D_minus_1": "passed",
+    "resource_affine_mean_context_L_plus_D_over_2": "passed_algebraically",
+    "piecewise_integer_sum_against_direct_integer_sum_all_12_ranges": "passed",
+    "piecewise_test_max_relative_error": 1.949104197035576e-15,
+    "raw128k_independent_traffic_crosschecks": [
+      "transport_payload_bytes",
+      "physical_bytes_by_domain",
+      "payload_by_semantic_bytes",
+      "payload_by_collective_bytes"
+    ]
+  },
+  "observations": [
+    "linear_sum assumes sample range covers whole requested interval; current 12 intervals are fully covered.",
+    "Resource-affinity numerical verification remains pending completion of all decode snapshots.",
+    "last_position and final_token_position are L+D-1; specify zero-based final generated token index, or consumed context length, to avoid mixing with total_input_output_tokens=L+D.",
+    "Single-request EP routing sends fractional expected token/expert amounts to all 127 remote EP ranks; timing is an uncalibrated uniform expected fluid model, not an actual sparse top-16 route trace.",
+    "tx and rx are separate full-duplex resources. In this batch1 DAG, dispatch tx and combine rx are sequential; sum only with that explicit phase dependency."
+  ],
+  "prefill_128k": {
+    "status": "feasible",
+    "duration_s": 493.2475736714852,
+    "completed_event_count": 400502,
+    "planned_event_count": 400502,
+    "all_traffic_completed": true,
+    "hottest_host_NIC": {
+      "cpu0.nic.tx": {
+        "work_bytes": 9680856285184.0,
+        "capacity_Bps": 40000000000.0,
+        "work_over_capacity_s": 242.0214071296,
+        "utilization": 0.49066922991250655
+      },
+      "cpu0.nic.rx": {
+        "work_bytes": 9680856285184.0,
+        "capacity_Bps": 40000000000.0,
+        "work_over_capacity_s": 242.0214071296,
+        "utilization": 0.49066922991250655
+      }
+    },
+    "sequential_dispatch_combine_NIC_service_s": 484.0428142592,
+    "sequential_NIC_fraction_of_duration": 0.9813384598250131,
+    "HBM_peak": {
+      "pool": "npu0.hbm",
+      "peak_bytes": 109874723780.0,
+      "capacity_bytes": 144000000000.0,
+      "categories_bytes": {
+        "weight": 14782243260.0,
+        "quantization_metadata": 461945352.0,
+        "runtime": 8000000000.0,
+        "workspace": 256000000.0,
+        "recurrent_state": 54263808.0,
+        "convolution_state": 2543616.0,
+        "attnres_residual": 15032385536.0,
+        "kv_cache": 3623878656.0,
+        "page_table": 1572864.0,
+        "activation": 67659890688.0
+      }
+    },
+    "HBM_access_bytes": 140348737338272.0
+  }
+}

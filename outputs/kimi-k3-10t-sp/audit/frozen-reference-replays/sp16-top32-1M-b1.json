@@ -1,0 +1,42 @@
+{
+  "passed": true,
+  "case": "sp16-top32-1M-b1",
+  "runtime_snapshot_id": "sha256:6759029adf34d1c8da4893051b2163ffd376243fcc61ad470fa70ae86d6907d2",
+  "loaded_package": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\kimi-k3-10t-sp\\runtime-frozen\\original\\supernode_sim",
+  "config_sha256": "1bdac846596005695dfcbfca3ddd6daea561229a42fb8021a7c593e044c6761d",
+  "runtime_snapshot_fingerprint": "45a5fc226c0bd86a7f737c14b9ebec71197c9dcaff67e4496bd75374b1e19197",
+  "observed_disk_fingerprint_preserved": "45a5fc226c0bd86a7f737c14b9ebec71197c9dcaff67e4496bd75374b1e19197",
+  "numeric_values_checked": 30569,
+  "maximum_absolute_numeric_difference": 0.0,
+  "tolerance": {
+    "relative": 1e-10,
+    "absolute": 1e-08
+  },
+  "metrics": {
+    "duration_s": 8422.286746089212,
+    "ttft_s": 8422.02411660811,
+    "tpot_s": 0.2626294811016123,
+    "input_tokens": 1048576,
+    "output_tokens": 2,
+    "input_throughput_tokens_s": 124.50015436566484,
+    "throughput_tokens_s": 0.00023746519921429604,
+    "throughput_per_replica_tokens_s": 0.00023746519921429604,
+    "requests": [
+      {
+        "replica": "0",
+        "sequence": "0",
+        "ttft_s": 8422.02411660811,
+        "tpot_s": 0.2626294811016123,
+        "itl_s": [
+          0.2626294811016123
+        ],
+        "token_completion_s": [
+          8422.02411660811,
+          8422.286746089212
+        ]
+      }
+    ],
+    "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue."
+  },
+  "wall_s": 49.357223600149155
+}

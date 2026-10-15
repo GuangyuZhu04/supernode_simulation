@@ -1,0 +1,55 @@
+{
+  "validation_date": "2026-10-08",
+  "method": "Direct comparison with compile_graph plus unchanged engine.simulate; resource work and memory peaks compared with math.isclose. Tests executed through the repository .venv Python.",
+  "model_source": "examples/kimi_k3_ascend950_fp8.yaml",
+  "tests": [
+    {
+      "case": "Kimi K3 93 layers, TP1 EP1 PP1 DP1, input4 output3, enlarged HBM for numerical equivalence",
+      "full_status": "feasible",
+      "stream_status": "feasible",
+      "full_s": 0.11774358620510104,
+      "stream_s": 0.11774358620510232,
+      "duration_matches": true,
+      "work_errors": [],
+      "peak_errors": [],
+      "full_events": 2082,
+      "stream_events": 2082,
+      "initial_allocations": 934,
+      "coalesced_initial_allocations": 18,
+      "snapshot_status": "feasible",
+      "snapshot_decode_s": 0.054244184436000084,
+      "full_decode_s": 0.054244184436000084,
+      "snapshot_matches": true
+    },
+    {
+      "case": "Kimi K3 93 layers, TP2 EP2 PP1 DP1, 4 NPU Clos SU2 hosts2, input4 output3, enlarged HBM",
+      "full_status": "feasible",
+      "stream_status": "feasible",
+      "full_s": 0.0615691780127758,
+      "stream_s": 0.06156917801277553,
+      "duration_matches": true,
+      "work_errors": [],
+      "peak_errors": [],
+      "full_events": 8328,
+      "stream_events": 8328,
+      "payload_matches": true,
+      "physical_matches": true,
+      "full_physical_bytes": {"SU": 63995904.0, "SO": 506462208.0},
+      "stream_physical_bytes": {"SU": 63995904.0, "SO": 506462208.0}
+    },
+    {
+      "case": "Kimi K3 TP2 EP2, input128 output3, HBM=max initial pool resident + 1e6 bytes",
+      "full_status": "infeasible",
+      "stream_status": "infeasible",
+      "full_s": 0.0,
+      "stream_s": 0.0,
+      "full_diagnostic": "memory_admission_deadlock",
+      "stream_diagnostic": "memory_admission_deadlock",
+      "planned_events_equal": true,
+      "completed_events_equal": true,
+      "planned_payload_matches": true,
+      "completed_less_than_planned": true
+    }
+  ],
+  "scope": "These checks establish streamed/full-DAG equivalence on representative small workloads, including cross-SU collectives and infeasibility. They do not calibrate hardware timing or validate long-decode interpolation against physical hardware."
+}

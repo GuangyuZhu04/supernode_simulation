@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "cases_crosschecked_with_independent_integer_audit": 12,
+  "native_configs_checked": 12,
+  "snapshot_results_checked": 9,
+  "streamed_full_engine_equivalence_cases": 3,
+  "topology_verified_directed_links": 6436,
+  "resource_work_affine_max_relative_error": 0.0,
+  "note": "Artifact integrity checks; hardware and sampled timing remain uncalibrated."
+}

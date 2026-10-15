@@ -1,0 +1,13 @@
+单位全部为 byte，GB=1e9 byte；容量按每个最热 TP rank 计算。数据由 parameter_inventory / attention_state / attnres_state 的张量形状直接生成，运行 memory_capacity_calculations.py 可重算。
+
+配置：TP8 EP128 PP1 DP1、固定 batch1；单序列由 EP lane0 持有，其 attention/KV/KDA/AttnRes 分布在 npu0..npu7。EP 并未把该序列上下文分给全部1024卡。每 rank 静态驻留包括全部 PP1 层的本地 weights、每张量 block quantization scales、runtime 和额外 workspace reservation，共 23.500188612 GB；其他空请求 EP lane 的参数驻留相同，但无本请求 attention cache/residual。
+
+MLA 共24层：compressed 每 token/layer/rank 576个 FP16 元素，在 TP 间复制；expanded=96/8*(128+64+128)=3840个 FP16 元素，expanded形状按 heads/TP 分片。两者为布局敏感性，并非相同 kernel 的实测比较。分页按16 token，page table 8 byte/page/layer；本配置 FP16 KV 无 scale metadata。final position=I+D-1，因为 prefill 产生第一个输出 token。
+
+KDA 共69层，sequence 长度无关：每热rank recurrent=54.263808 MB (FP32)，conv=2.543616 MB (FP16)。终态 resident 仅 weights/metadata/runtime/workspace + KV/KDA，不含 decode 临时转换、activation 和通信缓冲，不能直接当最终执行峰值或可行性证明。
+
+l84 指零基第84层，即第85层、第8 residual block；此时已初始化21层MLA和64层KDA。AttnRes retained=I*7168*8*2 byte；reference scratch=[2*I*7168*9+3*I*9]*4 byte。它们在这一 AttnRes kernel 中真实同时驻留，再加当时的 static、21层 cache和64层KDA得到同一时刻容量。本表的 l84 coexist 不是相加各组件独立峰值；也不同时加入已释放的 PreNorm/attention/MoE activation。若较早层已OOM，此数标为'if reached'，只是形状推导的后续需求。
+
+因此长 prefill OOM 的关键是当前引擎按单次整个prefill token数物化 AttnRes FP32 unfused reference workspace，同时保留 residual blocks；1M上下文的单请求也没有 context parallel。它不是1024卡总HBM容量不足的判断。生产 fused/分块/上下文并行可改变这种峰值，但本实验没有实现或校准，不能把当前 OOM 宣称为真实部署必然OOM。compressed decode 假设 cache 已建立，可比 monolithic prefill轻得多。
+
+参数组件来自命名张量 inventory，见 memory_parameters_by_component.csv；logical_parameter_elements 可按组件相加得到模型逻辑参数，per_npu_local_parameter_elements 为每rank实际TP/EP分片/复制。没有按模型总参数百分比伪分配组件。

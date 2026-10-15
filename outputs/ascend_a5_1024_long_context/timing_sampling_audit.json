@@ -1,0 +1,6 @@
+{
+  "snapshot_count": 9,
+  "max_deviation_from_endpoint_line_s": 5.551115123125783e-17,
+  "max_relative_deviation": 3.99932223649292e-16,
+  "note": "Observed curvature at sampled contexts only. This is not an empirical accuracy or a bound on unobserved timing interpolation error."
+}

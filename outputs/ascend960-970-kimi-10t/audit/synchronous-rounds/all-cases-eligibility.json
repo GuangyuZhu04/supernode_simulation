@@ -1,0 +1,1737 @@
+{
+  "runtime_id": "sha256:78919546d7eb336972226e9f71cc396718eafeafc5999327c398eeb025c40620",
+  "case_count": 288,
+  "all_eligible": true,
+  "guard_source": "spec.execution.dp == spec.execution.pp == 1 and hashlib.sha256(json.dumps(data['model'], sort_keys=True, separators=(',', ':')).encode()).hexdigest() in ['06f3b1bd9e8498ee237051222d1d2bc1ac8c12ff68716b584d37cf97746ae46b', 'f5f7f4e69188459cbab4eb9cd5a2cca4c7c45aeda31021d62a573cb180ac8c7b'] and (hashlib.sha256(json.dumps(data['execution']['precision'], sort_keys=True, separators=(',', ':')).encode()).hexdigest() == '8044e61e1dd6d933bf3b3fc998c472dceda4f8857a17cda7719ec3618ff87af4') and (hashlib.sha256(json.dumps(data['execution']['features'], sort_keys=True, separators=(',', ':')).encode()).hexdigest() == '4460d4aedf9511f8edfa6071635e976191d8f4aebc0309a0dcee4c13478dd498') and (data['hardware']['npu']['runtime_bytes'] <= 8000000000.0) and (data['hardware']['npu']['workspace_bytes'] <= 256000000.0) and (spec.model.total_params == 10171385035872) and (data['model']['layers'] == 93) and (data['model']['hidden_dim'] == 7168) and (data['model']['architecture']['moe']['num_experts'] == 3328) and (data['model']['architecture']['moe']['top_k'] in (32, 64)) and (spec.execution.tp in (8, 16, 32)) and (spec.hardware.npu_count == 1024) and (spec.hardware.su_size == 1024) and (spec.execution.tp * spec.execution.ep == 1024) and (spec.hardware.npu.hbm_bytes >= 288000000000.0) and (spec.workload.batch_size <= 32) and (max(spec.workload.input_lengths) <= 1048576) and (set(spec.workload.output_lengths) == {2}) and (len(set(spec.workload.input_lengths)) == 1) and (spec.workload.batch_size <= spec.execution.ep) and (data['execution']['features']['kv_offload'] == 'none') and (not data['execution']['features']['engram']['enabled']) and (not data['hardware'].get('kernel_profiles'))",
+  "guard_sha256": "447b4758a94f69803110cf6b3e47356c1bdb4658239b6155b9b9677d647d21ab",
+  "cases": [
+    {
+      "case": "a6-tp8-top32-128k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-128k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-128k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-128k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-128k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-128k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-256k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-256k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-256k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-256k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-256k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-256k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-512k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-512k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-512k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-512k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-512k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-512k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-1M-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-1M-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-1M-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-1M-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-1M-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top32-1M-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-128k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-128k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-128k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-128k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-128k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-128k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-256k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-256k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-256k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-256k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-256k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-256k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-512k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-512k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-512k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-512k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-512k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-512k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-1M-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-1M-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-1M-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-1M-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-1M-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-tp8-top64-1M-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-128k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-128k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-128k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-128k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-128k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-128k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-256k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-256k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-256k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-256k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-256k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-256k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-512k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-512k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-512k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-512k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-512k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-512k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-1M-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-1M-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-1M-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-1M-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-1M-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top32-1M-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-128k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-128k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-128k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-128k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-128k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-128k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-256k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-256k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-256k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-256k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-256k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-256k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-512k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-512k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-512k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-512k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-512k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-512k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-1M-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-1M-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-1M-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-1M-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-1M-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp16-top64-1M-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-128k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-128k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-128k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-128k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-128k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-128k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-256k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-256k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-256k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-256k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-256k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-256k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-512k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-512k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-512k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-512k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-512k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-512k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-1M-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-1M-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-1M-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-1M-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-1M-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top32-1M-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-128k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-128k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-128k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-128k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-128k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-128k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-256k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-256k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-256k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-256k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-256k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-256k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-512k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-512k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-512k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-512k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-512k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-512k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-1M-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-1M-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-1M-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-1M-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-1M-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a6-sp32-top64-1M-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-128k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-128k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-128k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-128k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-128k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-128k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-256k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-256k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-256k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-256k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-256k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-256k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-512k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-512k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-512k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-512k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-512k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-512k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-1M-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-1M-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-1M-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-1M-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-1M-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top32-1M-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-128k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-128k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-128k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-128k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-128k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-128k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-256k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-256k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-256k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-256k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-256k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-256k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-512k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-512k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-512k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-512k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-512k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-512k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-1M-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-1M-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-1M-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-1M-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-1M-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-tp8-top64-1M-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-128k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-128k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-128k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-128k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-128k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-128k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-256k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-256k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-256k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-256k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-256k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-256k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-512k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-512k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-512k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-512k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-512k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-512k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-1M-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-1M-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-1M-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-1M-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-1M-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top32-1M-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-128k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-128k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-128k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-128k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-128k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-128k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-256k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-256k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-256k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-256k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-256k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-256k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-512k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-512k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-512k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-512k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-512k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-512k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-1M-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-1M-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-1M-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-1M-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-1M-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp16-top64-1M-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-128k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-128k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-128k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-128k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-128k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-128k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-256k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-256k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-256k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-256k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-256k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-256k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-512k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-512k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-512k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-512k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-512k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-512k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-1M-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-1M-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-1M-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-1M-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-1M-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top32-1M-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-128k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-128k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-128k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-128k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-128k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-128k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-256k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-256k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-256k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-256k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-256k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-256k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-512k-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-512k-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-512k-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-512k-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-512k-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-512k-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-1M-b32",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-1M-b1",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-1M-b2",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-1M-b4",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-1M-b8",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    },
+    {
+      "case": "a7-sp32-top64-1M-b16",
+      "stream_eligible": true,
+      "topology_eligible": true,
+      "eligible": true
+    }
+  ]
+}

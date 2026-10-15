@@ -1,0 +1,177 @@
+{
+  "schema_version": "1.0",
+  "model": {
+    "name": "synthetic-10t-moe-fp8",
+    "total_params": 10000000000000.0,
+    "active_params": 506250000000.0002,
+    "layers": 80,
+    "hidden_dim": 32768,
+    "intermediate_dim": 131072,
+    "num_heads": 256,
+    "kv_heads": 8,
+    "head_dim": 128,
+    "attention_kind": "gqa",
+    "kv_latent_dim": 512,
+    "kv_rope_dim": 64,
+    "num_experts": 64,
+    "top_k": 2,
+    "moe_layer_fraction": 1.0,
+    "expert_parameter_fraction": 0.98
+  },
+  "hardware": {
+    "npu_count": 16,
+    "su_size": 8,
+    "npus_per_host": 4,
+    "topology": "full_mesh",
+    "mesh_width": null,
+    "leaf_size": null,
+    "npu": {
+      "hbm_bytes": 4000000000000.0,
+      "hbm_Bps": 3000000000000.0,
+      "flops": {
+        "fp8": 2000000000000000.0,
+        "fp16": 1000000000000000.0,
+        "bf16": 1000000000000000.0,
+        "fp32": 50000000000000.0
+      },
+      "efficiency": 0.6,
+      "runtime_bytes": 2000000000.0,
+      "workspace_bytes": 64000000.0
+    },
+    "cpu": {
+      "dram_bytes": 64000000000000.0,
+      "dram_Bps": 400000000000.0,
+      "flops": 1000000000000.0,
+      "efficiency": 0.7,
+      "iops": 100000000.0
+    },
+    "scale_up": {
+      "bandwidth_Bps": 900000000000.0,
+      "latency_s": 1e-06,
+      "efficiency": 0.85,
+      "injection_Bps": 900000000000.0,
+      "uplink_Bps": null
+    },
+    "scale_out": {
+      "bandwidth_Bps": 50000000000.0,
+      "latency_s": 5e-06,
+      "efficiency": 0.85,
+      "injection_Bps": 50000000000.0,
+      "uplink_Bps": null
+    },
+    "host_link": {
+      "bandwidth_Bps": 64000000000.0,
+      "latency_s": 2e-06,
+      "efficiency": 0.85,
+      "injection_Bps": 64000000000.0,
+      "uplink_Bps": null
+    },
+    "remote": {
+      "enabled": false,
+      "capacity_bytes": 100000000000000.0,
+      "bandwidth_Bps": 100000000000.0,
+      "latency_s": 5e-06,
+      "iops": 10000000.0
+    },
+    "ssd": {
+      "enabled": false,
+      "capacity_bytes": 100000000000000.0,
+      "bandwidth_Bps": 10000000000.0,
+      "latency_s": 0.0001,
+      "iops": 1000000.0
+    },
+    "explicit_links": [],
+    "routes": {},
+    "kernel_profiles": {}
+  },
+  "workload": {
+    "scenario": "training",
+    "batch_size": 1,
+    "sequence_length": 128,
+    "gradient_accumulation": 1,
+    "training_steps": 1,
+    "input_length": 1024,
+    "output_length": 16,
+    "input_lengths": [
+      1024
+    ],
+    "output_lengths": [
+      16
+    ]
+  },
+  "execution": {
+    "tp": 2,
+    "pp": 2,
+    "ep": 1,
+    "dp": 4,
+    "fsdp": 4,
+    "rank_order": [],
+    "reshard_after_forward": true,
+    "sync_each_microbatch": false,
+    "prefetch": false,
+    "precision": {
+      "weight": "fp8",
+      "compute": "fp16",
+      "gradient": "fp16",
+      "master": "fp32",
+      "optimizer": "fp32",
+      "kv": "fp16",
+      "weight_transfer": "fp8",
+      "activation": "fp16",
+      "communication": "fp16"
+    },
+    "features": {
+      "optimizer_offload": true,
+      "activation_checkpointing": true,
+      "kv_offload": "none",
+      "kv_offload_fraction": 1.0,
+      "kv_page_tokens": 16,
+      "kv_page_entry_bytes": 8,
+      "weight_scale_block": 128,
+      "scale_bytes": 4,
+      "kv_scale_block": 128,
+      "extra_weight_copy_dtype": null,
+      "engram": {
+        "enabled": false,
+        "table_bytes": 1000000000000.0,
+        "queries_per_token": 1.0,
+        "record_bytes": 4096,
+        "hit_rate": 0.0,
+        "cache_bytes": 0.0,
+        "location": "host",
+        "iops": 10000000.0,
+        "latency_s": 1e-06,
+        "layers": [
+          0
+        ]
+      }
+    }
+  },
+  "targets": {
+    "throughput_tokens_s": null,
+    "ttft_s": null,
+    "tpot_s": null,
+    "step_time_s": 1000.0,
+    "candidate_npu_counts": [],
+    "candidate_su_sizes": [],
+    "parallel_candidates": [],
+    "total_npus": null,
+    "max_total_npus": null,
+    "max_candidates": 128
+  },
+  "seed": 0,
+  "sources": {
+    "*": {
+      "status": "assumed",
+      "description": "Synthetic 10T capacity anchor. 4 TB HBM per device and 64 TB DRAM per host are hypothetical, not product specifications.",
+      "uri": null,
+      "revision": null
+    }
+  },
+  "assumptions": [
+    "Total and active parameters are declared budgets; generated layer kernels are architectural approximations.",
+    "Active parameters derive as dense 200B plus 306.25B routed experts per token.",
+    "This small-rank giant-memory profile keeps the event graph practical for capacity validation."
+  ],
+  "calibration": null
+}

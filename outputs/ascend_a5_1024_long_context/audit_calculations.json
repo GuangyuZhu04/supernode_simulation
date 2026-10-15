@@ -1,0 +1,940 @@
+{
+  "audit_method": "Independent integer arithmetic, without calling simulation engine",
+  "assumptions": {
+    "request_batch_size": 1,
+    "active_EP_rank": 0,
+    "TP": 8,
+    "EP": 128,
+    "PP": 1,
+    "DP": 1,
+    "wire_dtype": "fp16",
+    "wire_bytes_per_element": 2,
+    "layers": 93,
+    "moe_layers": 92,
+    "dense_layers": 1,
+    "hidden_dim": 7168,
+    "latent_moe_dim": 3584,
+    "top_k": 16,
+    "EP_uniform_routing": true,
+    "TP_groups_within_8_card_host": true,
+    "diagonal_EP_traffic_excluded": true,
+    "EP_destinations_by_domain": {
+      "local_diagonal": 1,
+      "same_SU": 15,
+      "cross_SU": 112
+    },
+    "physical_hops": {
+      "TP_SU": 2,
+      "MoE_same_SU": 4,
+      "MoE_cross_SU_SO": 6
+    }
+  },
+  "formulas": {
+    "TP_allreduce_transport": "93 * 2 attention/ffn * [2 * (8 - 1)] * 7168 * 2 = 37330944 B/token",
+    "MoE_matrix_entry": "16 * 3584 * 2 / 128 = 896 B/token/source/target/TP-lane",
+    "dispatch": "92 * 8 * 127 * 896 = 83750912 B/token",
+    "combine": "dispatch transpose: same total 83750912 B/token",
+    "MoE_SU_transport": "dispatch+combine: 92 * 8 * 15 * 896 * 2 = 19783680 B/token",
+    "MoE_SO_transport": "dispatch+combine: 92 * 8 * 112 * 896 * 2 = 147718144 B/token",
+    "SU_physical": "37330944 * 2 + 19783680 * 4 = 153796608 B/token",
+    "SO_physical": "147718144 * 6 = 886308864 B/token",
+    "cumulative": "prefill L times plus decode (D - 1) times: multiply per_processed_token by L + D - 1"
+  },
+  "per_prefill_token": {
+    "transport_payload_bytes": 204832768,
+    "transport_bytes_by_domain": {
+      "SU": 57114624,
+      "SO": 147718144
+    },
+    "physical_bytes_by_domain": {
+      "SU": 153796608,
+      "SO": 886308864
+    },
+    "physical_total_bytes": 1040105472,
+    "payload_by_semantic_bytes": {
+      "all_reduce": 37330944,
+      "dispatch": 83750912,
+      "combine": 83750912
+    },
+    "payload_by_collective_bytes": {
+      "all_reduce": 37330944,
+      "all_to_all_v": 167501824
+    }
+  },
+  "per_decode_step": {
+    "transport_payload_bytes": 204832768,
+    "transport_bytes_by_domain": {
+      "SU": 57114624,
+      "SO": 147718144
+    },
+    "physical_bytes_by_domain": {
+      "SU": 153796608,
+      "SO": 886308864
+    },
+    "physical_total_bytes": 1040105472,
+    "payload_by_semantic_bytes": {
+      "all_reduce": 37330944,
+      "dispatch": 83750912,
+      "combine": 83750912
+    },
+    "payload_by_collective_bytes": {
+      "all_reduce": 37330944,
+      "all_to_all_v": 167501824
+    }
+  },
+  "note": "Aggregates over all 1024 ranks for one request. Semantic and collective are two views of the same transport payload and must not be added. Physical byte count sums bytes across directed link hops, not endpoint injection traffic.",
+  "scenarios": [
+    {
+      "input_tokens": 131072,
+      "output_tokens": 4096,
+      "decode_steps": 4095,
+      "processed_tokens": 135167,
+      "max_position_embeddings": 1048576,
+      "within_official_context": true,
+      "totals": {
+        "transport_payload_bytes": 27686630752256,
+        "transport_bytes_by_domain": {
+          "SU": 7720012382208,
+          "SO": 19966618370048
+        },
+        "physical_bytes_by_domain": {
+          "SU": 20788226113536,
+          "SO": 119799710220288
+        },
+        "physical_total_bytes": 140587936333824,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 5045911707648,
+          "dispatch": 11320359522304,
+          "combine": 11320359522304
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 5045911707648,
+          "all_to_all_v": 22640719044608
+        }
+      },
+      "prefill": {
+        "transport_payload_bytes": 26847840567296,
+        "transport_bytes_by_domain": {
+          "SU": 7486127996928,
+          "SO": 19361712570368
+        },
+        "physical_bytes_by_domain": {
+          "SU": 20158429003776,
+          "SO": 116170275422208
+        },
+        "physical_total_bytes": 136328704425984,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 4893041491968,
+          "dispatch": 10977399537664,
+          "combine": 10977399537664
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 4893041491968,
+          "all_to_all_v": 21954799075328
+        }
+      },
+      "decode": {
+        "transport_payload_bytes": 838790184960,
+        "transport_bytes_by_domain": {
+          "SU": 233884385280,
+          "SO": 604905799680
+        },
+        "physical_bytes_by_domain": {
+          "SU": 629797109760,
+          "SO": 3629434798080
+        },
+        "physical_total_bytes": 4259231907840,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 152870215680,
+          "dispatch": 342959984640,
+          "combine": 342959984640
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 152870215680,
+          "all_to_all_v": 685919969280
+        }
+      }
+    },
+    {
+      "input_tokens": 131072,
+      "output_tokens": 16384,
+      "decode_steps": 16383,
+      "processed_tokens": 147455,
+      "max_position_embeddings": 1048576,
+      "within_official_context": true,
+      "totals": {
+        "transport_payload_bytes": 30203615805440,
+        "transport_bytes_by_domain": {
+          "SU": 8421836881920,
+          "SO": 21781778923520
+        },
+        "physical_bytes_by_domain": {
+          "SU": 22678078832640,
+          "SO": 130690673541120
+        },
+        "physical_total_bytes": 153368752373760,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 5504634347520,
+          "dispatch": 12349490728960,
+          "combine": 12349490728960
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 5504634347520,
+          "all_to_all_v": 24698981457920
+        }
+      },
+      "prefill": {
+        "transport_payload_bytes": 26847840567296,
+        "transport_bytes_by_domain": {
+          "SU": 7486127996928,
+          "SO": 19361712570368
+        },
+        "physical_bytes_by_domain": {
+          "SU": 20158429003776,
+          "SO": 116170275422208
+        },
+        "physical_total_bytes": 136328704425984,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 4893041491968,
+          "dispatch": 10977399537664,
+          "combine": 10977399537664
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 4893041491968,
+          "all_to_all_v": 21954799075328
+        }
+      },
+      "decode": {
+        "transport_payload_bytes": 3355775238144,
+        "transport_bytes_by_domain": {
+          "SU": 935708884992,
+          "SO": 2420066353152
+        },
+        "physical_bytes_by_domain": {
+          "SU": 2519649828864,
+          "SO": 14520398118912
+        },
+        "physical_total_bytes": 17040047947776,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 611592855552,
+          "dispatch": 1372091191296,
+          "combine": 1372091191296
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 611592855552,
+          "all_to_all_v": 2744182382592
+        }
+      }
+    },
+    {
+      "input_tokens": 131072,
+      "output_tokens": 131072,
+      "decode_steps": 131071,
+      "processed_tokens": 262143,
+      "max_position_embeddings": 1048576,
+      "within_official_context": true,
+      "totals": {
+        "transport_payload_bytes": 53695476301824,
+        "transport_bytes_by_domain": {
+          "SU": 14972198879232,
+          "SO": 38723277422592
+        },
+        "physical_bytes_by_domain": {
+          "SU": 40316704210944,
+          "SO": 232339664535552
+        },
+        "physical_total_bytes": 272656368746496,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 9786045652992,
+          "dispatch": 21954715324416,
+          "combine": 21954715324416
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 9786045652992,
+          "all_to_all_v": 43909430648832
+        }
+      },
+      "prefill": {
+        "transport_payload_bytes": 26847840567296,
+        "transport_bytes_by_domain": {
+          "SU": 7486127996928,
+          "SO": 19361712570368
+        },
+        "physical_bytes_by_domain": {
+          "SU": 20158429003776,
+          "SO": 116170275422208
+        },
+        "physical_total_bytes": 136328704425984,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 4893041491968,
+          "dispatch": 10977399537664,
+          "combine": 10977399537664
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 4893041491968,
+          "all_to_all_v": 21954799075328
+        }
+      },
+      "decode": {
+        "transport_payload_bytes": 26847635734528,
+        "transport_bytes_by_domain": {
+          "SU": 7486070882304,
+          "SO": 19361564852224
+        },
+        "physical_bytes_by_domain": {
+          "SU": 20158275207168,
+          "SO": 116169389113344
+        },
+        "physical_total_bytes": 136327664320512,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 4893004161024,
+          "dispatch": 10977315786752,
+          "combine": 10977315786752
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 4893004161024,
+          "all_to_all_v": 21954631573504
+        }
+      }
+    },
+    {
+      "input_tokens": 262144,
+      "output_tokens": 4096,
+      "decode_steps": 4095,
+      "processed_tokens": 266239,
+      "max_position_embeddings": 1048576,
+      "within_official_context": true,
+      "totals": {
+        "transport_payload_bytes": 54534471319552,
+        "transport_bytes_by_domain": {
+          "SU": 15206140379136,
+          "SO": 39328330940416
+        },
+        "physical_bytes_by_domain": {
+          "SU": 40946655117312,
+          "SO": 235969985642496
+        },
+        "physical_total_bytes": 276916640759808,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 9938953199616,
+          "dispatch": 22297759059968,
+          "combine": 22297759059968
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 9938953199616,
+          "all_to_all_v": 44595518119936
+        }
+      },
+      "prefill": {
+        "transport_payload_bytes": 53695681134592,
+        "transport_bytes_by_domain": {
+          "SU": 14972255993856,
+          "SO": 38723425140736
+        },
+        "physical_bytes_by_domain": {
+          "SU": 40316858007552,
+          "SO": 232340550844416
+        },
+        "physical_total_bytes": 272657408851968,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 9786082983936,
+          "dispatch": 21954799075328,
+          "combine": 21954799075328
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 9786082983936,
+          "all_to_all_v": 43909598150656
+        }
+      },
+      "decode": {
+        "transport_payload_bytes": 838790184960,
+        "transport_bytes_by_domain": {
+          "SU": 233884385280,
+          "SO": 604905799680
+        },
+        "physical_bytes_by_domain": {
+          "SU": 629797109760,
+          "SO": 3629434798080
+        },
+        "physical_total_bytes": 4259231907840,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 152870215680,
+          "dispatch": 342959984640,
+          "combine": 342959984640
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 152870215680,
+          "all_to_all_v": 685919969280
+        }
+      }
+    },
+    {
+      "input_tokens": 262144,
+      "output_tokens": 16384,
+      "decode_steps": 16383,
+      "processed_tokens": 278527,
+      "max_position_embeddings": 1048576,
+      "within_official_context": true,
+      "totals": {
+        "transport_payload_bytes": 57051456372736,
+        "transport_bytes_by_domain": {
+          "SU": 15907964878848,
+          "SO": 41143491493888
+        },
+        "physical_bytes_by_domain": {
+          "SU": 42836507836416,
+          "SO": 246860948963328
+        },
+        "physical_total_bytes": 289697456799744,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 10397675839488,
+          "dispatch": 23326890266624,
+          "combine": 23326890266624
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 10397675839488,
+          "all_to_all_v": 46653780533248
+        }
+      },
+      "prefill": {
+        "transport_payload_bytes": 53695681134592,
+        "transport_bytes_by_domain": {
+          "SU": 14972255993856,
+          "SO": 38723425140736
+        },
+        "physical_bytes_by_domain": {
+          "SU": 40316858007552,
+          "SO": 232340550844416
+        },
+        "physical_total_bytes": 272657408851968,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 9786082983936,
+          "dispatch": 21954799075328,
+          "combine": 21954799075328
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 9786082983936,
+          "all_to_all_v": 43909598150656
+        }
+      },
+      "decode": {
+        "transport_payload_bytes": 3355775238144,
+        "transport_bytes_by_domain": {
+          "SU": 935708884992,
+          "SO": 2420066353152
+        },
+        "physical_bytes_by_domain": {
+          "SU": 2519649828864,
+          "SO": 14520398118912
+        },
+        "physical_total_bytes": 17040047947776,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 611592855552,
+          "dispatch": 1372091191296,
+          "combine": 1372091191296
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 611592855552,
+          "all_to_all_v": 2744182382592
+        }
+      }
+    },
+    {
+      "input_tokens": 262144,
+      "output_tokens": 131072,
+      "decode_steps": 131071,
+      "processed_tokens": 393215,
+      "max_position_embeddings": 1048576,
+      "within_official_context": true,
+      "totals": {
+        "transport_payload_bytes": 80543316869120,
+        "transport_bytes_by_domain": {
+          "SU": 22458326876160,
+          "SO": 58084989992960
+        },
+        "physical_bytes_by_domain": {
+          "SU": 60475133214720,
+          "SO": 348509939957760
+        },
+        "physical_total_bytes": 408985073172480,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 14679087144960,
+          "dispatch": 32932114862080,
+          "combine": 32932114862080
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 14679087144960,
+          "all_to_all_v": 65864229724160
+        }
+      },
+      "prefill": {
+        "transport_payload_bytes": 53695681134592,
+        "transport_bytes_by_domain": {
+          "SU": 14972255993856,
+          "SO": 38723425140736
+        },
+        "physical_bytes_by_domain": {
+          "SU": 40316858007552,
+          "SO": 232340550844416
+        },
+        "physical_total_bytes": 272657408851968,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 9786082983936,
+          "dispatch": 21954799075328,
+          "combine": 21954799075328
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 9786082983936,
+          "all_to_all_v": 43909598150656
+        }
+      },
+      "decode": {
+        "transport_payload_bytes": 26847635734528,
+        "transport_bytes_by_domain": {
+          "SU": 7486070882304,
+          "SO": 19361564852224
+        },
+        "physical_bytes_by_domain": {
+          "SU": 20158275207168,
+          "SO": 116169389113344
+        },
+        "physical_total_bytes": 136327664320512,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 4893004161024,
+          "dispatch": 10977315786752,
+          "combine": 10977315786752
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 4893004161024,
+          "all_to_all_v": 21954631573504
+        }
+      }
+    },
+    {
+      "input_tokens": 524288,
+      "output_tokens": 4096,
+      "decode_steps": 4095,
+      "processed_tokens": 528383,
+      "max_position_embeddings": 1048576,
+      "within_official_context": true,
+      "totals": {
+        "transport_payload_bytes": 108230152454144,
+        "transport_bytes_by_domain": {
+          "SU": 30178396372992,
+          "SO": 78051756081152
+        },
+        "physical_bytes_by_domain": {
+          "SU": 81263513124864,
+          "SO": 468310536486912
+        },
+        "physical_total_bytes": 549574049611776,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 19725036183552,
+          "dispatch": 44252558135296,
+          "combine": 44252558135296
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 19725036183552,
+          "all_to_all_v": 88505116270592
+        }
+      },
+      "prefill": {
+        "transport_payload_bytes": 107391362269184,
+        "transport_bytes_by_domain": {
+          "SU": 29944511987712,
+          "SO": 77446850281472
+        },
+        "physical_bytes_by_domain": {
+          "SU": 80633716015104,
+          "SO": 464681101688832
+        },
+        "physical_total_bytes": 545314817703936,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 19572165967872,
+          "dispatch": 43909598150656,
+          "combine": 43909598150656
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 19572165967872,
+          "all_to_all_v": 87819196301312
+        }
+      },
+      "decode": {
+        "transport_payload_bytes": 838790184960,
+        "transport_bytes_by_domain": {
+          "SU": 233884385280,
+          "SO": 604905799680
+        },
+        "physical_bytes_by_domain": {
+          "SU": 629797109760,
+          "SO": 3629434798080
+        },
+        "physical_total_bytes": 4259231907840,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 152870215680,
+          "dispatch": 342959984640,
+          "combine": 342959984640
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 152870215680,
+          "all_to_all_v": 685919969280
+        }
+      }
+    },
+    {
+      "input_tokens": 524288,
+      "output_tokens": 16384,
+      "decode_steps": 16383,
+      "processed_tokens": 540671,
+      "max_position_embeddings": 1048576,
+      "within_official_context": true,
+      "totals": {
+        "transport_payload_bytes": 110747137507328,
+        "transport_bytes_by_domain": {
+          "SU": 30880220872704,
+          "SO": 79866916634624
+        },
+        "physical_bytes_by_domain": {
+          "SU": 83153365843968,
+          "SO": 479201499807744
+        },
+        "physical_total_bytes": 562354865651712,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 20183758823424,
+          "dispatch": 45281689341952,
+          "combine": 45281689341952
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 20183758823424,
+          "all_to_all_v": 90563378683904
+        }
+      },
+      "prefill": {
+        "transport_payload_bytes": 107391362269184,
+        "transport_bytes_by_domain": {
+          "SU": 29944511987712,
+          "SO": 77446850281472
+        },
+        "physical_bytes_by_domain": {
+          "SU": 80633716015104,
+          "SO": 464681101688832
+        },
+        "physical_total_bytes": 545314817703936,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 19572165967872,
+          "dispatch": 43909598150656,
+          "combine": 43909598150656
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 19572165967872,
+          "all_to_all_v": 87819196301312
+        }
+      },
+      "decode": {
+        "transport_payload_bytes": 3355775238144,
+        "transport_bytes_by_domain": {
+          "SU": 935708884992,
+          "SO": 2420066353152
+        },
+        "physical_bytes_by_domain": {
+          "SU": 2519649828864,
+          "SO": 14520398118912
+        },
+        "physical_total_bytes": 17040047947776,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 611592855552,
+          "dispatch": 1372091191296,
+          "combine": 1372091191296
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 611592855552,
+          "all_to_all_v": 2744182382592
+        }
+      }
+    },
+    {
+      "input_tokens": 524288,
+      "output_tokens": 131072,
+      "decode_steps": 131071,
+      "processed_tokens": 655359,
+      "max_position_embeddings": 1048576,
+      "within_official_context": true,
+      "totals": {
+        "transport_payload_bytes": 134238998003712,
+        "transport_bytes_by_domain": {
+          "SU": 37430582870016,
+          "SO": 96808415133696
+        },
+        "physical_bytes_by_domain": {
+          "SU": 100791991222272,
+          "SO": 580850490802176
+        },
+        "physical_total_bytes": 681642482024448,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 24465170128896,
+          "dispatch": 54886913937408,
+          "combine": 54886913937408
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 24465170128896,
+          "all_to_all_v": 109773827874816
+        }
+      },
+      "prefill": {
+        "transport_payload_bytes": 107391362269184,
+        "transport_bytes_by_domain": {
+          "SU": 29944511987712,
+          "SO": 77446850281472
+        },
+        "physical_bytes_by_domain": {
+          "SU": 80633716015104,
+          "SO": 464681101688832
+        },
+        "physical_total_bytes": 545314817703936,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 19572165967872,
+          "dispatch": 43909598150656,
+          "combine": 43909598150656
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 19572165967872,
+          "all_to_all_v": 87819196301312
+        }
+      },
+      "decode": {
+        "transport_payload_bytes": 26847635734528,
+        "transport_bytes_by_domain": {
+          "SU": 7486070882304,
+          "SO": 19361564852224
+        },
+        "physical_bytes_by_domain": {
+          "SU": 20158275207168,
+          "SO": 116169389113344
+        },
+        "physical_total_bytes": 136327664320512,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 4893004161024,
+          "dispatch": 10977315786752,
+          "combine": 10977315786752
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 4893004161024,
+          "all_to_all_v": 21954631573504
+        }
+      }
+    },
+    {
+      "input_tokens": 1048576,
+      "output_tokens": 4096,
+      "decode_steps": 4095,
+      "processed_tokens": 1052671,
+      "max_position_embeddings": 1048576,
+      "within_official_context": false,
+      "totals": {
+        "transport_payload_bytes": 215621514723328,
+        "transport_bytes_by_domain": {
+          "SU": 60122908360704,
+          "SO": 155498606362624
+        },
+        "physical_bytes_by_domain": {
+          "SU": 161897229139968,
+          "SO": 932991638175744
+        },
+        "physical_total_bytes": 1094888867315712,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 39297202151424,
+          "dispatch": 88162156285952,
+          "combine": 88162156285952
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 39297202151424,
+          "all_to_all_v": 176324312571904
+        }
+      },
+      "prefill": {
+        "transport_payload_bytes": 214782724538368,
+        "transport_bytes_by_domain": {
+          "SU": 59889023975424,
+          "SO": 154893700562944
+        },
+        "physical_bytes_by_domain": {
+          "SU": 161267432030208,
+          "SO": 929362203377664
+        },
+        "physical_total_bytes": 1090629635407872,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 39144331935744,
+          "dispatch": 87819196301312,
+          "combine": 87819196301312
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 39144331935744,
+          "all_to_all_v": 175638392602624
+        }
+      },
+      "decode": {
+        "transport_payload_bytes": 838790184960,
+        "transport_bytes_by_domain": {
+          "SU": 233884385280,
+          "SO": 604905799680
+        },
+        "physical_bytes_by_domain": {
+          "SU": 629797109760,
+          "SO": 3629434798080
+        },
+        "physical_total_bytes": 4259231907840,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 152870215680,
+          "dispatch": 342959984640,
+          "combine": 342959984640
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 152870215680,
+          "all_to_all_v": 685919969280
+        }
+      }
+    },
+    {
+      "input_tokens": 1048576,
+      "output_tokens": 16384,
+      "decode_steps": 16383,
+      "processed_tokens": 1064959,
+      "max_position_embeddings": 1048576,
+      "within_official_context": false,
+      "totals": {
+        "transport_payload_bytes": 218138499776512,
+        "transport_bytes_by_domain": {
+          "SU": 60824732860416,
+          "SO": 157313766916096
+        },
+        "physical_bytes_by_domain": {
+          "SU": 163787081859072,
+          "SO": 943882601496576
+        },
+        "physical_total_bytes": 1107669683355648,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 39755924791296,
+          "dispatch": 89191287492608,
+          "combine": 89191287492608
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 39755924791296,
+          "all_to_all_v": 178382574985216
+        }
+      },
+      "prefill": {
+        "transport_payload_bytes": 214782724538368,
+        "transport_bytes_by_domain": {
+          "SU": 59889023975424,
+          "SO": 154893700562944
+        },
+        "physical_bytes_by_domain": {
+          "SU": 161267432030208,
+          "SO": 929362203377664
+        },
+        "physical_total_bytes": 1090629635407872,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 39144331935744,
+          "dispatch": 87819196301312,
+          "combine": 87819196301312
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 39144331935744,
+          "all_to_all_v": 175638392602624
+        }
+      },
+      "decode": {
+        "transport_payload_bytes": 3355775238144,
+        "transport_bytes_by_domain": {
+          "SU": 935708884992,
+          "SO": 2420066353152
+        },
+        "physical_bytes_by_domain": {
+          "SU": 2519649828864,
+          "SO": 14520398118912
+        },
+        "physical_total_bytes": 17040047947776,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 611592855552,
+          "dispatch": 1372091191296,
+          "combine": 1372091191296
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 611592855552,
+          "all_to_all_v": 2744182382592
+        }
+      }
+    },
+    {
+      "input_tokens": 1048576,
+      "output_tokens": 131072,
+      "decode_steps": 131071,
+      "processed_tokens": 1179647,
+      "max_position_embeddings": 1048576,
+      "within_official_context": false,
+      "totals": {
+        "transport_payload_bytes": 241630360272896,
+        "transport_bytes_by_domain": {
+          "SU": 67375094857728,
+          "SO": 174255265415168
+        },
+        "physical_bytes_by_domain": {
+          "SU": 181425707237376,
+          "SO": 1045531592491008
+        },
+        "physical_total_bytes": 1226957299728384,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 44037336096768,
+          "dispatch": 98796512088064,
+          "combine": 98796512088064
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 44037336096768,
+          "all_to_all_v": 197593024176128
+        }
+      },
+      "prefill": {
+        "transport_payload_bytes": 214782724538368,
+        "transport_bytes_by_domain": {
+          "SU": 59889023975424,
+          "SO": 154893700562944
+        },
+        "physical_bytes_by_domain": {
+          "SU": 161267432030208,
+          "SO": 929362203377664
+        },
+        "physical_total_bytes": 1090629635407872,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 39144331935744,
+          "dispatch": 87819196301312,
+          "combine": 87819196301312
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 39144331935744,
+          "all_to_all_v": 175638392602624
+        }
+      },
+      "decode": {
+        "transport_payload_bytes": 26847635734528,
+        "transport_bytes_by_domain": {
+          "SU": 7486070882304,
+          "SO": 19361564852224
+        },
+        "physical_bytes_by_domain": {
+          "SU": 20158275207168,
+          "SO": 116169389113344
+        },
+        "physical_total_bytes": 136327664320512,
+        "payload_by_semantic_bytes": {
+          "all_reduce": 4893004161024,
+          "dispatch": 10977315786752,
+          "combine": 10977315786752
+        },
+        "payload_by_collective_bytes": {
+          "all_reduce": 4893004161024,
+          "all_to_all_v": 21954631573504
+        }
+      }
+    }
+  ]
+}

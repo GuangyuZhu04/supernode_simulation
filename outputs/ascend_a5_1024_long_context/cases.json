@@ -1,0 +1,122 @@
+[
+  {
+    "case": "kimi_k3_p131072_d4096",
+    "input_tokens": 131072,
+    "output_tokens": 4096,
+    "final_token_position": 135167,
+    "total_input_output_tokens": 135168,
+    "official_window_exceeded": false,
+    "config": "configs/kimi_k3_p131072_d4096.json",
+    "validation": "passed"
+  },
+  {
+    "case": "kimi_k3_p131072_d16384",
+    "input_tokens": 131072,
+    "output_tokens": 16384,
+    "final_token_position": 147455,
+    "total_input_output_tokens": 147456,
+    "official_window_exceeded": false,
+    "config": "configs/kimi_k3_p131072_d16384.json",
+    "validation": "passed"
+  },
+  {
+    "case": "kimi_k3_p131072_d131072",
+    "input_tokens": 131072,
+    "output_tokens": 131072,
+    "final_token_position": 262143,
+    "total_input_output_tokens": 262144,
+    "official_window_exceeded": false,
+    "config": "configs/kimi_k3_p131072_d131072.json",
+    "validation": "passed"
+  },
+  {
+    "case": "kimi_k3_p262144_d4096",
+    "input_tokens": 262144,
+    "output_tokens": 4096,
+    "final_token_position": 266239,
+    "total_input_output_tokens": 266240,
+    "official_window_exceeded": false,
+    "config": "configs/kimi_k3_p262144_d4096.json",
+    "validation": "passed"
+  },
+  {
+    "case": "kimi_k3_p262144_d16384",
+    "input_tokens": 262144,
+    "output_tokens": 16384,
+    "final_token_position": 278527,
+    "total_input_output_tokens": 278528,
+    "official_window_exceeded": false,
+    "config": "configs/kimi_k3_p262144_d16384.json",
+    "validation": "passed"
+  },
+  {
+    "case": "kimi_k3_p262144_d131072",
+    "input_tokens": 262144,
+    "output_tokens": 131072,
+    "final_token_position": 393215,
+    "total_input_output_tokens": 393216,
+    "official_window_exceeded": false,
+    "config": "configs/kimi_k3_p262144_d131072.json",
+    "validation": "passed"
+  },
+  {
+    "case": "kimi_k3_p524288_d4096",
+    "input_tokens": 524288,
+    "output_tokens": 4096,
+    "final_token_position": 528383,
+    "total_input_output_tokens": 528384,
+    "official_window_exceeded": false,
+    "config": "configs/kimi_k3_p524288_d4096.json",
+    "validation": "passed"
+  },
+  {
+    "case": "kimi_k3_p524288_d16384",
+    "input_tokens": 524288,
+    "output_tokens": 16384,
+    "final_token_position": 540671,
+    "total_input_output_tokens": 540672,
+    "official_window_exceeded": false,
+    "config": "configs/kimi_k3_p524288_d16384.json",
+    "validation": "passed"
+  },
+  {
+    "case": "kimi_k3_p524288_d131072",
+    "input_tokens": 524288,
+    "output_tokens": 131072,
+    "final_token_position": 655359,
+    "total_input_output_tokens": 655360,
+    "official_window_exceeded": false,
+    "config": "configs/kimi_k3_p524288_d131072.json",
+    "validation": "passed"
+  },
+  {
+    "case": "kimi_k3_p1048576_d4096",
+    "input_tokens": 1048576,
+    "output_tokens": 4096,
+    "final_token_position": 1052671,
+    "total_input_output_tokens": 1052672,
+    "official_window_exceeded": true,
+    "config": "configs/kimi_k3_p1048576_d4096.json",
+    "validation": "passed"
+  },
+  {
+    "case": "kimi_k3_p1048576_d16384",
+    "input_tokens": 1048576,
+    "output_tokens": 16384,
+    "final_token_position": 1064959,
+    "total_input_output_tokens": 1064960,
+    "official_window_exceeded": true,
+    "config": "configs/kimi_k3_p1048576_d16384.json",
+    "validation": "passed"
+  },
+  {
+    "case": "kimi_k3_p1048576_d131072",
+    "input_tokens": 1048576,
+    "output_tokens": 131072,
+    "final_token_position": 1179647,
+    "total_input_output_tokens": 1179648,
+    "official_window_exceeded": true,
+    "config": "configs/kimi_k3_p1048576_d131072.json",
+    "validation": "passed"
+  }
+]

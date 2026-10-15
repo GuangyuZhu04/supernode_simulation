@@ -1,0 +1,775 @@
+{
+  "schema_version": 1,
+  "audited_utc": "2026-10-15T11:03:24Z",
+  "scope": "Read-only SHA/header audit; no simulation and no numerical source/input/result edits. Result files are a snapshot during active execution.",
+  "runtime_id": "sha256:78919546d7eb336972226e9f71cc396718eafeafc5999327c398eeb025c40620",
+  "input_snapshot_id": "sha256:ce1202280337bedc62489a0f01b1b444c8677493eacedbeb86c313c7057288c7",
+  "manifest_sha256": "088533d98d9f746150aa8c2475207f344ee730ce40d538af6ce93e08fd4041bb",
+  "checks": {
+    "runtime_module_count": 18,
+    "runtime_matches": true,
+    "runner_hash_matches": true,
+    "resource_helper_hash_matches": true,
+    "input_files": 580,
+    "input_bytes": 11827186,
+    "input_snapshot_matches": true,
+    "case_count": 288,
+    "case_count_unique": true,
+    "cases_by_platform_parallel": {
+      "ascend960dt/tp8": 48,
+      "ascend960dt/sp16": 48,
+      "ascend960dt/sp32": 48,
+      "ascend970/tp8": 48,
+      "ascend970/sp16": 48,
+      "ascend970/sp32": 48
+    },
+    "all_cases_eligibility_matches": true,
+    "native_reference_count": 2,
+    "manifest_stable_during_audit": true,
+    "all_boolean_checks_pass": true,
+    "runner_imports_frozen_runtime_first": true,
+    "runner_asserts_loaded_streaming_path": true,
+    "runner_uses_plain_resource_helper": true
+  },
+  "failures": [],
+  "result_header_failures": [],
+  "committed_result_files_observed": 82,
+  "matching_committed_results": 81,
+  "matching_complete_results": 81,
+  "stale_or_native_primary_cases": [
+    {
+      "case": "a7-sp32-top64-1M-b32",
+      "runtime_id": "sha256:447b4248c25385c9ca971fb1b070aa195ff2397136f5b75b48881bd615ee3645"
+    }
+  ],
+  "completed_result_snapshot": [
+    {
+      "case": "a6-sp16-top32-128k-b1",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 13396,
+      "sha256": "d068d9ea6c5a8f27cdc5c27f856c78d22d0126eff25747307d756c156afc2281"
+    },
+    {
+      "case": "a6-sp16-top32-128k-b16",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 28600,
+      "sha256": "63401b39904834c7c504ccbc453cf093990a01f5b118a847e9894515325d9b75"
+    },
+    {
+      "case": "a6-sp16-top32-128k-b2",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 28600,
+      "sha256": "f4e937675ba378655c945f63697a18464b793763dbc3abeb51445e7d1e10a1a3"
+    },
+    {
+      "case": "a6-sp16-top32-128k-b32",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 15924,
+      "sha256": "9ee2fc81adbb4e0078d10e85d6e8596173eacf1234901faba5aea613e34a4ca0"
+    },
+    {
+      "case": "a6-sp16-top32-128k-b4",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 15924,
+      "sha256": "1b955df4c3a1997786823dc92f12af351c64342a57a7a5630eec9539fb853d48"
+    },
+    {
+      "case": "a6-sp16-top32-128k-b8",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 13396,
+      "sha256": "f98d15c387c926ddd9c80b621ed4bebe82acfe1ff9e1c040908358f17cba0f04"
+    },
+    {
+      "case": "a6-sp16-top32-256k-b1",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 15924,
+      "sha256": "9865c25055ad4f257dc808a95234563921817c48e119eab602f9bf1fae22ad2c"
+    },
+    {
+      "case": "a6-sp16-top32-256k-b16",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 13396,
+      "sha256": "c78997cc3bd6d2beef8eeecc4f57e204eb37fc6c767012b254443e78e3d96238"
+    },
+    {
+      "case": "a6-sp16-top32-256k-b2",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 13396,
+      "sha256": "3c410027cc28b567787dddf52e7e308cf1cc06510b8c8a0e4d3cb6028fba704f"
+    },
+    {
+      "case": "a6-sp16-top32-256k-b32",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 28600,
+      "sha256": "a6dcaf9c0c3925d2cfe8e6e03ea4d75e5b557ebaf02113c54153dba8e13972dd"
+    },
+    {
+      "case": "a6-sp16-top32-256k-b4",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 28600,
+      "sha256": "21de055231635f297e784b007d00e7007ffe54412ae23398523ca3b9efdaac8e"
+    },
+    {
+      "case": "a6-sp16-top32-256k-b8",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 15924,
+      "sha256": "f58febf664d2e05b656cb16ef34e189b48867f0366fe265fd7897a0a158676b1"
+    },
+    {
+      "case": "a6-sp16-top32-512k-b1",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 28600,
+      "sha256": "e421b32865c4e96d9d8d1fca3e7a11720e57a50b63ca8491d8b55872d739f29d"
+    },
+    {
+      "case": "a6-sp16-top32-512k-b16",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 15924,
+      "sha256": "166d20e856e76be32a965dbd757ce52b507bcdb8e0b1513c519f85aa769bc88e"
+    },
+    {
+      "case": "a6-sp16-top32-512k-b32",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 13396,
+      "sha256": "0518c9e35a4f578611f6fca4d1969fc92459ac5c4d8589484454ee1118b57701"
+    },
+    {
+      "case": "a6-tp8-top32-128k-b1",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 15924,
+      "sha256": "9759cfe4cf34677e67c366fe649f71b49b7ae108f1e6a7575b2d30f3ec3a5f00"
+    },
+    {
+      "case": "a6-tp8-top32-128k-b16",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 13396,
+      "sha256": "79e4732a1d6cc48d6484ded55d41cc6c4e0f1b234450c16c8932a606ef320505"
+    },
+    {
+      "case": "a6-tp8-top32-128k-b2",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 13396,
+      "sha256": "16f57efafe1ede68a7c5b55f1b30065746a55c40144c99d8bf29127800ce6d1b"
+    },
+    {
+      "case": "a6-tp8-top32-128k-b32",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 28600,
+      "sha256": "8a6e83a8d376d0ad5f61f970c17d79b1fd3b94f37bd48ac026ed8b47d5cd804d"
+    },
+    {
+      "case": "a6-tp8-top32-128k-b4",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 28600,
+      "sha256": "170de5f96f69dffce7588044e4e0fe5cdbebf964a1b5023831d55199614803a2"
+    },
+    {
+      "case": "a6-tp8-top32-128k-b8",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 15924,
+      "sha256": "1334ca2256886a94c14e5d1323b131e023f4369bc0ef9869d09cf7f2fb25be68"
+    },
+    {
+      "case": "a6-tp8-top32-1M-b1",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 15924,
+      "sha256": "1465daf71092d515de73104d51ad15053b94fa6551267334da8574dc8b09be26"
+    },
+    {
+      "case": "a6-tp8-top32-1M-b16",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 13396,
+      "sha256": "6ef349d7622dd741e57f82dd49ae1ba9485644aba3effb12e6d0c8fb2b86914f"
+    },
+    {
+      "case": "a6-tp8-top32-1M-b2",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 13396,
+      "sha256": "03c17a2c231f77d4684e9823ced42cbcf10813ad9d5b11e740f06d44794dd5ac"
+    },
+    {
+      "case": "a6-tp8-top32-1M-b32",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 28600,
+      "sha256": "8bd8228d3ea8a722d2cd87ce9b02b15a53ba971ea46a4572b9bac5cbe7b36277"
+    },
+    {
+      "case": "a6-tp8-top32-1M-b4",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 28600,
+      "sha256": "086aeb1856cb3da8186155c19afa8aee252613f41bb02b506ca99f9545a86984"
+    },
+    {
+      "case": "a6-tp8-top32-1M-b8",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 15924,
+      "sha256": "1273a64a46818d0eb570cfff1d092a999a16d8e3192750895091f4a76487960b"
+    },
+    {
+      "case": "a6-tp8-top32-256k-b1",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 28600,
+      "sha256": "25ae9bbec71fb811aff8dd24d72acff690a63f41618050f394ee66acb09f944a"
+    },
+    {
+      "case": "a6-tp8-top32-256k-b16",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 15924,
+      "sha256": "78d98ca128516ad272e3681c7d13c747be65b8061736f8974f56cbe3db369105"
+    },
+    {
+      "case": "a6-tp8-top32-256k-b2",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 15924,
+      "sha256": "27461bd872d97fdd378ef609f33b50070da67a1fba20304976409f399ef02ba4"
+    },
+    {
+      "case": "a6-tp8-top32-256k-b32",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 13396,
+      "sha256": "a8f67e891eddfc49ef1c3911a61158c532bc1ea811639cb745d9361b5e60aee9"
+    },
+    {
+      "case": "a6-tp8-top32-256k-b4",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 13396,
+      "sha256": "a2aca7cac380420682e94d0ab8b8ac5a3fc668af0ed4011623c70ff6cdbf9360"
+    },
+    {
+      "case": "a6-tp8-top32-256k-b8",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 28600,
+      "sha256": "ab4527ae84466c64e2771a3927d4c9081105be9e5295faff7ece5bfbe8c48d7f"
+    },
+    {
+      "case": "a6-tp8-top32-512k-b1",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 13396,
+      "sha256": "044cc701aaa2740eb17932f24b9d3bd1fc2ea1f0a2c193f2b070fec91de930a1"
+    },
+    {
+      "case": "a6-tp8-top32-512k-b16",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 28600,
+      "sha256": "1f397f6184cf579247fbf6281fa2507bbb4906145698e98a8f024fea97450101"
+    },
+    {
+      "case": "a6-tp8-top32-512k-b2",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 28600,
+      "sha256": "ff4a79f4bc2696b8f214768de8f5b70e3f514c460214b269b1b380fdbb16c769"
+    },
+    {
+      "case": "a6-tp8-top32-512k-b32",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 15924,
+      "sha256": "73f3c2a1dcfcd158eafbd4b7149f7ad66e9ac9731290e06a427b2a51fbbb0b4b"
+    },
+    {
+      "case": "a6-tp8-top32-512k-b4",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 15924,
+      "sha256": "cd29ad32e441d782cac4ce86b021da647cb497f0c0b072e8fe095d7af25e4870"
+    },
+    {
+      "case": "a6-tp8-top32-512k-b8",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 13396,
+      "sha256": "98576daebccb81ec502d13c6e2347ecca38944d2d43b2e01f717274f9c3535f9"
+    },
+    {
+      "case": "a6-tp8-top64-128k-b1",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 28600,
+      "sha256": "938142b82701dca984565bccb9b2c9ac236f45c0f6bca05d3efac23357d51402"
+    },
+    {
+      "case": "a6-tp8-top64-128k-b16",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 15924,
+      "sha256": "7c1977af0a46f2050f870e4311c68f6f845e5e755f78ed11ea5dab9a8d781bc6"
+    },
+    {
+      "case": "a6-tp8-top64-128k-b2",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 15924,
+      "sha256": "b0d11665d79b6d190d7b71eb58bff38ed5fa6b32d1e5df42fc8c304e93dcc069"
+    },
+    {
+      "case": "a6-tp8-top64-128k-b32",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 13396,
+      "sha256": "744cc19aebde2019570820d9d7b012ecce8189e42069065ea874026b846c92fc"
+    },
+    {
+      "case": "a6-tp8-top64-128k-b4",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 13396,
+      "sha256": "cb625a549b35df52e3f6c008d9b5a84729978396dfd56fc22704f48f1c720ff1"
+    },
+    {
+      "case": "a6-tp8-top64-128k-b8",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 28600,
+      "sha256": "845a25e8f87a8e19e662602988132cae2c6639e971f135f93af109f2eae63fe9"
+    },
+    {
+      "case": "a6-tp8-top64-1M-b1",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 28600,
+      "sha256": "b538e700fb24af0c047c3c5ad9bb1060165407d00b03a1ff401c8a9b1141bb43"
+    },
+    {
+      "case": "a6-tp8-top64-1M-b16",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 15924,
+      "sha256": "5518dde82fcbf6414cd163b78f32b59004261d4c836e11a145141cc4f629b05c"
+    },
+    {
+      "case": "a6-tp8-top64-1M-b2",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 15924,
+      "sha256": "3d2b10ab2f90e36a8d2b44d6e5529522981d6af82bb6f8575055a6bf6a43f3e2"
+    },
+    {
+      "case": "a6-tp8-top64-1M-b32",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 13396,
+      "sha256": "994142ac1f99b9251448e8353c61dc8c9702da75ddc68325d579cec6cca44817"
+    },
+    {
+      "case": "a6-tp8-top64-1M-b4",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 13396,
+      "sha256": "b73838934e20f2dd530e44e6f852d583a3c51e882fc9cd9df2a8e0c42232bb03"
+    },
+    {
+      "case": "a6-tp8-top64-1M-b8",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 28600,
+      "sha256": "8f485a18c06b65003dbe5a4a59fa9d33c67cb9081f25c1c7c1adfa15ef755006"
+    },
+    {
+      "case": "a6-tp8-top64-256k-b1",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 13396,
+      "sha256": "c5854d2826f286a50de903887b3943be15bb9464ef7b6af468249242a90fd9c6"
+    },
+    {
+      "case": "a6-tp8-top64-256k-b16",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 28600,
+      "sha256": "ff68599f3a97f648664ea37ffebcfb544b6131df5e5b83c53a6f6bbb5be66f81"
+    },
+    {
+      "case": "a6-tp8-top64-256k-b2",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 28600,
+      "sha256": "5fcb0a092a7c55c737b8924188429aa3d3c04bd1b2c427c9d6564dfc5fa14652"
+    },
+    {
+      "case": "a6-tp8-top64-256k-b32",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 15924,
+      "sha256": "69d2f99adcb41679074e32eaff7b271bf4d68fb3f6d8e64332804795aeb14a9c"
+    },
+    {
+      "case": "a6-tp8-top64-256k-b4",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 15924,
+      "sha256": "98ef8a371250d4edb2cf89e2842e0d718045b4d96e1ca41c2b7d6bf3e2b1b38b"
+    },
+    {
+      "case": "a6-tp8-top64-256k-b8",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 13396,
+      "sha256": "7d21e0a84f3f5981353f6043a2b164c9c72301846509fa2cbb6c8131e302fbb6"
+    },
+    {
+      "case": "a6-tp8-top64-512k-b1",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 15924,
+      "sha256": "b79b2c297b2b4cde6638e7c95d15482662ed8f8cca0bb883fff6e4a58cf6b257"
+    },
+    {
+      "case": "a6-tp8-top64-512k-b16",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 13396,
+      "sha256": "fe55496c52e002b693d5ae162efd2b1490a024c35bbce22ee7b5e3f5d9ba497f"
+    },
+    {
+      "case": "a6-tp8-top64-512k-b2",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 13396,
+      "sha256": "a6f5a068970309981baa6e3d21f152dd7c42de32adb67757b16383474a3c0f47"
+    },
+    {
+      "case": "a6-tp8-top64-512k-b32",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 28600,
+      "sha256": "d624773cf7120222213a9fbbd3bf7a090e126feec840a3517fbbf7e2dcf8036d"
+    },
+    {
+      "case": "a6-tp8-top64-512k-b4",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 28600,
+      "sha256": "a40b68b5e21f3f932289d2c5f7d186b0468df3aa569717a742193d92c634b3ee"
+    },
+    {
+      "case": "a6-tp8-top64-512k-b8",
+      "complete": true,
+      "status": "infeasible",
+      "standalone_decode_status": "feasible",
+      "producer_pid": 15924,
+      "sha256": "9b0b1d076155e6688632e8f69130705447b2a7f2e677a11ff23759747a60834e"
+    },
+    {
+      "case": "a7-sp16-top32-128k-b1",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 11688,
+      "sha256": "1607cdb982cbf4ead8aa08d691f8fc705c54a61d56c6ff4bff6f622c4b5b9131"
+    },
+    {
+      "case": "a7-sp16-top32-128k-b16",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 16596,
+      "sha256": "ed08521d78b0962fcb6b236f7c220e98402608cb064b3ee12ed07b427e73fa64"
+    },
+    {
+      "case": "a7-sp16-top32-128k-b2",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 11688,
+      "sha256": "1868d13784c6d8596364f726d9778ad78d5ea7a4a9748351d98b999f9a0a1c8c"
+    },
+    {
+      "case": "a7-sp16-top32-128k-b32",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 16596,
+      "sha256": "4c0801b3f493be660d0209085b7b9cfef47ff97e650a96494b0edfc5fe930cc8"
+    },
+    {
+      "case": "a7-sp16-top32-128k-b4",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 11688,
+      "sha256": "633a780ad946a7663bda32d13c98c84913bc71b708a3b9e21340cec6304268e8"
+    },
+    {
+      "case": "a7-sp16-top32-128k-b8",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 11688,
+      "sha256": "f2c9cfdb87c17bc985b02dbe41c8c465b58e79de58be70a6223bd03f917725b0"
+    },
+    {
+      "case": "a7-sp16-top32-1M-b16",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 16596,
+      "sha256": "2886d598e884af490fb7697c9f5e4a98b0b74668aec98ea8c79911473c49fc8d"
+    },
+    {
+      "case": "a7-sp16-top32-1M-b32",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 16596,
+      "sha256": "48709daa324508486cd50112f6da49b92facd33806f09471a895519f870f05a2"
+    },
+    {
+      "case": "a7-sp16-top32-256k-b1",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 11688,
+      "sha256": "bf6e3fa635b6406ce07eefeaaa3bd2f40134e62f7bb0b5ef83017e8c43d2f64d"
+    },
+    {
+      "case": "a7-sp16-top32-256k-b16",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 16596,
+      "sha256": "3696dc7e531a34306c600a3de932e618aa220b37603a11dd7365f7cbae33a681"
+    },
+    {
+      "case": "a7-sp16-top32-256k-b2",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 11688,
+      "sha256": "a65fd6e2689247d7f5809d3ea222f16bde1819fbc7bdff52c3ccb844108ca8f1"
+    },
+    {
+      "case": "a7-sp16-top32-256k-b32",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 16596,
+      "sha256": "02b7f8b542a2049ff16e5b9f599115d90e0ff253c48af78f898fd6a6a84ad299"
+    },
+    {
+      "case": "a7-sp16-top32-256k-b4",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 11688,
+      "sha256": "646cc28e8fdbf7bead6bcf24a0a7c56cebb0b35df0dac9d5c93590887290f106"
+    },
+    {
+      "case": "a7-sp16-top32-256k-b8",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 11688,
+      "sha256": "78f3b0c9e6a1a5ec0f54683163236f199de905051561929f9161bc2e8e199ef9"
+    },
+    {
+      "case": "a7-sp16-top32-512k-b1",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 11688,
+      "sha256": "033a5321ee5cd3a289cf45cd991844ae7a669e5e564d5988510f36d9ea443e5a"
+    },
+    {
+      "case": "a7-sp16-top32-512k-b16",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 16596,
+      "sha256": "08f26274e1321484a5636895ec7051589537497b3136fae7fa42cd72ff04f009"
+    },
+    {
+      "case": "a7-sp16-top32-512k-b2",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 11688,
+      "sha256": "2d5e65d0888542e70c55475ae0c4ce47b71de91cf8af77077380658866ad6eb2"
+    },
+    {
+      "case": "a7-sp16-top32-512k-b32",
+      "complete": true,
+      "status": "feasible",
+      "standalone_decode_status": null,
+      "producer_pid": 16596,
+      "sha256": "e263cf100d69649908a66dc3e24c70f48c5b4f99c1f4d2c3a6405f970dacc950"
+    }
+  ],
+  "native_references": [
+    {
+      "name": "a6-tp8-top32-128k-b1",
+      "sha256": "c87c10c0f9561468c1f4ff5af52fc9bd4babcafc58d425ae193b4f2f7f8fc75e",
+      "runtime_id": "sha256:447b4248c25385c9ca971fb1b070aa195ff2397136f5b75b48881bd615ee3645",
+      "wall_s": 33.06564540043473
+    },
+    {
+      "name": "a7-sp32-top64-1M-b32",
+      "sha256": "2be4a446c6dd8d8e2e8c7aeff7fad980615b8659a2fa79006c3f27dc994a8f4e",
+      "runtime_id": "sha256:447b4248c25385c9ca971fb1b070aa195ff2397136f5b75b48881bd615ee3645",
+      "wall_s": 200.4490923001431
+    }
+  ],
+  "risks": [
+    {
+      "id": "roadmap_profile",
+      "severity": "model_limit",
+      "evidence": "profiles/provenance.json",
+      "detail": "Roadmap peak FP8 figures, inherited scalar rates/efficiencies, halved unspecified-direction interconnect, 1us one-way latency and logical nonblocking fabric are uncalibrated scenario inputs; results are conditional predictions."
+    },
+    {
+      "id": "simultaneous_runs",
+      "severity": "scope",
+      "evidence": "case snapshot and worker logs",
+      "detail": "Workers are active. This audit verifies the set of atomically committed artifacts observed at audit start; it does not assert completion of all 288 cases."
+    },
+    {
+      "id": "event_counts",
+      "severity": "interpretation",
+      "evidence": "audit/synchronous-rounds/README.md",
+      "detail": "Round aggregation changes modeled scheduler event counts; payload and physical resource accounting remain authoritative."
+    },
+    {
+      "id": "baseline_comparison_changes_topology",
+      "severity": "interpretation",
+      "evidence": "profiles/provenance.json and prior hardware.profile.json",
+      "detail": "Compared with prior950 results, SU/SO boundary changes from64-card SU domains plusSO to one1024-card logicalSU domain while compute/HBM/interconnect also change. Speedup is a combined scenario change, not an isolated chip-generation compute uplift."
+    }
+  ],
+  "passed": true,
+  "audit_utility_fix": {
+    "file": "code/benchmark_synchronous_rounds.py",
+    "sha256": "40997d681851e51061c4fdab0a9156e6b5424df52d88985d80a3cbd56c3e5abc",
+    "fix": "Read permanent native references, assert original frozen runtime ID, case name and normalized configuration hash before simulation.",
+    "read_only_reference_resolution_checks": [
+      {
+        "case": "a6-tp8-top32-128k-b1",
+        "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\ascend960-970-kimi-10t\\audit\\native-reference-cases\\a6-tp8-top32-128k-b1.json",
+        "runtime_id": "sha256:447b4248c25385c9ca971fb1b070aa195ff2397136f5b75b48881bd615ee3645",
+        "expected_runtime_id": "sha256:447b4248c25385c9ca971fb1b070aa195ff2397136f5b75b48881bd615ee3645",
+        "passed": true
+      },
+      {
+        "case": "a7-sp32-top64-1M-b32",
+        "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\ascend960-970-kimi-10t\\audit\\native-reference-cases\\a7-sp32-top64-1M-b32.json",
+        "runtime_id": "sha256:447b4248c25385c9ca971fb1b070aa195ff2397136f5b75b48881bd615ee3645",
+        "expected_runtime_id": "sha256:447b4248c25385c9ca971fb1b070aa195ff2397136f5b75b48881bd615ee3645",
+        "passed": true
+      }
+    ]
+  },
+  "resolved_risks": [
+    {
+      "id": "benchmark_reference_path",
+      "resolution": "Changed benchmark reference to permanent audit/native-reference-cases, with original runtime ID, case and normalized-config SHA checks; read-only resolution tests passed for both native files."
+    }
+  ],
+  "top_level_readme": {
+    "path": "README.md",
+    "created_by_audit": true,
+    "sha256": "705f133a1eadf2894e5a052c3b874217b93cf2b58931acf5c8cd2e3f738c5deb"
+  },
+  "resource_recommendation": {
+    "workers": 3,
+    "cache_mib_per_worker": 128,
+    "serial_alternative": "--run --cache-mib 64",
+    "reason": "Observed memory pressure during five-worker execution; extra large helper stopped with completed outputs preserved.",
+    "concurrency_adjustment": "audit/concurrency-adjustment.json"
+  }
+}

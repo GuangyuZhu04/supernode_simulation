@@ -1,0 +1,3244 @@
+{
+  "schema_version": "1.0",
+  "mode": "size-su",
+  "status": "completed",
+  "searches": {
+    "single": {
+      "status": "feasible",
+      "minimum_su_size": 4,
+      "best": {
+        "npu_count": 4,
+        "su_size": 4,
+        "domains": 1,
+        "parallelism": {
+          "tp": 2,
+          "pp": 1,
+          "ep": 2,
+          "dp": 1,
+          "fsdp": 1,
+          "rank_order": []
+        },
+        "result": {
+          "status": "feasible",
+          "config": {
+            "schema_version": "1.0",
+            "model": {
+              "name": "synthetic-moe-demo",
+              "total_params": 2000000000.0,
+              "active_params": 799999999.9999999,
+              "layers": 4,
+              "hidden_dim": 1024,
+              "intermediate_dim": 4096,
+              "num_heads": 8,
+              "kv_heads": 2,
+              "head_dim": 128,
+              "attention_kind": "gqa",
+              "kv_latent_dim": 512,
+              "kv_rope_dim": 64,
+              "num_experts": 8,
+              "top_k": 2,
+              "moe_layer_fraction": 0.5,
+              "expert_parameter_fraction": 0.8
+            },
+            "hardware": {
+              "npu_count": 4,
+              "su_size": 4,
+              "npus_per_host": 2,
+              "topology": "full_mesh",
+              "mesh_width": null,
+              "leaf_size": null,
+              "npu": {
+                "hbm_bytes": 80000000000.0,
+                "hbm_Bps": 3000000000000.0,
+                "flops": {
+                  "fp8": 2000000000000000.0,
+                  "fp16": 1000000000000000.0,
+                  "bf16": 1000000000000000.0,
+                  "fp32": 50000000000000.0
+                },
+                "efficiency": 0.6,
+                "runtime_bytes": 2000000000.0,
+                "workspace_bytes": 64000000.0
+              },
+              "cpu": {
+                "dram_bytes": 2000000000000.0,
+                "dram_Bps": 400000000000.0,
+                "flops": 1000000000000.0,
+                "efficiency": 0.7,
+                "iops": 100000000.0
+              },
+              "scale_up": {
+                "bandwidth_Bps": 900000000000.0,
+                "latency_s": 1e-06,
+                "efficiency": 0.85,
+                "injection_Bps": 900000000000.0,
+                "uplink_Bps": null
+              },
+              "scale_out": {
+                "bandwidth_Bps": 50000000000.0,
+                "latency_s": 5e-06,
+                "efficiency": 0.85,
+                "injection_Bps": 50000000000.0,
+                "uplink_Bps": null
+              },
+              "host_link": {
+                "bandwidth_Bps": 64000000000.0,
+                "latency_s": 2e-06,
+                "efficiency": 0.85,
+                "injection_Bps": 64000000000.0,
+                "uplink_Bps": null
+              },
+              "remote": {
+                "enabled": false,
+                "capacity_bytes": 100000000000000.0,
+                "bandwidth_Bps": 100000000000.0,
+                "latency_s": 5e-06,
+                "iops": 10000000.0
+              },
+              "ssd": {
+                "enabled": false,
+                "capacity_bytes": 100000000000000.0,
+                "bandwidth_Bps": 10000000000.0,
+                "latency_s": 0.0001,
+                "iops": 1000000.0
+              },
+              "explicit_links": [],
+              "routes": {},
+              "kernel_profiles": {}
+            },
+            "workload": {
+              "scenario": "inference",
+              "batch_size": 2,
+              "sequence_length": 2048,
+              "gradient_accumulation": 1,
+              "training_steps": 1,
+              "input_length": 1024,
+              "output_length": 16,
+              "input_lengths": [
+                128,
+                64
+              ],
+              "output_lengths": [
+                4,
+                2
+              ]
+            },
+            "execution": {
+              "tp": 2,
+              "pp": 1,
+              "ep": 2,
+              "dp": 1,
+              "fsdp": 1,
+              "rank_order": [],
+              "reshard_after_forward": true,
+              "sync_each_microbatch": false,
+              "prefetch": false,
+              "precision": {
+                "weight": "fp8",
+                "compute": "fp16",
+                "gradient": "fp16",
+                "master": "fp32",
+                "optimizer": "fp32",
+                "kv": "fp8",
+                "weight_transfer": "fp16",
+                "activation": "fp16",
+                "communication": "fp16"
+              },
+              "features": {
+                "optimizer_offload": false,
+                "activation_checkpointing": false,
+                "kv_offload": "host",
+                "kv_offload_fraction": 1.0,
+                "kv_page_tokens": 16,
+                "kv_page_entry_bytes": 8,
+                "weight_scale_block": 128,
+                "scale_bytes": 4,
+                "kv_scale_block": 128,
+                "extra_weight_copy_dtype": null,
+                "engram": {
+                  "enabled": true,
+                  "table_bytes": 1000000000.0,
+                  "queries_per_token": 2.0,
+                  "record_bytes": 1024,
+                  "hit_rate": 0.0,
+                  "cache_bytes": 0.0,
+                  "location": "host",
+                  "iops": 10000000.0,
+                  "latency_s": 1e-06,
+                  "layers": [
+                    0
+                  ]
+                }
+              }
+            },
+            "targets": {
+              "throughput_tokens_s": 1.0,
+              "ttft_s": 1.0,
+              "tpot_s": 1.0,
+              "step_time_s": null,
+              "candidate_npu_counts": [
+                4,
+                8
+              ],
+              "candidate_su_sizes": [
+                1,
+                2,
+                4,
+                8
+              ],
+              "parallel_candidates": [],
+              "total_npus": null,
+              "max_total_npus": 8,
+              "max_candidates": 128
+            },
+            "seed": 0,
+            "sources": {
+              "*": {
+                "status": "assumed",
+                "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+                "uri": null,
+                "revision": null
+              }
+            },
+            "assumptions": [],
+            "calibration": null
+          },
+          "metrics": {
+            "duration_s": 0.0027119403485490173,
+            "ttft_s": 0.0010264952520784311,
+            "tpot_s": 0.00064514085615686,
+            "input_tokens": 192,
+            "output_tokens": 6,
+            "input_throughput_tokens_s": 70798.01740577616,
+            "throughput_tokens_s": 2212.438043930505,
+            "throughput_per_replica_tokens_s": 2212.438043930505,
+            "requests": [
+              {
+                "replica": "0",
+                "sequence": "0",
+                "ttft_s": 0.0010264952520784311,
+                "tpot_s": 0.000561815032156862,
+                "itl_s": [
+                  0.00064514085615686,
+                  0.0005201521201568626,
+                  0.0005201521201568635
+                ],
+                "token_completion_s": [
+                  0.0010264952520784311,
+                  0.0016716361082352912,
+                  0.002191788228392154,
+                  0.0027119403485490173
+                ]
+              },
+              {
+                "replica": "0",
+                "sequence": "1",
+                "ttft_s": 0.0010264952520784311,
+                "tpot_s": 0.00064514085615686,
+                "itl_s": [
+                  0.00064514085615686
+                ],
+                "token_completion_s": [
+                  0.0010264952520784311,
+                  0.0016716361082352912
+                ]
+              }
+            ],
+            "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue."
+          },
+          "slo": {
+            "specified": true,
+            "satisfied": true,
+            "checks": [
+              {
+                "metric": "throughput_tokens_s",
+                "target": 1.0,
+                "actual": 2212.438043930505,
+                "passed": true
+              },
+              {
+                "metric": "ttft_s",
+                "target": 1.0,
+                "actual": 0.0010264952520784311,
+                "passed": true
+              },
+              {
+                "metric": "tpot_s",
+                "target": 1.0,
+                "actual": 0.00064514085615686,
+                "passed": true
+              }
+            ]
+          },
+          "diagnostics": [],
+          "duration_lower_bound_s": 0.0027117261458823563,
+          "memory_peaks_bytes": {
+            "npu0.hbm": 3184880944.0,
+            "npu1.hbm": 3184880944.0,
+            "npu2.hbm": 3184601904.0,
+            "npu3.hbm": 3184601904.0,
+            "cpu0.dram": 1000304704.0,
+            "cpu1.dram": 1000169280.0
+          }
+        }
+      },
+      "candidates": [
+        {
+          "npu_count": 4,
+          "su_size": 4,
+          "domains": 1,
+          "parallelism": {
+            "tp": 2,
+            "pp": 1,
+            "ep": 2,
+            "dp": 1,
+            "fsdp": 1,
+            "rank_order": []
+          },
+          "result": {
+            "status": "feasible",
+            "config": {
+              "schema_version": "1.0",
+              "model": {
+                "name": "synthetic-moe-demo",
+                "total_params": 2000000000.0,
+                "active_params": 799999999.9999999,
+                "layers": 4,
+                "hidden_dim": 1024,
+                "intermediate_dim": 4096,
+                "num_heads": 8,
+                "kv_heads": 2,
+                "head_dim": 128,
+                "attention_kind": "gqa",
+                "kv_latent_dim": 512,
+                "kv_rope_dim": 64,
+                "num_experts": 8,
+                "top_k": 2,
+                "moe_layer_fraction": 0.5,
+                "expert_parameter_fraction": 0.8
+              },
+              "hardware": {
+                "npu_count": 4,
+                "su_size": 4,
+                "npus_per_host": 2,
+                "topology": "full_mesh",
+                "mesh_width": null,
+                "leaf_size": null,
+                "npu": {
+                  "hbm_bytes": 80000000000.0,
+                  "hbm_Bps": 3000000000000.0,
+                  "flops": {
+                    "fp8": 2000000000000000.0,
+                    "fp16": 1000000000000000.0,
+                    "bf16": 1000000000000000.0,
+                    "fp32": 50000000000000.0
+                  },
+                  "efficiency": 0.6,
+                  "runtime_bytes": 2000000000.0,
+                  "workspace_bytes": 64000000.0
+                },
+                "cpu": {
+                  "dram_bytes": 2000000000000.0,
+                  "dram_Bps": 400000000000.0,
+                  "flops": 1000000000000.0,
+                  "efficiency": 0.7,
+                  "iops": 100000000.0
+                },
+                "scale_up": {
+                  "bandwidth_Bps": 900000000000.0,
+                  "latency_s": 1e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 900000000000.0,
+                  "uplink_Bps": null
+                },
+                "scale_out": {
+                  "bandwidth_Bps": 50000000000.0,
+                  "latency_s": 5e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 50000000000.0,
+                  "uplink_Bps": null
+                },
+                "host_link": {
+                  "bandwidth_Bps": 64000000000.0,
+                  "latency_s": 2e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 64000000000.0,
+                  "uplink_Bps": null
+                },
+                "remote": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 100000000000.0,
+                  "latency_s": 5e-06,
+                  "iops": 10000000.0
+                },
+                "ssd": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 10000000000.0,
+                  "latency_s": 0.0001,
+                  "iops": 1000000.0
+                },
+                "explicit_links": [],
+                "routes": {},
+                "kernel_profiles": {}
+              },
+              "workload": {
+                "scenario": "inference",
+                "batch_size": 2,
+                "sequence_length": 2048,
+                "gradient_accumulation": 1,
+                "training_steps": 1,
+                "input_length": 1024,
+                "output_length": 16,
+                "input_lengths": [
+                  128,
+                  64
+                ],
+                "output_lengths": [
+                  4,
+                  2
+                ]
+              },
+              "execution": {
+                "tp": 2,
+                "pp": 1,
+                "ep": 2,
+                "dp": 1,
+                "fsdp": 1,
+                "rank_order": [],
+                "reshard_after_forward": true,
+                "sync_each_microbatch": false,
+                "prefetch": false,
+                "precision": {
+                  "weight": "fp8",
+                  "compute": "fp16",
+                  "gradient": "fp16",
+                  "master": "fp32",
+                  "optimizer": "fp32",
+                  "kv": "fp8",
+                  "weight_transfer": "fp16",
+                  "activation": "fp16",
+                  "communication": "fp16"
+                },
+                "features": {
+                  "optimizer_offload": false,
+                  "activation_checkpointing": false,
+                  "kv_offload": "host",
+                  "kv_offload_fraction": 1.0,
+                  "kv_page_tokens": 16,
+                  "kv_page_entry_bytes": 8,
+                  "weight_scale_block": 128,
+                  "scale_bytes": 4,
+                  "kv_scale_block": 128,
+                  "extra_weight_copy_dtype": null,
+                  "engram": {
+                    "enabled": true,
+                    "table_bytes": 1000000000.0,
+                    "queries_per_token": 2.0,
+                    "record_bytes": 1024,
+                    "hit_rate": 0.0,
+                    "cache_bytes": 0.0,
+                    "location": "host",
+                    "iops": 10000000.0,
+                    "latency_s": 1e-06,
+                    "layers": [
+                      0
+                    ]
+                  }
+                }
+              },
+              "targets": {
+                "throughput_tokens_s": 1.0,
+                "ttft_s": 1.0,
+                "tpot_s": 1.0,
+                "step_time_s": null,
+                "candidate_npu_counts": [
+                  4,
+                  8
+                ],
+                "candidate_su_sizes": [
+                  1,
+                  2,
+                  4,
+                  8
+                ],
+                "parallel_candidates": [],
+                "total_npus": null,
+                "max_total_npus": 8,
+                "max_candidates": 128
+              },
+              "seed": 0,
+              "sources": {
+                "*": {
+                  "status": "assumed",
+                  "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+                  "uri": null,
+                  "revision": null
+                }
+              },
+              "assumptions": [],
+              "calibration": null
+            },
+            "metrics": {
+              "duration_s": 0.0027119403485490173,
+              "ttft_s": 0.0010264952520784311,
+              "tpot_s": 0.00064514085615686,
+              "input_tokens": 192,
+              "output_tokens": 6,
+              "input_throughput_tokens_s": 70798.01740577616,
+              "throughput_tokens_s": 2212.438043930505,
+              "throughput_per_replica_tokens_s": 2212.438043930505,
+              "requests": [
+                {
+                  "replica": "0",
+                  "sequence": "0",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.000561815032156862,
+                  "itl_s": [
+                    0.00064514085615686,
+                    0.0005201521201568626,
+                    0.0005201521201568635
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912,
+                    0.002191788228392154,
+                    0.0027119403485490173
+                  ]
+                },
+                {
+                  "replica": "0",
+                  "sequence": "1",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.00064514085615686,
+                  "itl_s": [
+                    0.00064514085615686
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912
+                  ]
+                }
+              ],
+              "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue."
+            },
+            "slo": {
+              "specified": true,
+              "satisfied": true,
+              "checks": [
+                {
+                  "metric": "throughput_tokens_s",
+                  "target": 1.0,
+                  "actual": 2212.438043930505,
+                  "passed": true
+                },
+                {
+                  "metric": "ttft_s",
+                  "target": 1.0,
+                  "actual": 0.0010264952520784311,
+                  "passed": true
+                },
+                {
+                  "metric": "tpot_s",
+                  "target": 1.0,
+                  "actual": 0.00064514085615686,
+                  "passed": true
+                }
+              ]
+            },
+            "diagnostics": [],
+            "duration_lower_bound_s": 0.0027117261458823563,
+            "memory_peaks_bytes": {
+              "npu0.hbm": 3184880944.0,
+              "npu1.hbm": 3184880944.0,
+              "npu2.hbm": 3184601904.0,
+              "npu3.hbm": 3184601904.0,
+              "cpu0.dram": 1000304704.0,
+              "cpu1.dram": 1000169280.0
+            }
+          }
+        },
+        {
+          "npu_count": 8,
+          "su_size": 8,
+          "domains": 1,
+          "parallelism": {
+            "tp": 2,
+            "pp": 1,
+            "ep": 2,
+            "dp": 2,
+            "fsdp": 1,
+            "rank_order": []
+          },
+          "result": {
+            "status": "feasible",
+            "config": {
+              "schema_version": "1.0",
+              "model": {
+                "name": "synthetic-moe-demo",
+                "total_params": 2000000000.0,
+                "active_params": 799999999.9999999,
+                "layers": 4,
+                "hidden_dim": 1024,
+                "intermediate_dim": 4096,
+                "num_heads": 8,
+                "kv_heads": 2,
+                "head_dim": 128,
+                "attention_kind": "gqa",
+                "kv_latent_dim": 512,
+                "kv_rope_dim": 64,
+                "num_experts": 8,
+                "top_k": 2,
+                "moe_layer_fraction": 0.5,
+                "expert_parameter_fraction": 0.8
+              },
+              "hardware": {
+                "npu_count": 8,
+                "su_size": 8,
+                "npus_per_host": 2,
+                "topology": "full_mesh",
+                "mesh_width": null,
+                "leaf_size": null,
+                "npu": {
+                  "hbm_bytes": 80000000000.0,
+                  "hbm_Bps": 3000000000000.0,
+                  "flops": {
+                    "fp8": 2000000000000000.0,
+                    "fp16": 1000000000000000.0,
+                    "bf16": 1000000000000000.0,
+                    "fp32": 50000000000000.0
+                  },
+                  "efficiency": 0.6,
+                  "runtime_bytes": 2000000000.0,
+                  "workspace_bytes": 64000000.0
+                },
+                "cpu": {
+                  "dram_bytes": 2000000000000.0,
+                  "dram_Bps": 400000000000.0,
+                  "flops": 1000000000000.0,
+                  "efficiency": 0.7,
+                  "iops": 100000000.0
+                },
+                "scale_up": {
+                  "bandwidth_Bps": 900000000000.0,
+                  "latency_s": 1e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 900000000000.0,
+                  "uplink_Bps": null
+                },
+                "scale_out": {
+                  "bandwidth_Bps": 50000000000.0,
+                  "latency_s": 5e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 50000000000.0,
+                  "uplink_Bps": null
+                },
+                "host_link": {
+                  "bandwidth_Bps": 64000000000.0,
+                  "latency_s": 2e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 64000000000.0,
+                  "uplink_Bps": null
+                },
+                "remote": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 100000000000.0,
+                  "latency_s": 5e-06,
+                  "iops": 10000000.0
+                },
+                "ssd": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 10000000000.0,
+                  "latency_s": 0.0001,
+                  "iops": 1000000.0
+                },
+                "explicit_links": [],
+                "routes": {},
+                "kernel_profiles": {}
+              },
+              "workload": {
+                "scenario": "inference",
+                "batch_size": 2,
+                "sequence_length": 2048,
+                "gradient_accumulation": 1,
+                "training_steps": 1,
+                "input_length": 1024,
+                "output_length": 16,
+                "input_lengths": [
+                  128,
+                  64
+                ],
+                "output_lengths": [
+                  4,
+                  2
+                ]
+              },
+              "execution": {
+                "tp": 2,
+                "pp": 1,
+                "ep": 2,
+                "dp": 2,
+                "fsdp": 1,
+                "rank_order": [],
+                "reshard_after_forward": true,
+                "sync_each_microbatch": false,
+                "prefetch": false,
+                "precision": {
+                  "weight": "fp8",
+                  "compute": "fp16",
+                  "gradient": "fp16",
+                  "master": "fp32",
+                  "optimizer": "fp32",
+                  "kv": "fp8",
+                  "weight_transfer": "fp16",
+                  "activation": "fp16",
+                  "communication": "fp16"
+                },
+                "features": {
+                  "optimizer_offload": false,
+                  "activation_checkpointing": false,
+                  "kv_offload": "host",
+                  "kv_offload_fraction": 1.0,
+                  "kv_page_tokens": 16,
+                  "kv_page_entry_bytes": 8,
+                  "weight_scale_block": 128,
+                  "scale_bytes": 4,
+                  "kv_scale_block": 128,
+                  "extra_weight_copy_dtype": null,
+                  "engram": {
+                    "enabled": true,
+                    "table_bytes": 1000000000.0,
+                    "queries_per_token": 2.0,
+                    "record_bytes": 1024,
+                    "hit_rate": 0.0,
+                    "cache_bytes": 0.0,
+                    "location": "host",
+                    "iops": 10000000.0,
+                    "latency_s": 1e-06,
+                    "layers": [
+                      0
+                    ]
+                  }
+                }
+              },
+              "targets": {
+                "throughput_tokens_s": 1.0,
+                "ttft_s": 1.0,
+                "tpot_s": 1.0,
+                "step_time_s": null,
+                "candidate_npu_counts": [
+                  4,
+                  8
+                ],
+                "candidate_su_sizes": [
+                  1,
+                  2,
+                  4,
+                  8
+                ],
+                "parallel_candidates": [],
+                "total_npus": null,
+                "max_total_npus": 8,
+                "max_candidates": 128
+              },
+              "seed": 0,
+              "sources": {
+                "*": {
+                  "status": "assumed",
+                  "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+                  "uri": null,
+                  "revision": null
+                }
+              },
+              "assumptions": [],
+              "calibration": null
+            },
+            "metrics": {
+              "duration_s": 0.0027119403485490173,
+              "ttft_s": 0.0010264952520784311,
+              "tpot_s": 0.00064514085615686,
+              "input_tokens": 384,
+              "output_tokens": 12,
+              "input_throughput_tokens_s": 141596.03481155232,
+              "throughput_tokens_s": 4424.87608786101,
+              "throughput_per_replica_tokens_s": 2212.438043930505,
+              "requests": [
+                {
+                  "replica": "0",
+                  "sequence": "0",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.000561815032156862,
+                  "itl_s": [
+                    0.00064514085615686,
+                    0.0005201521201568626,
+                    0.0005201521201568635
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912,
+                    0.002191788228392154,
+                    0.0027119403485490173
+                  ]
+                },
+                {
+                  "replica": "0",
+                  "sequence": "1",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.00064514085615686,
+                  "itl_s": [
+                    0.00064514085615686
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912
+                  ]
+                },
+                {
+                  "replica": "1",
+                  "sequence": "0",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.000561815032156862,
+                  "itl_s": [
+                    0.00064514085615686,
+                    0.0005201521201568626,
+                    0.0005201521201568635
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912,
+                    0.002191788228392154,
+                    0.0027119403485490173
+                  ]
+                },
+                {
+                  "replica": "1",
+                  "sequence": "1",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.00064514085615686,
+                  "itl_s": [
+                    0.00064514085615686
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912
+                  ]
+                }
+              ],
+              "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue."
+            },
+            "slo": {
+              "specified": true,
+              "satisfied": true,
+              "checks": [
+                {
+                  "metric": "throughput_tokens_s",
+                  "target": 1.0,
+                  "actual": 4424.87608786101,
+                  "passed": true
+                },
+                {
+                  "metric": "ttft_s",
+                  "target": 1.0,
+                  "actual": 0.0010264952520784311,
+                  "passed": true
+                },
+                {
+                  "metric": "tpot_s",
+                  "target": 1.0,
+                  "actual": 0.00064514085615686,
+                  "passed": true
+                }
+              ]
+            },
+            "diagnostics": [],
+            "duration_lower_bound_s": 0.0027117261458823563,
+            "memory_peaks_bytes": {
+              "npu0.hbm": 3184880944.0,
+              "npu1.hbm": 3184880944.0,
+              "npu2.hbm": 3184601904.0,
+              "npu3.hbm": 3184601904.0,
+              "npu4.hbm": 3184880944.0,
+              "npu5.hbm": 3184880944.0,
+              "npu6.hbm": 3184601904.0,
+              "npu7.hbm": 3184601904.0,
+              "cpu0.dram": 1000304704.0,
+              "cpu1.dram": 1000169280.0,
+              "cpu2.dram": 1000304704.0,
+              "cpu3.dram": 1000169280.0
+            }
+          }
+        }
+      ],
+      "candidate_count": 2,
+      "slo_specified": true
+    },
+    "multi": {
+      "status": "feasible",
+      "minimum_su_size": 1,
+      "best": {
+        "npu_count": 4,
+        "su_size": 1,
+        "domains": 4,
+        "parallelism": {
+          "tp": 2,
+          "pp": 1,
+          "ep": 2,
+          "dp": 1,
+          "fsdp": 1,
+          "rank_order": []
+        },
+        "result": {
+          "status": "feasible",
+          "config": {
+            "schema_version": "1.0",
+            "model": {
+              "name": "synthetic-moe-demo",
+              "total_params": 2000000000.0,
+              "active_params": 799999999.9999999,
+              "layers": 4,
+              "hidden_dim": 1024,
+              "intermediate_dim": 4096,
+              "num_heads": 8,
+              "kv_heads": 2,
+              "head_dim": 128,
+              "attention_kind": "gqa",
+              "kv_latent_dim": 512,
+              "kv_rope_dim": 64,
+              "num_experts": 8,
+              "top_k": 2,
+              "moe_layer_fraction": 0.5,
+              "expert_parameter_fraction": 0.8
+            },
+            "hardware": {
+              "npu_count": 4,
+              "su_size": 1,
+              "npus_per_host": 2,
+              "topology": "full_mesh",
+              "mesh_width": null,
+              "leaf_size": null,
+              "npu": {
+                "hbm_bytes": 80000000000.0,
+                "hbm_Bps": 3000000000000.0,
+                "flops": {
+                  "fp8": 2000000000000000.0,
+                  "fp16": 1000000000000000.0,
+                  "bf16": 1000000000000000.0,
+                  "fp32": 50000000000000.0
+                },
+                "efficiency": 0.6,
+                "runtime_bytes": 2000000000.0,
+                "workspace_bytes": 64000000.0
+              },
+              "cpu": {
+                "dram_bytes": 2000000000000.0,
+                "dram_Bps": 400000000000.0,
+                "flops": 1000000000000.0,
+                "efficiency": 0.7,
+                "iops": 100000000.0
+              },
+              "scale_up": {
+                "bandwidth_Bps": 900000000000.0,
+                "latency_s": 1e-06,
+                "efficiency": 0.85,
+                "injection_Bps": 900000000000.0,
+                "uplink_Bps": null
+              },
+              "scale_out": {
+                "bandwidth_Bps": 50000000000.0,
+                "latency_s": 5e-06,
+                "efficiency": 0.85,
+                "injection_Bps": 50000000000.0,
+                "uplink_Bps": null
+              },
+              "host_link": {
+                "bandwidth_Bps": 64000000000.0,
+                "latency_s": 2e-06,
+                "efficiency": 0.85,
+                "injection_Bps": 64000000000.0,
+                "uplink_Bps": null
+              },
+              "remote": {
+                "enabled": false,
+                "capacity_bytes": 100000000000000.0,
+                "bandwidth_Bps": 100000000000.0,
+                "latency_s": 5e-06,
+                "iops": 10000000.0
+              },
+              "ssd": {
+                "enabled": false,
+                "capacity_bytes": 100000000000000.0,
+                "bandwidth_Bps": 10000000000.0,
+                "latency_s": 0.0001,
+                "iops": 1000000.0
+              },
+              "explicit_links": [],
+              "routes": {},
+              "kernel_profiles": {}
+            },
+            "workload": {
+              "scenario": "inference",
+              "batch_size": 2,
+              "sequence_length": 2048,
+              "gradient_accumulation": 1,
+              "training_steps": 1,
+              "input_length": 1024,
+              "output_length": 16,
+              "input_lengths": [
+                128,
+                64
+              ],
+              "output_lengths": [
+                4,
+                2
+              ]
+            },
+            "execution": {
+              "tp": 2,
+              "pp": 1,
+              "ep": 2,
+              "dp": 1,
+              "fsdp": 1,
+              "rank_order": [],
+              "reshard_after_forward": true,
+              "sync_each_microbatch": false,
+              "prefetch": false,
+              "precision": {
+                "weight": "fp8",
+                "compute": "fp16",
+                "gradient": "fp16",
+                "master": "fp32",
+                "optimizer": "fp32",
+                "kv": "fp8",
+                "weight_transfer": "fp16",
+                "activation": "fp16",
+                "communication": "fp16"
+              },
+              "features": {
+                "optimizer_offload": false,
+                "activation_checkpointing": false,
+                "kv_offload": "host",
+                "kv_offload_fraction": 1.0,
+                "kv_page_tokens": 16,
+                "kv_page_entry_bytes": 8,
+                "weight_scale_block": 128,
+                "scale_bytes": 4,
+                "kv_scale_block": 128,
+                "extra_weight_copy_dtype": null,
+                "engram": {
+                  "enabled": true,
+                  "table_bytes": 1000000000.0,
+                  "queries_per_token": 2.0,
+                  "record_bytes": 1024,
+                  "hit_rate": 0.0,
+                  "cache_bytes": 0.0,
+                  "location": "host",
+                  "iops": 10000000.0,
+                  "latency_s": 1e-06,
+                  "layers": [
+                    0
+                  ]
+                }
+              }
+            },
+            "targets": {
+              "throughput_tokens_s": 1.0,
+              "ttft_s": 1.0,
+              "tpot_s": 1.0,
+              "step_time_s": null,
+              "candidate_npu_counts": [
+                4,
+                8
+              ],
+              "candidate_su_sizes": [
+                1,
+                2,
+                4,
+                8
+              ],
+              "parallel_candidates": [],
+              "total_npus": null,
+              "max_total_npus": 8,
+              "max_candidates": 128
+            },
+            "seed": 0,
+            "sources": {
+              "*": {
+                "status": "assumed",
+                "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+                "uri": null,
+                "revision": null
+              }
+            },
+            "assumptions": [],
+            "calibration": null
+          },
+          "metrics": {
+            "duration_s": 0.004379212665098041,
+            "ttft_s": 0.0015503949201568631,
+            "tpot_s": 0.0010262650723137277,
+            "input_tokens": 192,
+            "output_tokens": 6,
+            "input_throughput_tokens_s": 43843.497606367455,
+            "throughput_tokens_s": 1370.109300198983,
+            "throughput_per_replica_tokens_s": 1370.109300198983,
+            "requests": [
+              {
+                "replica": "0",
+                "sequence": "0",
+                "ttft_s": 0.0015503949201568631,
+                "tpot_s": 0.0009429392483137261,
+                "itl_s": [
+                  0.0010262650723137277,
+                  0.0009012763363137233,
+                  0.0009012763363137272
+                ],
+                "token_completion_s": [
+                  0.0015503949201568631,
+                  0.0025766599924705908,
+                  0.003477936328784314,
+                  0.004379212665098041
+                ]
+              },
+              {
+                "replica": "0",
+                "sequence": "1",
+                "ttft_s": 0.0015503949201568631,
+                "tpot_s": 0.0010262650723137277,
+                "itl_s": [
+                  0.0010262650723137277
+                ],
+                "token_completion_s": [
+                  0.0015503949201568631,
+                  0.0025766599924705908
+                ]
+              }
+            ],
+            "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue."
+          },
+          "slo": {
+            "specified": true,
+            "satisfied": true,
+            "checks": [
+              {
+                "metric": "throughput_tokens_s",
+                "target": 1.0,
+                "actual": 1370.109300198983,
+                "passed": true
+              },
+              {
+                "metric": "ttft_s",
+                "target": 1.0,
+                "actual": 0.0015503949201568631,
+                "passed": true
+              },
+              {
+                "metric": "tpot_s",
+                "target": 1.0,
+                "actual": 0.0010262650723137277,
+                "passed": true
+              }
+            ]
+          },
+          "diagnostics": [],
+          "duration_lower_bound_s": 0.004303269612549027,
+          "memory_peaks_bytes": {
+            "npu0.hbm": 3184880944.0,
+            "npu1.hbm": 3184880944.0,
+            "npu2.hbm": 3184601904.0,
+            "npu3.hbm": 3184601904.0,
+            "cpu0.dram": 1000304704.0,
+            "cpu1.dram": 1000169280.0
+          }
+        }
+      },
+      "candidates": [
+        {
+          "npu_count": 4,
+          "su_size": 1,
+          "domains": 4,
+          "parallelism": {
+            "tp": 2,
+            "pp": 1,
+            "ep": 2,
+            "dp": 1,
+            "fsdp": 1,
+            "rank_order": []
+          },
+          "result": {
+            "status": "feasible",
+            "config": {
+              "schema_version": "1.0",
+              "model": {
+                "name": "synthetic-moe-demo",
+                "total_params": 2000000000.0,
+                "active_params": 799999999.9999999,
+                "layers": 4,
+                "hidden_dim": 1024,
+                "intermediate_dim": 4096,
+                "num_heads": 8,
+                "kv_heads": 2,
+                "head_dim": 128,
+                "attention_kind": "gqa",
+                "kv_latent_dim": 512,
+                "kv_rope_dim": 64,
+                "num_experts": 8,
+                "top_k": 2,
+                "moe_layer_fraction": 0.5,
+                "expert_parameter_fraction": 0.8
+              },
+              "hardware": {
+                "npu_count": 4,
+                "su_size": 1,
+                "npus_per_host": 2,
+                "topology": "full_mesh",
+                "mesh_width": null,
+                "leaf_size": null,
+                "npu": {
+                  "hbm_bytes": 80000000000.0,
+                  "hbm_Bps": 3000000000000.0,
+                  "flops": {
+                    "fp8": 2000000000000000.0,
+                    "fp16": 1000000000000000.0,
+                    "bf16": 1000000000000000.0,
+                    "fp32": 50000000000000.0
+                  },
+                  "efficiency": 0.6,
+                  "runtime_bytes": 2000000000.0,
+                  "workspace_bytes": 64000000.0
+                },
+                "cpu": {
+                  "dram_bytes": 2000000000000.0,
+                  "dram_Bps": 400000000000.0,
+                  "flops": 1000000000000.0,
+                  "efficiency": 0.7,
+                  "iops": 100000000.0
+                },
+                "scale_up": {
+                  "bandwidth_Bps": 900000000000.0,
+                  "latency_s": 1e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 900000000000.0,
+                  "uplink_Bps": null
+                },
+                "scale_out": {
+                  "bandwidth_Bps": 50000000000.0,
+                  "latency_s": 5e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 50000000000.0,
+                  "uplink_Bps": null
+                },
+                "host_link": {
+                  "bandwidth_Bps": 64000000000.0,
+                  "latency_s": 2e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 64000000000.0,
+                  "uplink_Bps": null
+                },
+                "remote": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 100000000000.0,
+                  "latency_s": 5e-06,
+                  "iops": 10000000.0
+                },
+                "ssd": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 10000000000.0,
+                  "latency_s": 0.0001,
+                  "iops": 1000000.0
+                },
+                "explicit_links": [],
+                "routes": {},
+                "kernel_profiles": {}
+              },
+              "workload": {
+                "scenario": "inference",
+                "batch_size": 2,
+                "sequence_length": 2048,
+                "gradient_accumulation": 1,
+                "training_steps": 1,
+                "input_length": 1024,
+                "output_length": 16,
+                "input_lengths": [
+                  128,
+                  64
+                ],
+                "output_lengths": [
+                  4,
+                  2
+                ]
+              },
+              "execution": {
+                "tp": 2,
+                "pp": 1,
+                "ep": 2,
+                "dp": 1,
+                "fsdp": 1,
+                "rank_order": [],
+                "reshard_after_forward": true,
+                "sync_each_microbatch": false,
+                "prefetch": false,
+                "precision": {
+                  "weight": "fp8",
+                  "compute": "fp16",
+                  "gradient": "fp16",
+                  "master": "fp32",
+                  "optimizer": "fp32",
+                  "kv": "fp8",
+                  "weight_transfer": "fp16",
+                  "activation": "fp16",
+                  "communication": "fp16"
+                },
+                "features": {
+                  "optimizer_offload": false,
+                  "activation_checkpointing": false,
+                  "kv_offload": "host",
+                  "kv_offload_fraction": 1.0,
+                  "kv_page_tokens": 16,
+                  "kv_page_entry_bytes": 8,
+                  "weight_scale_block": 128,
+                  "scale_bytes": 4,
+                  "kv_scale_block": 128,
+                  "extra_weight_copy_dtype": null,
+                  "engram": {
+                    "enabled": true,
+                    "table_bytes": 1000000000.0,
+                    "queries_per_token": 2.0,
+                    "record_bytes": 1024,
+                    "hit_rate": 0.0,
+                    "cache_bytes": 0.0,
+                    "location": "host",
+                    "iops": 10000000.0,
+                    "latency_s": 1e-06,
+                    "layers": [
+                      0
+                    ]
+                  }
+                }
+              },
+              "targets": {
+                "throughput_tokens_s": 1.0,
+                "ttft_s": 1.0,
+                "tpot_s": 1.0,
+                "step_time_s": null,
+                "candidate_npu_counts": [
+                  4,
+                  8
+                ],
+                "candidate_su_sizes": [
+                  1,
+                  2,
+                  4,
+                  8
+                ],
+                "parallel_candidates": [],
+                "total_npus": null,
+                "max_total_npus": 8,
+                "max_candidates": 128
+              },
+              "seed": 0,
+              "sources": {
+                "*": {
+                  "status": "assumed",
+                  "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+                  "uri": null,
+                  "revision": null
+                }
+              },
+              "assumptions": [],
+              "calibration": null
+            },
+            "metrics": {
+              "duration_s": 0.004379212665098041,
+              "ttft_s": 0.0015503949201568631,
+              "tpot_s": 0.0010262650723137277,
+              "input_tokens": 192,
+              "output_tokens": 6,
+              "input_throughput_tokens_s": 43843.497606367455,
+              "throughput_tokens_s": 1370.109300198983,
+              "throughput_per_replica_tokens_s": 1370.109300198983,
+              "requests": [
+                {
+                  "replica": "0",
+                  "sequence": "0",
+                  "ttft_s": 0.0015503949201568631,
+                  "tpot_s": 0.0009429392483137261,
+                  "itl_s": [
+                    0.0010262650723137277,
+                    0.0009012763363137233,
+                    0.0009012763363137272
+                  ],
+                  "token_completion_s": [
+                    0.0015503949201568631,
+                    0.0025766599924705908,
+                    0.003477936328784314,
+                    0.004379212665098041
+                  ]
+                },
+                {
+                  "replica": "0",
+                  "sequence": "1",
+                  "ttft_s": 0.0015503949201568631,
+                  "tpot_s": 0.0010262650723137277,
+                  "itl_s": [
+                    0.0010262650723137277
+                  ],
+                  "token_completion_s": [
+                    0.0015503949201568631,
+                    0.0025766599924705908
+                  ]
+                }
+              ],
+              "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue."
+            },
+            "slo": {
+              "specified": true,
+              "satisfied": true,
+              "checks": [
+                {
+                  "metric": "throughput_tokens_s",
+                  "target": 1.0,
+                  "actual": 1370.109300198983,
+                  "passed": true
+                },
+                {
+                  "metric": "ttft_s",
+                  "target": 1.0,
+                  "actual": 0.0015503949201568631,
+                  "passed": true
+                },
+                {
+                  "metric": "tpot_s",
+                  "target": 1.0,
+                  "actual": 0.0010262650723137277,
+                  "passed": true
+                }
+              ]
+            },
+            "diagnostics": [],
+            "duration_lower_bound_s": 0.004303269612549027,
+            "memory_peaks_bytes": {
+              "npu0.hbm": 3184880944.0,
+              "npu1.hbm": 3184880944.0,
+              "npu2.hbm": 3184601904.0,
+              "npu3.hbm": 3184601904.0,
+              "cpu0.dram": 1000304704.0,
+              "cpu1.dram": 1000169280.0
+            }
+          }
+        },
+        {
+          "npu_count": 8,
+          "su_size": 1,
+          "domains": 8,
+          "parallelism": {
+            "tp": 2,
+            "pp": 1,
+            "ep": 2,
+            "dp": 2,
+            "fsdp": 1,
+            "rank_order": []
+          },
+          "result": {
+            "status": "feasible",
+            "config": {
+              "schema_version": "1.0",
+              "model": {
+                "name": "synthetic-moe-demo",
+                "total_params": 2000000000.0,
+                "active_params": 799999999.9999999,
+                "layers": 4,
+                "hidden_dim": 1024,
+                "intermediate_dim": 4096,
+                "num_heads": 8,
+                "kv_heads": 2,
+                "head_dim": 128,
+                "attention_kind": "gqa",
+                "kv_latent_dim": 512,
+                "kv_rope_dim": 64,
+                "num_experts": 8,
+                "top_k": 2,
+                "moe_layer_fraction": 0.5,
+                "expert_parameter_fraction": 0.8
+              },
+              "hardware": {
+                "npu_count": 8,
+                "su_size": 1,
+                "npus_per_host": 2,
+                "topology": "full_mesh",
+                "mesh_width": null,
+                "leaf_size": null,
+                "npu": {
+                  "hbm_bytes": 80000000000.0,
+                  "hbm_Bps": 3000000000000.0,
+                  "flops": {
+                    "fp8": 2000000000000000.0,
+                    "fp16": 1000000000000000.0,
+                    "bf16": 1000000000000000.0,
+                    "fp32": 50000000000000.0
+                  },
+                  "efficiency": 0.6,
+                  "runtime_bytes": 2000000000.0,
+                  "workspace_bytes": 64000000.0
+                },
+                "cpu": {
+                  "dram_bytes": 2000000000000.0,
+                  "dram_Bps": 400000000000.0,
+                  "flops": 1000000000000.0,
+                  "efficiency": 0.7,
+                  "iops": 100000000.0
+                },
+                "scale_up": {
+                  "bandwidth_Bps": 900000000000.0,
+                  "latency_s": 1e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 900000000000.0,
+                  "uplink_Bps": null
+                },
+                "scale_out": {
+                  "bandwidth_Bps": 50000000000.0,
+                  "latency_s": 5e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 50000000000.0,
+                  "uplink_Bps": null
+                },
+                "host_link": {
+                  "bandwidth_Bps": 64000000000.0,
+                  "latency_s": 2e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 64000000000.0,
+                  "uplink_Bps": null
+                },
+                "remote": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 100000000000.0,
+                  "latency_s": 5e-06,
+                  "iops": 10000000.0
+                },
+                "ssd": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 10000000000.0,
+                  "latency_s": 0.0001,
+                  "iops": 1000000.0
+                },
+                "explicit_links": [],
+                "routes": {},
+                "kernel_profiles": {}
+              },
+              "workload": {
+                "scenario": "inference",
+                "batch_size": 2,
+                "sequence_length": 2048,
+                "gradient_accumulation": 1,
+                "training_steps": 1,
+                "input_length": 1024,
+                "output_length": 16,
+                "input_lengths": [
+                  128,
+                  64
+                ],
+                "output_lengths": [
+                  4,
+                  2
+                ]
+              },
+              "execution": {
+                "tp": 2,
+                "pp": 1,
+                "ep": 2,
+                "dp": 2,
+                "fsdp": 1,
+                "rank_order": [],
+                "reshard_after_forward": true,
+                "sync_each_microbatch": false,
+                "prefetch": false,
+                "precision": {
+                  "weight": "fp8",
+                  "compute": "fp16",
+                  "gradient": "fp16",
+                  "master": "fp32",
+                  "optimizer": "fp32",
+                  "kv": "fp8",
+                  "weight_transfer": "fp16",
+                  "activation": "fp16",
+                  "communication": "fp16"
+                },
+                "features": {
+                  "optimizer_offload": false,
+                  "activation_checkpointing": false,
+                  "kv_offload": "host",
+                  "kv_offload_fraction": 1.0,
+                  "kv_page_tokens": 16,
+                  "kv_page_entry_bytes": 8,
+                  "weight_scale_block": 128,
+                  "scale_bytes": 4,
+                  "kv_scale_block": 128,
+                  "extra_weight_copy_dtype": null,
+                  "engram": {
+                    "enabled": true,
+                    "table_bytes": 1000000000.0,
+                    "queries_per_token": 2.0,
+                    "record_bytes": 1024,
+                    "hit_rate": 0.0,
+                    "cache_bytes": 0.0,
+                    "location": "host",
+                    "iops": 10000000.0,
+                    "latency_s": 1e-06,
+                    "layers": [
+                      0
+                    ]
+                  }
+                }
+              },
+              "targets": {
+                "throughput_tokens_s": 1.0,
+                "ttft_s": 1.0,
+                "tpot_s": 1.0,
+                "step_time_s": null,
+                "candidate_npu_counts": [
+                  4,
+                  8
+                ],
+                "candidate_su_sizes": [
+                  1,
+                  2,
+                  4,
+                  8
+                ],
+                "parallel_candidates": [],
+                "total_npus": null,
+                "max_total_npus": 8,
+                "max_candidates": 128
+              },
+              "seed": 0,
+              "sources": {
+                "*": {
+                  "status": "assumed",
+                  "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+                  "uri": null,
+                  "revision": null
+                }
+              },
+              "assumptions": [],
+              "calibration": null
+            },
+            "metrics": {
+              "duration_s": 0.004379212665098041,
+              "ttft_s": 0.0015503949201568631,
+              "tpot_s": 0.0010262650723137277,
+              "input_tokens": 384,
+              "output_tokens": 12,
+              "input_throughput_tokens_s": 87686.99521273491,
+              "throughput_tokens_s": 2740.218600397966,
+              "throughput_per_replica_tokens_s": 1370.109300198983,
+              "requests": [
+                {
+                  "replica": "0",
+                  "sequence": "0",
+                  "ttft_s": 0.0015503949201568631,
+                  "tpot_s": 0.0009429392483137261,
+                  "itl_s": [
+                    0.0010262650723137277,
+                    0.0009012763363137233,
+                    0.0009012763363137272
+                  ],
+                  "token_completion_s": [
+                    0.0015503949201568631,
+                    0.0025766599924705908,
+                    0.003477936328784314,
+                    0.004379212665098041
+                  ]
+                },
+                {
+                  "replica": "0",
+                  "sequence": "1",
+                  "ttft_s": 0.0015503949201568631,
+                  "tpot_s": 0.0010262650723137277,
+                  "itl_s": [
+                    0.0010262650723137277
+                  ],
+                  "token_completion_s": [
+                    0.0015503949201568631,
+                    0.0025766599924705908
+                  ]
+                },
+                {
+                  "replica": "1",
+                  "sequence": "0",
+                  "ttft_s": 0.0015503949201568631,
+                  "tpot_s": 0.0009429392483137261,
+                  "itl_s": [
+                    0.0010262650723137277,
+                    0.0009012763363137233,
+                    0.0009012763363137272
+                  ],
+                  "token_completion_s": [
+                    0.0015503949201568631,
+                    0.0025766599924705908,
+                    0.003477936328784314,
+                    0.004379212665098041
+                  ]
+                },
+                {
+                  "replica": "1",
+                  "sequence": "1",
+                  "ttft_s": 0.0015503949201568631,
+                  "tpot_s": 0.0010262650723137277,
+                  "itl_s": [
+                    0.0010262650723137277
+                  ],
+                  "token_completion_s": [
+                    0.0015503949201568631,
+                    0.0025766599924705908
+                  ]
+                }
+              ],
+              "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue."
+            },
+            "slo": {
+              "specified": true,
+              "satisfied": true,
+              "checks": [
+                {
+                  "metric": "throughput_tokens_s",
+                  "target": 1.0,
+                  "actual": 2740.218600397966,
+                  "passed": true
+                },
+                {
+                  "metric": "ttft_s",
+                  "target": 1.0,
+                  "actual": 0.0015503949201568631,
+                  "passed": true
+                },
+                {
+                  "metric": "tpot_s",
+                  "target": 1.0,
+                  "actual": 0.0010262650723137277,
+                  "passed": true
+                }
+              ]
+            },
+            "diagnostics": [],
+            "duration_lower_bound_s": 0.004303269612549027,
+            "memory_peaks_bytes": {
+              "npu0.hbm": 3184880944.0,
+              "npu1.hbm": 3184880944.0,
+              "npu2.hbm": 3184601904.0,
+              "npu3.hbm": 3184601904.0,
+              "npu4.hbm": 3184880944.0,
+              "npu5.hbm": 3184880944.0,
+              "npu6.hbm": 3184601904.0,
+              "npu7.hbm": 3184601904.0,
+              "cpu0.dram": 1000304704.0,
+              "cpu1.dram": 1000169280.0,
+              "cpu2.dram": 1000304704.0,
+              "cpu3.dram": 1000169280.0
+            }
+          }
+        },
+        {
+          "npu_count": 4,
+          "su_size": 2,
+          "domains": 2,
+          "parallelism": {
+            "tp": 2,
+            "pp": 1,
+            "ep": 2,
+            "dp": 1,
+            "fsdp": 1,
+            "rank_order": []
+          },
+          "result": {
+            "status": "feasible",
+            "config": {
+              "schema_version": "1.0",
+              "model": {
+                "name": "synthetic-moe-demo",
+                "total_params": 2000000000.0,
+                "active_params": 799999999.9999999,
+                "layers": 4,
+                "hidden_dim": 1024,
+                "intermediate_dim": 4096,
+                "num_heads": 8,
+                "kv_heads": 2,
+                "head_dim": 128,
+                "attention_kind": "gqa",
+                "kv_latent_dim": 512,
+                "kv_rope_dim": 64,
+                "num_experts": 8,
+                "top_k": 2,
+                "moe_layer_fraction": 0.5,
+                "expert_parameter_fraction": 0.8
+              },
+              "hardware": {
+                "npu_count": 4,
+                "su_size": 2,
+                "npus_per_host": 2,
+                "topology": "full_mesh",
+                "mesh_width": null,
+                "leaf_size": null,
+                "npu": {
+                  "hbm_bytes": 80000000000.0,
+                  "hbm_Bps": 3000000000000.0,
+                  "flops": {
+                    "fp8": 2000000000000000.0,
+                    "fp16": 1000000000000000.0,
+                    "bf16": 1000000000000000.0,
+                    "fp32": 50000000000000.0
+                  },
+                  "efficiency": 0.6,
+                  "runtime_bytes": 2000000000.0,
+                  "workspace_bytes": 64000000.0
+                },
+                "cpu": {
+                  "dram_bytes": 2000000000000.0,
+                  "dram_Bps": 400000000000.0,
+                  "flops": 1000000000000.0,
+                  "efficiency": 0.7,
+                  "iops": 100000000.0
+                },
+                "scale_up": {
+                  "bandwidth_Bps": 900000000000.0,
+                  "latency_s": 1e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 900000000000.0,
+                  "uplink_Bps": null
+                },
+                "scale_out": {
+                  "bandwidth_Bps": 50000000000.0,
+                  "latency_s": 5e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 50000000000.0,
+                  "uplink_Bps": null
+                },
+                "host_link": {
+                  "bandwidth_Bps": 64000000000.0,
+                  "latency_s": 2e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 64000000000.0,
+                  "uplink_Bps": null
+                },
+                "remote": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 100000000000.0,
+                  "latency_s": 5e-06,
+                  "iops": 10000000.0
+                },
+                "ssd": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 10000000000.0,
+                  "latency_s": 0.0001,
+                  "iops": 1000000.0
+                },
+                "explicit_links": [],
+                "routes": {},
+                "kernel_profiles": {}
+              },
+              "workload": {
+                "scenario": "inference",
+                "batch_size": 2,
+                "sequence_length": 2048,
+                "gradient_accumulation": 1,
+                "training_steps": 1,
+                "input_length": 1024,
+                "output_length": 16,
+                "input_lengths": [
+                  128,
+                  64
+                ],
+                "output_lengths": [
+                  4,
+                  2
+                ]
+              },
+              "execution": {
+                "tp": 2,
+                "pp": 1,
+                "ep": 2,
+                "dp": 1,
+                "fsdp": 1,
+                "rank_order": [],
+                "reshard_after_forward": true,
+                "sync_each_microbatch": false,
+                "prefetch": false,
+                "precision": {
+                  "weight": "fp8",
+                  "compute": "fp16",
+                  "gradient": "fp16",
+                  "master": "fp32",
+                  "optimizer": "fp32",
+                  "kv": "fp8",
+                  "weight_transfer": "fp16",
+                  "activation": "fp16",
+                  "communication": "fp16"
+                },
+                "features": {
+                  "optimizer_offload": false,
+                  "activation_checkpointing": false,
+                  "kv_offload": "host",
+                  "kv_offload_fraction": 1.0,
+                  "kv_page_tokens": 16,
+                  "kv_page_entry_bytes": 8,
+                  "weight_scale_block": 128,
+                  "scale_bytes": 4,
+                  "kv_scale_block": 128,
+                  "extra_weight_copy_dtype": null,
+                  "engram": {
+                    "enabled": true,
+                    "table_bytes": 1000000000.0,
+                    "queries_per_token": 2.0,
+                    "record_bytes": 1024,
+                    "hit_rate": 0.0,
+                    "cache_bytes": 0.0,
+                    "location": "host",
+                    "iops": 10000000.0,
+                    "latency_s": 1e-06,
+                    "layers": [
+                      0
+                    ]
+                  }
+                }
+              },
+              "targets": {
+                "throughput_tokens_s": 1.0,
+                "ttft_s": 1.0,
+                "tpot_s": 1.0,
+                "step_time_s": null,
+                "candidate_npu_counts": [
+                  4,
+                  8
+                ],
+                "candidate_su_sizes": [
+                  1,
+                  2,
+                  4,
+                  8
+                ],
+                "parallel_candidates": [],
+                "total_npus": null,
+                "max_total_npus": 8,
+                "max_candidates": 128
+              },
+              "seed": 0,
+              "sources": {
+                "*": {
+                  "status": "assumed",
+                  "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+                  "uri": null,
+                  "revision": null
+                }
+              },
+              "assumptions": [],
+              "calibration": null
+            },
+            "metrics": {
+              "duration_s": 0.0030650157500653583,
+              "ttft_s": 0.0011504467894379083,
+              "tpot_s": 0.0007215154775424815,
+              "input_tokens": 192,
+              "output_tokens": 6,
+              "input_throughput_tokens_s": 62642.418720329835,
+              "throughput_tokens_s": 1957.5755850103073,
+              "throughput_per_replica_tokens_s": 1957.5755850103073,
+              "requests": [
+                {
+                  "replica": "0",
+                  "sequence": "0",
+                  "ttft_s": 0.0011504467894379083,
+                  "tpot_s": 0.0006381896535424833,
+                  "itl_s": [
+                    0.0007215154775424815,
+                    0.0005965267415424843,
+                    0.0005965267415424841
+                  ],
+                  "token_completion_s": [
+                    0.0011504467894379083,
+                    0.0018719622669803899,
+                    0.002468489008522874,
+                    0.0030650157500653583
+                  ]
+                },
+                {
+                  "replica": "0",
+                  "sequence": "1",
+                  "ttft_s": 0.0011504467894379083,
+                  "tpot_s": 0.0007215154775424815,
+                  "itl_s": [
+                    0.0007215154775424815
+                  ],
+                  "token_completion_s": [
+                    0.0011504467894379083,
+                    0.0018719622669803899
+                  ]
+                }
+              ],
+              "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue."
+            },
+            "slo": {
+              "specified": true,
+              "satisfied": true,
+              "checks": [
+                {
+                  "metric": "throughput_tokens_s",
+                  "target": 1.0,
+                  "actual": 1957.5755850103073,
+                  "passed": true
+                },
+                {
+                  "metric": "ttft_s",
+                  "target": 1.0,
+                  "actual": 0.0011504467894379083,
+                  "passed": true
+                },
+                {
+                  "metric": "tpot_s",
+                  "target": 1.0,
+                  "actual": 0.0007215154775424815,
+                  "passed": true
+                }
+              ]
+            },
+            "diagnostics": [],
+            "duration_lower_bound_s": 0.0030395739681045772,
+            "memory_peaks_bytes": {
+              "npu0.hbm": 3184880944.0,
+              "npu1.hbm": 3184880944.0,
+              "npu2.hbm": 3184601904.0,
+              "npu3.hbm": 3184601904.0,
+              "cpu0.dram": 1000304704.0,
+              "cpu1.dram": 1000169280.0
+            }
+          }
+        },
+        {
+          "npu_count": 8,
+          "su_size": 2,
+          "domains": 4,
+          "parallelism": {
+            "tp": 2,
+            "pp": 1,
+            "ep": 2,
+            "dp": 2,
+            "fsdp": 1,
+            "rank_order": []
+          },
+          "result": {
+            "status": "feasible",
+            "config": {
+              "schema_version": "1.0",
+              "model": {
+                "name": "synthetic-moe-demo",
+                "total_params": 2000000000.0,
+                "active_params": 799999999.9999999,
+                "layers": 4,
+                "hidden_dim": 1024,
+                "intermediate_dim": 4096,
+                "num_heads": 8,
+                "kv_heads": 2,
+                "head_dim": 128,
+                "attention_kind": "gqa",
+                "kv_latent_dim": 512,
+                "kv_rope_dim": 64,
+                "num_experts": 8,
+                "top_k": 2,
+                "moe_layer_fraction": 0.5,
+                "expert_parameter_fraction": 0.8
+              },
+              "hardware": {
+                "npu_count": 8,
+                "su_size": 2,
+                "npus_per_host": 2,
+                "topology": "full_mesh",
+                "mesh_width": null,
+                "leaf_size": null,
+                "npu": {
+                  "hbm_bytes": 80000000000.0,
+                  "hbm_Bps": 3000000000000.0,
+                  "flops": {
+                    "fp8": 2000000000000000.0,
+                    "fp16": 1000000000000000.0,
+                    "bf16": 1000000000000000.0,
+                    "fp32": 50000000000000.0
+                  },
+                  "efficiency": 0.6,
+                  "runtime_bytes": 2000000000.0,
+                  "workspace_bytes": 64000000.0
+                },
+                "cpu": {
+                  "dram_bytes": 2000000000000.0,
+                  "dram_Bps": 400000000000.0,
+                  "flops": 1000000000000.0,
+                  "efficiency": 0.7,
+                  "iops": 100000000.0
+                },
+                "scale_up": {
+                  "bandwidth_Bps": 900000000000.0,
+                  "latency_s": 1e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 900000000000.0,
+                  "uplink_Bps": null
+                },
+                "scale_out": {
+                  "bandwidth_Bps": 50000000000.0,
+                  "latency_s": 5e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 50000000000.0,
+                  "uplink_Bps": null
+                },
+                "host_link": {
+                  "bandwidth_Bps": 64000000000.0,
+                  "latency_s": 2e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 64000000000.0,
+                  "uplink_Bps": null
+                },
+                "remote": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 100000000000.0,
+                  "latency_s": 5e-06,
+                  "iops": 10000000.0
+                },
+                "ssd": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 10000000000.0,
+                  "latency_s": 0.0001,
+                  "iops": 1000000.0
+                },
+                "explicit_links": [],
+                "routes": {},
+                "kernel_profiles": {}
+              },
+              "workload": {
+                "scenario": "inference",
+                "batch_size": 2,
+                "sequence_length": 2048,
+                "gradient_accumulation": 1,
+                "training_steps": 1,
+                "input_length": 1024,
+                "output_length": 16,
+                "input_lengths": [
+                  128,
+                  64
+                ],
+                "output_lengths": [
+                  4,
+                  2
+                ]
+              },
+              "execution": {
+                "tp": 2,
+                "pp": 1,
+                "ep": 2,
+                "dp": 2,
+                "fsdp": 1,
+                "rank_order": [],
+                "reshard_after_forward": true,
+                "sync_each_microbatch": false,
+                "prefetch": false,
+                "precision": {
+                  "weight": "fp8",
+                  "compute": "fp16",
+                  "gradient": "fp16",
+                  "master": "fp32",
+                  "optimizer": "fp32",
+                  "kv": "fp8",
+                  "weight_transfer": "fp16",
+                  "activation": "fp16",
+                  "communication": "fp16"
+                },
+                "features": {
+                  "optimizer_offload": false,
+                  "activation_checkpointing": false,
+                  "kv_offload": "host",
+                  "kv_offload_fraction": 1.0,
+                  "kv_page_tokens": 16,
+                  "kv_page_entry_bytes": 8,
+                  "weight_scale_block": 128,
+                  "scale_bytes": 4,
+                  "kv_scale_block": 128,
+                  "extra_weight_copy_dtype": null,
+                  "engram": {
+                    "enabled": true,
+                    "table_bytes": 1000000000.0,
+                    "queries_per_token": 2.0,
+                    "record_bytes": 1024,
+                    "hit_rate": 0.0,
+                    "cache_bytes": 0.0,
+                    "location": "host",
+                    "iops": 10000000.0,
+                    "latency_s": 1e-06,
+                    "layers": [
+                      0
+                    ]
+                  }
+                }
+              },
+              "targets": {
+                "throughput_tokens_s": 1.0,
+                "ttft_s": 1.0,
+                "tpot_s": 1.0,
+                "step_time_s": null,
+                "candidate_npu_counts": [
+                  4,
+                  8
+                ],
+                "candidate_su_sizes": [
+                  1,
+                  2,
+                  4,
+                  8
+                ],
+                "parallel_candidates": [],
+                "total_npus": null,
+                "max_total_npus": 8,
+                "max_candidates": 128
+              },
+              "seed": 0,
+              "sources": {
+                "*": {
+                  "status": "assumed",
+                  "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+                  "uri": null,
+                  "revision": null
+                }
+              },
+              "assumptions": [],
+              "calibration": null
+            },
+            "metrics": {
+              "duration_s": 0.0030650157500653583,
+              "ttft_s": 0.0011504467894379083,
+              "tpot_s": 0.0007215154775424815,
+              "input_tokens": 384,
+              "output_tokens": 12,
+              "input_throughput_tokens_s": 125284.83744065967,
+              "throughput_tokens_s": 3915.1511700206147,
+              "throughput_per_replica_tokens_s": 1957.5755850103073,
+              "requests": [
+                {
+                  "replica": "0",
+                  "sequence": "0",
+                  "ttft_s": 0.0011504467894379083,
+                  "tpot_s": 0.0006381896535424833,
+                  "itl_s": [
+                    0.0007215154775424815,
+                    0.0005965267415424843,
+                    0.0005965267415424841
+                  ],
+                  "token_completion_s": [
+                    0.0011504467894379083,
+                    0.0018719622669803899,
+                    0.002468489008522874,
+                    0.0030650157500653583
+                  ]
+                },
+                {
+                  "replica": "0",
+                  "sequence": "1",
+                  "ttft_s": 0.0011504467894379083,
+                  "tpot_s": 0.0007215154775424815,
+                  "itl_s": [
+                    0.0007215154775424815
+                  ],
+                  "token_completion_s": [
+                    0.0011504467894379083,
+                    0.0018719622669803899
+                  ]
+                },
+                {
+                  "replica": "1",
+                  "sequence": "0",
+                  "ttft_s": 0.0011504467894379083,
+                  "tpot_s": 0.0006381896535424833,
+                  "itl_s": [
+                    0.0007215154775424815,
+                    0.0005965267415424843,
+                    0.0005965267415424841
+                  ],
+                  "token_completion_s": [
+                    0.0011504467894379083,
+                    0.0018719622669803899,
+                    0.002468489008522874,
+                    0.0030650157500653583
+                  ]
+                },
+                {
+                  "replica": "1",
+                  "sequence": "1",
+                  "ttft_s": 0.0011504467894379083,
+                  "tpot_s": 0.0007215154775424815,
+                  "itl_s": [
+                    0.0007215154775424815
+                  ],
+                  "token_completion_s": [
+                    0.0011504467894379083,
+                    0.0018719622669803899
+                  ]
+                }
+              ],
+              "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue."
+            },
+            "slo": {
+              "specified": true,
+              "satisfied": true,
+              "checks": [
+                {
+                  "metric": "throughput_tokens_s",
+                  "target": 1.0,
+                  "actual": 3915.1511700206147,
+                  "passed": true
+                },
+                {
+                  "metric": "ttft_s",
+                  "target": 1.0,
+                  "actual": 0.0011504467894379083,
+                  "passed": true
+                },
+                {
+                  "metric": "tpot_s",
+                  "target": 1.0,
+                  "actual": 0.0007215154775424815,
+                  "passed": true
+                }
+              ]
+            },
+            "diagnostics": [],
+            "duration_lower_bound_s": 0.0030395739681045772,
+            "memory_peaks_bytes": {
+              "npu0.hbm": 3184880944.0,
+              "npu1.hbm": 3184880944.0,
+              "npu2.hbm": 3184601904.0,
+              "npu3.hbm": 3184601904.0,
+              "npu4.hbm": 3184880944.0,
+              "npu5.hbm": 3184880944.0,
+              "npu6.hbm": 3184601904.0,
+              "npu7.hbm": 3184601904.0,
+              "cpu0.dram": 1000304704.0,
+              "cpu1.dram": 1000169280.0,
+              "cpu2.dram": 1000304704.0,
+              "cpu3.dram": 1000169280.0
+            }
+          }
+        },
+        {
+          "npu_count": 4,
+          "su_size": 4,
+          "domains": 1,
+          "parallelism": {
+            "tp": 2,
+            "pp": 1,
+            "ep": 2,
+            "dp": 1,
+            "fsdp": 1,
+            "rank_order": []
+          },
+          "result": {
+            "status": "feasible",
+            "config": {
+              "schema_version": "1.0",
+              "model": {
+                "name": "synthetic-moe-demo",
+                "total_params": 2000000000.0,
+                "active_params": 799999999.9999999,
+                "layers": 4,
+                "hidden_dim": 1024,
+                "intermediate_dim": 4096,
+                "num_heads": 8,
+                "kv_heads": 2,
+                "head_dim": 128,
+                "attention_kind": "gqa",
+                "kv_latent_dim": 512,
+                "kv_rope_dim": 64,
+                "num_experts": 8,
+                "top_k": 2,
+                "moe_layer_fraction": 0.5,
+                "expert_parameter_fraction": 0.8
+              },
+              "hardware": {
+                "npu_count": 4,
+                "su_size": 4,
+                "npus_per_host": 2,
+                "topology": "full_mesh",
+                "mesh_width": null,
+                "leaf_size": null,
+                "npu": {
+                  "hbm_bytes": 80000000000.0,
+                  "hbm_Bps": 3000000000000.0,
+                  "flops": {
+                    "fp8": 2000000000000000.0,
+                    "fp16": 1000000000000000.0,
+                    "bf16": 1000000000000000.0,
+                    "fp32": 50000000000000.0
+                  },
+                  "efficiency": 0.6,
+                  "runtime_bytes": 2000000000.0,
+                  "workspace_bytes": 64000000.0
+                },
+                "cpu": {
+                  "dram_bytes": 2000000000000.0,
+                  "dram_Bps": 400000000000.0,
+                  "flops": 1000000000000.0,
+                  "efficiency": 0.7,
+                  "iops": 100000000.0
+                },
+                "scale_up": {
+                  "bandwidth_Bps": 900000000000.0,
+                  "latency_s": 1e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 900000000000.0,
+                  "uplink_Bps": null
+                },
+                "scale_out": {
+                  "bandwidth_Bps": 50000000000.0,
+                  "latency_s": 5e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 50000000000.0,
+                  "uplink_Bps": null
+                },
+                "host_link": {
+                  "bandwidth_Bps": 64000000000.0,
+                  "latency_s": 2e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 64000000000.0,
+                  "uplink_Bps": null
+                },
+                "remote": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 100000000000.0,
+                  "latency_s": 5e-06,
+                  "iops": 10000000.0
+                },
+                "ssd": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 10000000000.0,
+                  "latency_s": 0.0001,
+                  "iops": 1000000.0
+                },
+                "explicit_links": [],
+                "routes": {},
+                "kernel_profiles": {}
+              },
+              "workload": {
+                "scenario": "inference",
+                "batch_size": 2,
+                "sequence_length": 2048,
+                "gradient_accumulation": 1,
+                "training_steps": 1,
+                "input_length": 1024,
+                "output_length": 16,
+                "input_lengths": [
+                  128,
+                  64
+                ],
+                "output_lengths": [
+                  4,
+                  2
+                ]
+              },
+              "execution": {
+                "tp": 2,
+                "pp": 1,
+                "ep": 2,
+                "dp": 1,
+                "fsdp": 1,
+                "rank_order": [],
+                "reshard_after_forward": true,
+                "sync_each_microbatch": false,
+                "prefetch": false,
+                "precision": {
+                  "weight": "fp8",
+                  "compute": "fp16",
+                  "gradient": "fp16",
+                  "master": "fp32",
+                  "optimizer": "fp32",
+                  "kv": "fp8",
+                  "weight_transfer": "fp16",
+                  "activation": "fp16",
+                  "communication": "fp16"
+                },
+                "features": {
+                  "optimizer_offload": false,
+                  "activation_checkpointing": false,
+                  "kv_offload": "host",
+                  "kv_offload_fraction": 1.0,
+                  "kv_page_tokens": 16,
+                  "kv_page_entry_bytes": 8,
+                  "weight_scale_block": 128,
+                  "scale_bytes": 4,
+                  "kv_scale_block": 128,
+                  "extra_weight_copy_dtype": null,
+                  "engram": {
+                    "enabled": true,
+                    "table_bytes": 1000000000.0,
+                    "queries_per_token": 2.0,
+                    "record_bytes": 1024,
+                    "hit_rate": 0.0,
+                    "cache_bytes": 0.0,
+                    "location": "host",
+                    "iops": 10000000.0,
+                    "latency_s": 1e-06,
+                    "layers": [
+                      0
+                    ]
+                  }
+                }
+              },
+              "targets": {
+                "throughput_tokens_s": 1.0,
+                "ttft_s": 1.0,
+                "tpot_s": 1.0,
+                "step_time_s": null,
+                "candidate_npu_counts": [
+                  4,
+                  8
+                ],
+                "candidate_su_sizes": [
+                  1,
+                  2,
+                  4,
+                  8
+                ],
+                "parallel_candidates": [],
+                "total_npus": null,
+                "max_total_npus": 8,
+                "max_candidates": 128
+              },
+              "seed": 0,
+              "sources": {
+                "*": {
+                  "status": "assumed",
+                  "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+                  "uri": null,
+                  "revision": null
+                }
+              },
+              "assumptions": [],
+              "calibration": null
+            },
+            "metrics": {
+              "duration_s": 0.0027119403485490173,
+              "ttft_s": 0.0010264952520784311,
+              "tpot_s": 0.00064514085615686,
+              "input_tokens": 192,
+              "output_tokens": 6,
+              "input_throughput_tokens_s": 70798.01740577616,
+              "throughput_tokens_s": 2212.438043930505,
+              "throughput_per_replica_tokens_s": 2212.438043930505,
+              "requests": [
+                {
+                  "replica": "0",
+                  "sequence": "0",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.000561815032156862,
+                  "itl_s": [
+                    0.00064514085615686,
+                    0.0005201521201568626,
+                    0.0005201521201568635
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912,
+                    0.002191788228392154,
+                    0.0027119403485490173
+                  ]
+                },
+                {
+                  "replica": "0",
+                  "sequence": "1",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.00064514085615686,
+                  "itl_s": [
+                    0.00064514085615686
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912
+                  ]
+                }
+              ],
+              "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue."
+            },
+            "slo": {
+              "specified": true,
+              "satisfied": true,
+              "checks": [
+                {
+                  "metric": "throughput_tokens_s",
+                  "target": 1.0,
+                  "actual": 2212.438043930505,
+                  "passed": true
+                },
+                {
+                  "metric": "ttft_s",
+                  "target": 1.0,
+                  "actual": 0.0010264952520784311,
+                  "passed": true
+                },
+                {
+                  "metric": "tpot_s",
+                  "target": 1.0,
+                  "actual": 0.00064514085615686,
+                  "passed": true
+                }
+              ]
+            },
+            "diagnostics": [],
+            "duration_lower_bound_s": 0.0027117261458823563,
+            "memory_peaks_bytes": {
+              "npu0.hbm": 3184880944.0,
+              "npu1.hbm": 3184880944.0,
+              "npu2.hbm": 3184601904.0,
+              "npu3.hbm": 3184601904.0,
+              "cpu0.dram": 1000304704.0,
+              "cpu1.dram": 1000169280.0
+            }
+          }
+        },
+        {
+          "npu_count": 8,
+          "su_size": 4,
+          "domains": 2,
+          "parallelism": {
+            "tp": 2,
+            "pp": 1,
+            "ep": 2,
+            "dp": 2,
+            "fsdp": 1,
+            "rank_order": []
+          },
+          "result": {
+            "status": "feasible",
+            "config": {
+              "schema_version": "1.0",
+              "model": {
+                "name": "synthetic-moe-demo",
+                "total_params": 2000000000.0,
+                "active_params": 799999999.9999999,
+                "layers": 4,
+                "hidden_dim": 1024,
+                "intermediate_dim": 4096,
+                "num_heads": 8,
+                "kv_heads": 2,
+                "head_dim": 128,
+                "attention_kind": "gqa",
+                "kv_latent_dim": 512,
+                "kv_rope_dim": 64,
+                "num_experts": 8,
+                "top_k": 2,
+                "moe_layer_fraction": 0.5,
+                "expert_parameter_fraction": 0.8
+              },
+              "hardware": {
+                "npu_count": 8,
+                "su_size": 4,
+                "npus_per_host": 2,
+                "topology": "full_mesh",
+                "mesh_width": null,
+                "leaf_size": null,
+                "npu": {
+                  "hbm_bytes": 80000000000.0,
+                  "hbm_Bps": 3000000000000.0,
+                  "flops": {
+                    "fp8": 2000000000000000.0,
+                    "fp16": 1000000000000000.0,
+                    "bf16": 1000000000000000.0,
+                    "fp32": 50000000000000.0
+                  },
+                  "efficiency": 0.6,
+                  "runtime_bytes": 2000000000.0,
+                  "workspace_bytes": 64000000.0
+                },
+                "cpu": {
+                  "dram_bytes": 2000000000000.0,
+                  "dram_Bps": 400000000000.0,
+                  "flops": 1000000000000.0,
+                  "efficiency": 0.7,
+                  "iops": 100000000.0
+                },
+                "scale_up": {
+                  "bandwidth_Bps": 900000000000.0,
+                  "latency_s": 1e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 900000000000.0,
+                  "uplink_Bps": null
+                },
+                "scale_out": {
+                  "bandwidth_Bps": 50000000000.0,
+                  "latency_s": 5e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 50000000000.0,
+                  "uplink_Bps": null
+                },
+                "host_link": {
+                  "bandwidth_Bps": 64000000000.0,
+                  "latency_s": 2e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 64000000000.0,
+                  "uplink_Bps": null
+                },
+                "remote": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 100000000000.0,
+                  "latency_s": 5e-06,
+                  "iops": 10000000.0
+                },
+                "ssd": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 10000000000.0,
+                  "latency_s": 0.0001,
+                  "iops": 1000000.0
+                },
+                "explicit_links": [],
+                "routes": {},
+                "kernel_profiles": {}
+              },
+              "workload": {
+                "scenario": "inference",
+                "batch_size": 2,
+                "sequence_length": 2048,
+                "gradient_accumulation": 1,
+                "training_steps": 1,
+                "input_length": 1024,
+                "output_length": 16,
+                "input_lengths": [
+                  128,
+                  64
+                ],
+                "output_lengths": [
+                  4,
+                  2
+                ]
+              },
+              "execution": {
+                "tp": 2,
+                "pp": 1,
+                "ep": 2,
+                "dp": 2,
+                "fsdp": 1,
+                "rank_order": [],
+                "reshard_after_forward": true,
+                "sync_each_microbatch": false,
+                "prefetch": false,
+                "precision": {
+                  "weight": "fp8",
+                  "compute": "fp16",
+                  "gradient": "fp16",
+                  "master": "fp32",
+                  "optimizer": "fp32",
+                  "kv": "fp8",
+                  "weight_transfer": "fp16",
+                  "activation": "fp16",
+                  "communication": "fp16"
+                },
+                "features": {
+                  "optimizer_offload": false,
+                  "activation_checkpointing": false,
+                  "kv_offload": "host",
+                  "kv_offload_fraction": 1.0,
+                  "kv_page_tokens": 16,
+                  "kv_page_entry_bytes": 8,
+                  "weight_scale_block": 128,
+                  "scale_bytes": 4,
+                  "kv_scale_block": 128,
+                  "extra_weight_copy_dtype": null,
+                  "engram": {
+                    "enabled": true,
+                    "table_bytes": 1000000000.0,
+                    "queries_per_token": 2.0,
+                    "record_bytes": 1024,
+                    "hit_rate": 0.0,
+                    "cache_bytes": 0.0,
+                    "location": "host",
+                    "iops": 10000000.0,
+                    "latency_s": 1e-06,
+                    "layers": [
+                      0
+                    ]
+                  }
+                }
+              },
+              "targets": {
+                "throughput_tokens_s": 1.0,
+                "ttft_s": 1.0,
+                "tpot_s": 1.0,
+                "step_time_s": null,
+                "candidate_npu_counts": [
+                  4,
+                  8
+                ],
+                "candidate_su_sizes": [
+                  1,
+                  2,
+                  4,
+                  8
+                ],
+                "parallel_candidates": [],
+                "total_npus": null,
+                "max_total_npus": 8,
+                "max_candidates": 128
+              },
+              "seed": 0,
+              "sources": {
+                "*": {
+                  "status": "assumed",
+                  "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+                  "uri": null,
+                  "revision": null
+                }
+              },
+              "assumptions": [],
+              "calibration": null
+            },
+            "metrics": {
+              "duration_s": 0.0027119403485490173,
+              "ttft_s": 0.0010264952520784311,
+              "tpot_s": 0.00064514085615686,
+              "input_tokens": 384,
+              "output_tokens": 12,
+              "input_throughput_tokens_s": 141596.03481155232,
+              "throughput_tokens_s": 4424.87608786101,
+              "throughput_per_replica_tokens_s": 2212.438043930505,
+              "requests": [
+                {
+                  "replica": "0",
+                  "sequence": "0",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.000561815032156862,
+                  "itl_s": [
+                    0.00064514085615686,
+                    0.0005201521201568626,
+                    0.0005201521201568635
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912,
+                    0.002191788228392154,
+                    0.0027119403485490173
+                  ]
+                },
+                {
+                  "replica": "0",
+                  "sequence": "1",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.00064514085615686,
+                  "itl_s": [
+                    0.00064514085615686
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912
+                  ]
+                },
+                {
+                  "replica": "1",
+                  "sequence": "0",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.000561815032156862,
+                  "itl_s": [
+                    0.00064514085615686,
+                    0.0005201521201568626,
+                    0.0005201521201568635
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912,
+                    0.002191788228392154,
+                    0.0027119403485490173
+                  ]
+                },
+                {
+                  "replica": "1",
+                  "sequence": "1",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.00064514085615686,
+                  "itl_s": [
+                    0.00064514085615686
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912
+                  ]
+                }
+              ],
+              "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue."
+            },
+            "slo": {
+              "specified": true,
+              "satisfied": true,
+              "checks": [
+                {
+                  "metric": "throughput_tokens_s",
+                  "target": 1.0,
+                  "actual": 4424.87608786101,
+                  "passed": true
+                },
+                {
+                  "metric": "ttft_s",
+                  "target": 1.0,
+                  "actual": 0.0010264952520784311,
+                  "passed": true
+                },
+                {
+                  "metric": "tpot_s",
+                  "target": 1.0,
+                  "actual": 0.00064514085615686,
+                  "passed": true
+                }
+              ]
+            },
+            "diagnostics": [],
+            "duration_lower_bound_s": 0.0027117261458823563,
+            "memory_peaks_bytes": {
+              "npu0.hbm": 3184880944.0,
+              "npu1.hbm": 3184880944.0,
+              "npu2.hbm": 3184601904.0,
+              "npu3.hbm": 3184601904.0,
+              "npu4.hbm": 3184880944.0,
+              "npu5.hbm": 3184880944.0,
+              "npu6.hbm": 3184601904.0,
+              "npu7.hbm": 3184601904.0,
+              "cpu0.dram": 1000304704.0,
+              "cpu1.dram": 1000169280.0,
+              "cpu2.dram": 1000304704.0,
+              "cpu3.dram": 1000169280.0
+            }
+          }
+        },
+        {
+          "npu_count": 8,
+          "su_size": 8,
+          "domains": 1,
+          "parallelism": {
+            "tp": 2,
+            "pp": 1,
+            "ep": 2,
+            "dp": 2,
+            "fsdp": 1,
+            "rank_order": []
+          },
+          "result": {
+            "status": "feasible",
+            "config": {
+              "schema_version": "1.0",
+              "model": {
+                "name": "synthetic-moe-demo",
+                "total_params": 2000000000.0,
+                "active_params": 799999999.9999999,
+                "layers": 4,
+                "hidden_dim": 1024,
+                "intermediate_dim": 4096,
+                "num_heads": 8,
+                "kv_heads": 2,
+                "head_dim": 128,
+                "attention_kind": "gqa",
+                "kv_latent_dim": 512,
+                "kv_rope_dim": 64,
+                "num_experts": 8,
+                "top_k": 2,
+                "moe_layer_fraction": 0.5,
+                "expert_parameter_fraction": 0.8
+              },
+              "hardware": {
+                "npu_count": 8,
+                "su_size": 8,
+                "npus_per_host": 2,
+                "topology": "full_mesh",
+                "mesh_width": null,
+                "leaf_size": null,
+                "npu": {
+                  "hbm_bytes": 80000000000.0,
+                  "hbm_Bps": 3000000000000.0,
+                  "flops": {
+                    "fp8": 2000000000000000.0,
+                    "fp16": 1000000000000000.0,
+                    "bf16": 1000000000000000.0,
+                    "fp32": 50000000000000.0
+                  },
+                  "efficiency": 0.6,
+                  "runtime_bytes": 2000000000.0,
+                  "workspace_bytes": 64000000.0
+                },
+                "cpu": {
+                  "dram_bytes": 2000000000000.0,
+                  "dram_Bps": 400000000000.0,
+                  "flops": 1000000000000.0,
+                  "efficiency": 0.7,
+                  "iops": 100000000.0
+                },
+                "scale_up": {
+                  "bandwidth_Bps": 900000000000.0,
+                  "latency_s": 1e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 900000000000.0,
+                  "uplink_Bps": null
+                },
+                "scale_out": {
+                  "bandwidth_Bps": 50000000000.0,
+                  "latency_s": 5e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 50000000000.0,
+                  "uplink_Bps": null
+                },
+                "host_link": {
+                  "bandwidth_Bps": 64000000000.0,
+                  "latency_s": 2e-06,
+                  "efficiency": 0.85,
+                  "injection_Bps": 64000000000.0,
+                  "uplink_Bps": null
+                },
+                "remote": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 100000000000.0,
+                  "latency_s": 5e-06,
+                  "iops": 10000000.0
+                },
+                "ssd": {
+                  "enabled": false,
+                  "capacity_bytes": 100000000000000.0,
+                  "bandwidth_Bps": 10000000000.0,
+                  "latency_s": 0.0001,
+                  "iops": 1000000.0
+                },
+                "explicit_links": [],
+                "routes": {},
+                "kernel_profiles": {}
+              },
+              "workload": {
+                "scenario": "inference",
+                "batch_size": 2,
+                "sequence_length": 2048,
+                "gradient_accumulation": 1,
+                "training_steps": 1,
+                "input_length": 1024,
+                "output_length": 16,
+                "input_lengths": [
+                  128,
+                  64
+                ],
+                "output_lengths": [
+                  4,
+                  2
+                ]
+              },
+              "execution": {
+                "tp": 2,
+                "pp": 1,
+                "ep": 2,
+                "dp": 2,
+                "fsdp": 1,
+                "rank_order": [],
+                "reshard_after_forward": true,
+                "sync_each_microbatch": false,
+                "prefetch": false,
+                "precision": {
+                  "weight": "fp8",
+                  "compute": "fp16",
+                  "gradient": "fp16",
+                  "master": "fp32",
+                  "optimizer": "fp32",
+                  "kv": "fp8",
+                  "weight_transfer": "fp16",
+                  "activation": "fp16",
+                  "communication": "fp16"
+                },
+                "features": {
+                  "optimizer_offload": false,
+                  "activation_checkpointing": false,
+                  "kv_offload": "host",
+                  "kv_offload_fraction": 1.0,
+                  "kv_page_tokens": 16,
+                  "kv_page_entry_bytes": 8,
+                  "weight_scale_block": 128,
+                  "scale_bytes": 4,
+                  "kv_scale_block": 128,
+                  "extra_weight_copy_dtype": null,
+                  "engram": {
+                    "enabled": true,
+                    "table_bytes": 1000000000.0,
+                    "queries_per_token": 2.0,
+                    "record_bytes": 1024,
+                    "hit_rate": 0.0,
+                    "cache_bytes": 0.0,
+                    "location": "host",
+                    "iops": 10000000.0,
+                    "latency_s": 1e-06,
+                    "layers": [
+                      0
+                    ]
+                  }
+                }
+              },
+              "targets": {
+                "throughput_tokens_s": 1.0,
+                "ttft_s": 1.0,
+                "tpot_s": 1.0,
+                "step_time_s": null,
+                "candidate_npu_counts": [
+                  4,
+                  8
+                ],
+                "candidate_su_sizes": [
+                  1,
+                  2,
+                  4,
+                  8
+                ],
+                "parallel_candidates": [],
+                "total_npus": null,
+                "max_total_npus": 8,
+                "max_candidates": 128
+              },
+              "seed": 0,
+              "sources": {
+                "*": {
+                  "status": "assumed",
+                  "description": "Synthetic MoE and hardware; fixed ragged batch, uniform expert routing.",
+                  "uri": null,
+                  "revision": null
+                }
+              },
+              "assumptions": [],
+              "calibration": null
+            },
+            "metrics": {
+              "duration_s": 0.0027119403485490173,
+              "ttft_s": 0.0010264952520784311,
+              "tpot_s": 0.00064514085615686,
+              "input_tokens": 384,
+              "output_tokens": 12,
+              "input_throughput_tokens_s": 141596.03481155232,
+              "throughput_tokens_s": 4424.87608786101,
+              "throughput_per_replica_tokens_s": 2212.438043930505,
+              "requests": [
+                {
+                  "replica": "0",
+                  "sequence": "0",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.000561815032156862,
+                  "itl_s": [
+                    0.00064514085615686,
+                    0.0005201521201568626,
+                    0.0005201521201568635
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912,
+                    0.002191788228392154,
+                    0.0027119403485490173
+                  ]
+                },
+                {
+                  "replica": "0",
+                  "sequence": "1",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.00064514085615686,
+                  "itl_s": [
+                    0.00064514085615686
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912
+                  ]
+                },
+                {
+                  "replica": "1",
+                  "sequence": "0",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.000561815032156862,
+                  "itl_s": [
+                    0.00064514085615686,
+                    0.0005201521201568626,
+                    0.0005201521201568635
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912,
+                    0.002191788228392154,
+                    0.0027119403485490173
+                  ]
+                },
+                {
+                  "replica": "1",
+                  "sequence": "1",
+                  "ttft_s": 0.0010264952520784311,
+                  "tpot_s": 0.00064514085615686,
+                  "itl_s": [
+                    0.00064514085615686
+                  ],
+                  "token_completion_s": [
+                    0.0010264952520784311,
+                    0.0016716361082352912
+                  ]
+                }
+              ],
+              "slo_aggregation": "Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue."
+            },
+            "slo": {
+              "specified": true,
+              "satisfied": true,
+              "checks": [
+                {
+                  "metric": "throughput_tokens_s",
+                  "target": 1.0,
+                  "actual": 4424.87608786101,
+                  "passed": true
+                },
+                {
+                  "metric": "ttft_s",
+                  "target": 1.0,
+                  "actual": 0.0010264952520784311,
+                  "passed": true
+                },
+                {
+                  "metric": "tpot_s",
+                  "target": 1.0,
+                  "actual": 0.00064514085615686,
+                  "passed": true
+                }
+              ]
+            },
+            "diagnostics": [],
+            "duration_lower_bound_s": 0.0027117261458823563,
+            "memory_peaks_bytes": {
+              "npu0.hbm": 3184880944.0,
+              "npu1.hbm": 3184880944.0,
+              "npu2.hbm": 3184601904.0,
+              "npu3.hbm": 3184601904.0,
+              "npu4.hbm": 3184880944.0,
+              "npu5.hbm": 3184880944.0,
+              "npu6.hbm": 3184601904.0,
+              "npu7.hbm": 3184601904.0,
+              "cpu0.dram": 1000304704.0,
+              "cpu1.dram": 1000169280.0,
+              "cpu2.dram": 1000304704.0,
+              "cpu3.dram": 1000169280.0
+            }
+          }
+        }
+      ],
+      "candidate_count": 7,
+      "slo_specified": true
+    }
+  },
+  "assumptions": [
+    "Minimum is over the complete declared candidate set and fixed scheduler only.",
+    "Without parallel_candidates, TP/PP/EP/FSDP are retained and DP is derived from candidate device count.",
+    "batch_size is per DP replica; changing DP changes aggregate workload."
+  ]
+}

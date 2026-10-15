@@ -1,0 +1,237 @@
+{
+  "schema_version": 1,
+  "runtime_snapshot_id": "sha256:6759029adf34d1c8da4893051b2163ffd376243fcc61ad470fa70ae86d6907d2",
+  "snapshot_sha256": "6759029adf34d1c8da4893051b2163ffd376243fcc61ad470fa70ae86d6907d2",
+  "git_head_commit": "a03054690b41e3c9376f128bc16e8bf5d021b3fa",
+  "module_order": [
+    "core",
+    "config",
+    "analysis",
+    "structured",
+    "components",
+    "topology",
+    "engine",
+    "streaming",
+    "calibration"
+  ],
+  "modules": [
+    {
+      "module": "core",
+      "path": "original/supernode_sim/core.py",
+      "sha256": "4a36b8789a628dd8a499d195818cbc0716f184e52ec0d70db3a74e65d744b10e",
+      "bytes": 1262,
+      "origin": "git HEAD bytes; unchanged before concurrent external edits"
+    },
+    {
+      "module": "config",
+      "path": "original/supernode_sim/config.py",
+      "sha256": "a42594bbe6e2409cad5c2094effd18c3c71f6ca0dccb4c0760b43c2352955d41",
+      "bytes": 26712,
+      "origin": "Copied unchanged source bytes"
+    },
+    {
+      "module": "analysis",
+      "path": "original/supernode_sim/analysis.py",
+      "sha256": "4036ce963ddc0b9335921beb8ba5d5b855e9a85e53d733632e210ea2407b58aa",
+      "bytes": 17513,
+      "origin": "git HEAD bytes; unchanged before concurrent external edits"
+    },
+    {
+      "module": "structured",
+      "path": "original/supernode_sim/structured.py",
+      "sha256": "4d1e24ebb4111272a795a217261b79daed69793279e0b99772052237c8b0bc99",
+      "bytes": 65841,
+      "origin": "Copied unchanged source bytes"
+    },
+    {
+      "module": "components",
+      "path": "original/supernode_sim/components.py",
+      "sha256": "f6f1638e62ef518740e19fc21dee48888f8d5d01e33cd9dda715df83db7b51bb",
+      "bytes": 27736,
+      "origin": "Copied unchanged source bytes"
+    },
+    {
+      "module": "topology",
+      "path": "original/supernode_sim/topology.py",
+      "sha256": "84666b6f31b2c84e5264027f86b2d984bc8d1026501b2aa7ca0182a9a7aa459d",
+      "bytes": 20078,
+      "origin": "Reconstructed original BFS source by reversing external BoundedCache edits on a copy"
+    },
+    {
+      "module": "engine",
+      "path": "original/supernode_sim/engine.py",
+      "sha256": "f707f631e9c96ca7b75809f1b671ee51e8c9de479034efafd38b059810d7b925",
+      "bytes": 13297,
+      "origin": "git HEAD bytes; unchanged before concurrent external edits"
+    },
+    {
+      "module": "streaming",
+      "path": "original/supernode_sim/streaming.py",
+      "sha256": "acef47037cf812e30f6a66798d760a6dd3e9459a4675cfdf938e93b3c09ac316",
+      "bytes": 23264,
+      "origin": "Reconstructed frozen SP+initial-resident-cache source by reversing external cache/cycle-cleanup edits on a copy"
+    },
+    {
+      "module": "calibration",
+      "path": "original/supernode_sim/calibration.py",
+      "sha256": "13af0d557859e8d982139264e2e1006251f77f48f7b1b277e0c020fe50ef9f98",
+      "bytes": 2620,
+      "origin": "Copied unchanged source bytes"
+    }
+  ],
+  "full_package_modules": [
+    {
+      "path": "original/supernode_sim/__init__.py",
+      "sha256": "a0829a4346b4cc518a7ccde36b3a103490daa9cca528e6383a9588c06cc77790",
+      "bytes": 101,
+      "fingerprint_module": false
+    },
+    {
+      "path": "original/supernode_sim/__main__.py",
+      "sha256": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+      "bytes": 48,
+      "fingerprint_module": false
+    },
+    {
+      "path": "original/supernode_sim/analysis.py",
+      "sha256": "4036ce963ddc0b9335921beb8ba5d5b855e9a85e53d733632e210ea2407b58aa",
+      "bytes": 17513,
+      "fingerprint_module": true
+    },
+    {
+      "path": "original/supernode_sim/calibration.py",
+      "sha256": "13af0d557859e8d982139264e2e1006251f77f48f7b1b277e0c020fe50ef9f98",
+      "bytes": 2620,
+      "fingerprint_module": true
+    },
+    {
+      "path": "original/supernode_sim/cli.py",
+      "sha256": "32471a920ad52114d3e5a54516e94d8b57492eac09f52beb9714ac7a29d8170b",
+      "bytes": 4972,
+      "fingerprint_module": false
+    },
+    {
+      "path": "original/supernode_sim/components.py",
+      "sha256": "f6f1638e62ef518740e19fc21dee48888f8d5d01e33cd9dda715df83db7b51bb",
+      "bytes": 27736,
+      "fingerprint_module": true
+    },
+    {
+      "path": "original/supernode_sim/config.py",
+      "sha256": "a42594bbe6e2409cad5c2094effd18c3c71f6ca0dccb4c0760b43c2352955d41",
+      "bytes": 26712,
+      "fingerprint_module": true
+    },
+    {
+      "path": "original/supernode_sim/core.py",
+      "sha256": "4a36b8789a628dd8a499d195818cbc0716f184e52ec0d70db3a74e65d744b10e",
+      "bytes": 1262,
+      "fingerprint_module": true
+    },
+    {
+      "path": "original/supernode_sim/engine.py",
+      "sha256": "f707f631e9c96ca7b75809f1b671ee51e8c9de479034efafd38b059810d7b925",
+      "bytes": 13297,
+      "fingerprint_module": true
+    },
+    {
+      "path": "original/supernode_sim/inference.py",
+      "sha256": "a67f162c0ed7952cbc1cf4a44d1bf11b5c48e8a18f79d4f8f4bdb6d0b9506c4a",
+      "bytes": 31668,
+      "fingerprint_module": false
+    },
+    {
+      "path": "original/supernode_sim/memory_breakdown.py",
+      "sha256": "fb42c63c85798fb9cc27c6cf7a45050e82dd32d538e061a2fefc62bac70c969c",
+      "bytes": 19942,
+      "fingerprint_module": false
+    },
+    {
+      "path": "original/supernode_sim/report.py",
+      "sha256": "49b1645f53fcf08a2001b223c223bf7bb3322011011bd058ff5ff06b8f32b479",
+      "bytes": 31024,
+      "fingerprint_module": false
+    },
+    {
+      "path": "original/supernode_sim/search.py",
+      "sha256": "45b623536bcd29b58a5a58affc8942d06d98e90749ccd2af89ff93837247f7f9",
+      "bytes": 8835,
+      "fingerprint_module": false
+    },
+    {
+      "path": "original/supernode_sim/streaming.py",
+      "sha256": "acef47037cf812e30f6a66798d760a6dd3e9459a4675cfdf938e93b3c09ac316",
+      "bytes": 23264,
+      "fingerprint_module": true
+    },
+    {
+      "path": "original/supernode_sim/structured.py",
+      "sha256": "4d1e24ebb4111272a795a217261b79daed69793279e0b99772052237c8b0bc99",
+      "bytes": 65841,
+      "fingerprint_module": true
+    },
+    {
+      "path": "original/supernode_sim/topology.py",
+      "sha256": "84666b6f31b2c84e5264027f86b2d984bc8d1026501b2aa7ca0182a9a7aa459d",
+      "bytes": 20078,
+      "fingerprint_module": true
+    },
+    {
+      "path": "original/supernode_sim/training.py",
+      "sha256": "a3ee4cbbe84aeb23994d085f049cd840fbcc81f2728d162911ca954a6bc77a2b",
+      "bytes": 37876,
+      "fingerprint_module": false
+    }
+  ],
+  "anchor_cases": [
+    {
+      "case": "sp16-top32-128k-b1",
+      "recovered_fingerprint": "cc1422a9e666c3b5f744204ddb8de246178fd10dc52fec2f90cc0362b4fc12bb",
+      "recorded_fingerprint": "cc1422a9e666c3b5f744204ddb8de246178fd10dc52fec2f90cc0362b4fc12bb",
+      "config_sha256": "6d00c60535a54a99efd79de117cc449b7df1daaa91b3962624720a1dd1347dfd",
+      "match": true
+    },
+    {
+      "case": "sp16-top32-128k-b2",
+      "recovered_fingerprint": "1be21f6f51951753f55a650694a6fee3cd648a63c8b26bdfdb7af2eb52130055",
+      "recorded_fingerprint": "1be21f6f51951753f55a650694a6fee3cd648a63c8b26bdfdb7af2eb52130055",
+      "config_sha256": "62ea19420b55aa981ffca7edcdf9dd127e73a711f7c5343ae291da892f9e693c",
+      "match": true
+    },
+    {
+      "case": "sp16-top32-128k-b4",
+      "recovered_fingerprint": "a62bb592ec53dcfdf396290c5b34e43252432d0ae4be88f87c1f00dcb6cb364f",
+      "recorded_fingerprint": "a62bb592ec53dcfdf396290c5b34e43252432d0ae4be88f87c1f00dcb6cb364f",
+      "config_sha256": "59c71290d6c5c0766903f85c18c06af6bd25ab4115691f560cd966a93a631633",
+      "match": true
+    }
+  ],
+  "config_normalizer": {
+    "package_path": "original",
+    "entrypoint": "supernode_sim.config.load_config",
+    "canonical_serialization": "json.dumps(config.model_dump(), sort_keys=True).encode()",
+    "encoding": "utf-8",
+    "config_loading": "Load each existing configs/<case>.json with its unchanged calibration path."
+  },
+  "fingerprint_recipe": {
+    "initial_digest": "SHA256(canonical normalized config bytes)",
+    "updates": "For each module in module_order, digest.update(snapshot module raw bytes); return digest.hexdigest().",
+    "snapshot_digest": "SHA256(concatenation of raw module bytes in module_order; no configuration seed)"
+  },
+  "recovery_scope": {
+    "proof": "Three original worker anchor artifacts match config-plus-ordered-nine-module fingerprints exactly.",
+    "ancillary_package": "Non-fingerprinted Python package modules recovered as raw git HEAD bytes, without overwriting nine proven modules.",
+    "source_safety": "Only new runtime-frozen archival copies were written; current source modules, configs, existing case artifacts and running workers were not modified.",
+    "raw_header_policy": "Recorded artifact fingerprint/config_sha256 fields remain unchanged. Any later on-disk-source drift must be reported separately from frozen runtime attribution; do not relabel recorded headers."
+  },
+  "recovery_changes": {
+    "streaming": [
+      "Removed external MutableMapping/BoundedCache imports/default/docs",
+      "Restored local Sink class and original dict cache",
+      "Restored original cached template memory fields",
+      "Removed later token cleanup and hook/cycle-cleanup finally block",
+      "Retained pre-freeze Engram discriminator and measured-kernel layer guard"
+    ],
+    "topology": "Original BFS implementation reconstructed by its author on an archival copy."
+  }
+}

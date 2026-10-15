@@ -1,0 +1,2 @@
+﻿name,component,layer,shape,elements,accounted_elements,active_elements,role,tp_shard,ep_shard,tp_max_shards,active_fraction,alias_of,formula,budget_elements
+unassigned_parameter_budget,Unassigned,-1,[],2000000000.0,2000000000.0,799999999.9999999,unknown,True,False,,0.39999999999999997,,user total_params; component structure not supplied,2000000000.0

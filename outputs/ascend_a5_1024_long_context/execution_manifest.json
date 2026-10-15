@@ -1,0 +1,36 @@
+{
+  "input_lengths": [
+    131072,
+    262144,
+    524288,
+    1048576
+  ],
+  "output_lengths": [
+    4096,
+    16384,
+    131072
+  ],
+  "decode_snapshot_contexts": [
+    131073,
+    196609,
+    262145,
+    327681,
+    524289,
+    589825,
+    1048577,
+    1114113,
+    1179647
+  ],
+  "command": ".\\.venv\\Scripts\\python.exe outputs/ascend_a5_1024_long_context/run_suite.py",
+  "prefill_statuses": {
+    "131072": "feasible",
+    "262144": "infeasible",
+    "524288": "infeasible",
+    "1048576": "infeasible"
+  },
+  "all_snapshots_feasible": true,
+  "traffic_crosschecks_passed": true,
+  "resource_work_affine_max_relative_error": 0.0,
+  "user_confirmed_hardware": "Ascend 950DT",
+  "user_confirmed_pressure_cases": true
+}

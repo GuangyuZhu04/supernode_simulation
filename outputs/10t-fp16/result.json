@@ -1,0 +1,2943 @@
+{
+  "schema_version": "1.0",
+  "engine_version": "0.1.0",
+  "mode": "estimate",
+  "status": "estimated",
+  "config": {
+    "schema_version": "1.0",
+    "model": {
+      "name": "synthetic-10t-moe-fp16",
+      "total_params": 10000000000000.0,
+      "active_params": 506250000000.0002,
+      "layers": 80,
+      "hidden_dim": 32768,
+      "intermediate_dim": 131072,
+      "num_heads": 256,
+      "kv_heads": 8,
+      "head_dim": 128,
+      "attention_kind": "gqa",
+      "kv_latent_dim": 512,
+      "kv_rope_dim": 64,
+      "num_experts": 64,
+      "top_k": 2,
+      "moe_layer_fraction": 1.0,
+      "expert_parameter_fraction": 0.98
+    },
+    "hardware": {
+      "npu_count": 16,
+      "su_size": 8,
+      "npus_per_host": 4,
+      "topology": "full_mesh",
+      "mesh_width": null,
+      "leaf_size": null,
+      "npu": {
+        "hbm_bytes": 4000000000000.0,
+        "hbm_Bps": 3000000000000.0,
+        "flops": {
+          "fp8": 2000000000000000.0,
+          "fp16": 1000000000000000.0,
+          "bf16": 1000000000000000.0,
+          "fp32": 50000000000000.0
+        },
+        "efficiency": 0.6,
+        "runtime_bytes": 2000000000.0,
+        "workspace_bytes": 64000000.0
+      },
+      "cpu": {
+        "dram_bytes": 64000000000000.0,
+        "dram_Bps": 400000000000.0,
+        "flops": 1000000000000.0,
+        "efficiency": 0.7,
+        "iops": 100000000.0
+      },
+      "scale_up": {
+        "bandwidth_Bps": 900000000000.0,
+        "latency_s": 1e-06,
+        "efficiency": 0.85,
+        "injection_Bps": 900000000000.0,
+        "uplink_Bps": null
+      },
+      "scale_out": {
+        "bandwidth_Bps": 50000000000.0,
+        "latency_s": 5e-06,
+        "efficiency": 0.85,
+        "injection_Bps": 50000000000.0,
+        "uplink_Bps": null
+      },
+      "host_link": {
+        "bandwidth_Bps": 64000000000.0,
+        "latency_s": 2e-06,
+        "efficiency": 0.85,
+        "injection_Bps": 64000000000.0,
+        "uplink_Bps": null
+      },
+      "remote": {
+        "enabled": false,
+        "capacity_bytes": 100000000000000.0,
+        "bandwidth_Bps": 100000000000.0,
+        "latency_s": 5e-06,
+        "iops": 10000000.0
+      },
+      "ssd": {
+        "enabled": false,
+        "capacity_bytes": 100000000000000.0,
+        "bandwidth_Bps": 10000000000.0,
+        "latency_s": 0.0001,
+        "iops": 1000000.0
+      },
+      "explicit_links": [],
+      "routes": {},
+      "kernel_profiles": {}
+    },
+    "workload": {
+      "scenario": "training",
+      "batch_size": 1,
+      "sequence_length": 128,
+      "gradient_accumulation": 1,
+      "training_steps": 1,
+      "input_length": 1024,
+      "output_length": 16,
+      "input_lengths": [
+        1024
+      ],
+      "output_lengths": [
+        16
+      ]
+    },
+    "execution": {
+      "tp": 2,
+      "pp": 2,
+      "ep": 1,
+      "dp": 4,
+      "fsdp": 4,
+      "rank_order": [],
+      "reshard_after_forward": true,
+      "sync_each_microbatch": false,
+      "prefetch": false,
+      "precision": {
+        "weight": "fp16",
+        "compute": "fp16",
+        "gradient": "fp16",
+        "master": "fp32",
+        "optimizer": "fp32",
+        "kv": "fp16",
+        "weight_transfer": "fp16",
+        "activation": "fp16",
+        "communication": "fp16"
+      },
+      "features": {
+        "optimizer_offload": true,
+        "activation_checkpointing": true,
+        "kv_offload": "none",
+        "kv_offload_fraction": 1.0,
+        "kv_page_tokens": 16,
+        "kv_page_entry_bytes": 8,
+        "weight_scale_block": 128,
+        "scale_bytes": 4,
+        "kv_scale_block": 128,
+        "extra_weight_copy_dtype": null,
+        "engram": {
+          "enabled": false,
+          "table_bytes": 1000000000000.0,
+          "queries_per_token": 1.0,
+          "record_bytes": 4096,
+          "hit_rate": 0.0,
+          "cache_bytes": 0.0,
+          "location": "host",
+          "iops": 10000000.0,
+          "latency_s": 1e-06,
+          "layers": [
+            0
+          ]
+        }
+      }
+    },
+    "targets": {
+      "throughput_tokens_s": null,
+      "ttft_s": null,
+      "tpot_s": null,
+      "step_time_s": 1000.0,
+      "candidate_npu_counts": [],
+      "candidate_su_sizes": [],
+      "parallel_candidates": [],
+      "total_npus": null,
+      "max_total_npus": null,
+      "max_candidates": 128
+    },
+    "seed": 0,
+    "sources": {
+      "*": {
+        "status": "assumed",
+        "description": "Synthetic 10T capacity anchor. 4 TB HBM per device and 64 TB DRAM per host are hypothetical, not product specifications.",
+        "uri": null,
+        "revision": null
+      }
+    },
+    "assumptions": [
+      "Total and active parameters are declared budgets; generated layer kernels are architectural approximations.",
+      "Active parameters derive as dense 200B plus 306.25B routed experts per token.",
+      "This small-rank giant-memory profile keeps the event graph practical for capacity validation."
+    ],
+    "calibration": null
+  },
+  "config_sha256": "9b71fb441f222f722ff44c7ca065a49529b241b8a9e0fc7dbf52290d6b98b175",
+  "units": {
+    "memory": "byte",
+    "bandwidth": "byte/s",
+    "time": "second",
+    "compute": "FLOP"
+  },
+  "sources": {
+    "*": {
+      "status": "assumed",
+      "description": "Synthetic 10T capacity anchor. 4 TB HBM per device and 64 TB DRAM per host are hypothetical, not product specifications.",
+      "uri": null,
+      "revision": null
+    }
+  },
+  "assumptions": [
+    "Declared parameter-budget model: parameters and active work are uniform over layers and experts.",
+    "EP dense weights are replicated; expert weights and token work are evenly distributed across EP ranks.",
+    "MoE communication uses uniform routing and a continuous MoE-layer fraction; no expert imbalance is inferred.",
+    "Activation ledger assumes streaming causal attention without a full attention-score matrix.",
+    "Hidden boundaries are replicated over TP; saved activation elements/token/layer = 2H + intermediate/TP*(1 + MoE_fraction*top_k); checkpoint retains H.",
+    "Activation/wire dtype differences add explicit packing/unpacking and retained communication buffers; FSDP tensors retain their own weight/gradient dtype.",
+    "Forward FLOPs = 2*active_parameters*tokens plus causal attention; backward = 2*forward.",
+    "Adam update uses 14 FLOPs/parameter; precision conversion uses 2 FLOPs/parameter; calibrate to measured kernels.",
+    "NPU scalar updates/conversions use the FP32 profile and share a stream with matrix compute; if unavailable, use selected compute throughput.",
+    "Optimizer starts after all backward phases; optimizer/backward overlap is not modeled.",
+    "FP8 scale metadata uses continuous block counts; tensor alignment/padding requires profile calibration.",
+    "Collective staging and precision-conversion buffers are additional to logical tensor capacity.",
+    "Total and active parameters are declared budgets; generated layer kernels are architectural approximations.",
+    "Active parameters derive as dense 200B plus 306.25B routed experts per token.",
+    "This small-rank giant-memory profile keeps the event graph practical for capacity validation."
+  ],
+  "memory_capacities_bytes": {
+    "npu0.hbm": 4000000000000.0,
+    "npu1.hbm": 4000000000000.0,
+    "npu2.hbm": 4000000000000.0,
+    "npu3.hbm": 4000000000000.0,
+    "npu4.hbm": 4000000000000.0,
+    "npu5.hbm": 4000000000000.0,
+    "npu6.hbm": 4000000000000.0,
+    "npu7.hbm": 4000000000000.0,
+    "npu8.hbm": 4000000000000.0,
+    "npu9.hbm": 4000000000000.0,
+    "npu10.hbm": 4000000000000.0,
+    "npu11.hbm": 4000000000000.0,
+    "npu12.hbm": 4000000000000.0,
+    "npu13.hbm": 4000000000000.0,
+    "npu14.hbm": 4000000000000.0,
+    "npu15.hbm": 4000000000000.0,
+    "cpu0.dram": 64000000000000.0,
+    "cpu1.dram": 64000000000000.0,
+    "cpu2.dram": 64000000000000.0,
+    "cpu3.dram": 64000000000000.0
+  },
+  "model_metadata": {
+    "topology": {
+      "kind": "full_mesh",
+      "npu_count": 16,
+      "su_size": 8,
+      "npus_per_host": 4,
+      "routing": "explicit or deterministic shortest-hop",
+      "bandwidth_direction": "full_duplex",
+      "clos_model": "one deterministic spine; uplinks share capacity"
+    },
+    "scenario": "training",
+    "logical_memory_bytes": {
+      "weights": 20000000000000.0,
+      "gradients": 20000000000000.0,
+      "master_weights": 40000000000000.0,
+      "optimizer_states": 80000000000000.0,
+      "total": 160000000000000.0
+    },
+    "step_end_events": [
+      "train.step0.done"
+    ],
+    "training_steps": 1,
+    "tokens_per_step": 512,
+    "tokens_per_replica_step": 128,
+    "data_parallel_replicas": 4,
+    "rank_coordinates": {
+      "npu0": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "npu1": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "npu2": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "npu3": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "npu4": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "npu5": [
+        1,
+        0,
+        0,
+        1
+      ],
+      "npu6": [
+        1,
+        1,
+        0,
+        0
+      ],
+      "npu7": [
+        1,
+        1,
+        0,
+        1
+      ],
+      "npu8": [
+        2,
+        0,
+        0,
+        0
+      ],
+      "npu9": [
+        2,
+        0,
+        0,
+        1
+      ],
+      "npu10": [
+        2,
+        1,
+        0,
+        0
+      ],
+      "npu11": [
+        2,
+        1,
+        0,
+        1
+      ],
+      "npu12": [
+        3,
+        0,
+        0,
+        0
+      ],
+      "npu13": [
+        3,
+        0,
+        0,
+        1
+      ],
+      "npu14": [
+        3,
+        1,
+        0,
+        0
+      ],
+      "npu15": [
+        3,
+        1,
+        0,
+        1
+      ]
+    },
+    "pipeline_schedule": {
+      "0": [
+        [
+          "forward",
+          0
+        ],
+        [
+          "backward",
+          0
+        ]
+      ],
+      "1": [
+        [
+          "forward",
+          0
+        ],
+        [
+          "backward",
+          0
+        ]
+      ]
+    },
+    "approximations": [
+      "Declared parameter-budget model: parameters and active work are uniform over layers and experts.",
+      "EP dense weights are replicated; expert weights and token work are evenly distributed across EP ranks.",
+      "MoE communication uses uniform routing and a continuous MoE-layer fraction; no expert imbalance is inferred.",
+      "Activation ledger assumes streaming causal attention without a full attention-score matrix.",
+      "Hidden boundaries are replicated over TP; saved activation elements/token/layer = 2H + intermediate/TP*(1 + MoE_fraction*top_k); checkpoint retains H.",
+      "Activation/wire dtype differences add explicit packing/unpacking and retained communication buffers; FSDP tensors retain their own weight/gradient dtype.",
+      "Forward FLOPs = 2*active_parameters*tokens plus causal attention; backward = 2*forward.",
+      "Adam update uses 14 FLOPs/parameter; precision conversion uses 2 FLOPs/parameter; calibrate to measured kernels.",
+      "NPU scalar updates/conversions use the FP32 profile and share a stream with matrix compute; if unavailable, use selected compute throughput.",
+      "Optimizer starts after all backward phases; optimizer/backward overlap is not modeled.",
+      "FP8 scale metadata uses continuous block counts; tensor alignment/padding requires profile calibration.",
+      "Collective staging and precision-conversion buffers are additional to logical tensor capacity."
+    ],
+    "assumptions": [
+      "Declared parameter-budget model: parameters and active work are uniform over layers and experts.",
+      "EP dense weights are replicated; expert weights and token work are evenly distributed across EP ranks.",
+      "MoE communication uses uniform routing and a continuous MoE-layer fraction; no expert imbalance is inferred.",
+      "Activation ledger assumes streaming causal attention without a full attention-score matrix.",
+      "Hidden boundaries are replicated over TP; saved activation elements/token/layer = 2H + intermediate/TP*(1 + MoE_fraction*top_k); checkpoint retains H.",
+      "Activation/wire dtype differences add explicit packing/unpacking and retained communication buffers; FSDP tensors retain their own weight/gradient dtype.",
+      "Forward FLOPs = 2*active_parameters*tokens plus causal attention; backward = 2*forward.",
+      "Adam update uses 14 FLOPs/parameter; precision conversion uses 2 FLOPs/parameter; calibrate to measured kernels.",
+      "NPU scalar updates/conversions use the FP32 profile and share a stream with matrix compute; if unavailable, use selected compute throughput.",
+      "Optimizer starts after all backward phases; optimizer/backward overlap is not modeled.",
+      "FP8 scale metadata uses continuous block counts; tensor alignment/padding requires profile calibration.",
+      "Collective staging and precision-conversion buffers are additional to logical tensor capacity.",
+      "Total and active parameters are declared budgets; generated layer kernels are architectural approximations.",
+      "Active parameters derive as dense 200B plus 306.25B routed experts per token.",
+      "This small-rank giant-memory profile keeps the event graph practical for capacity validation."
+    ],
+    "parameterization": "Declared parameter budgets with coarse layer kernels; not an exact framework tensor trace."
+  },
+  "estimate": {
+    "duration_lower_bound_s": 1058.8235294117646,
+    "dependency_path_lower_bound_s": 548.5201553133124,
+    "resource_time_lower_bounds_s": {
+      "npu0.hbm": 17.502018858325332,
+      "npu4.hbm": 17.502018858325332,
+      "link:npu0>npu4:SU": 14.705882352941176,
+      "npu0.SU.tx": 14.708525038598692,
+      "npu4.SU.rx": 14.708525038598692,
+      "npu8.hbm": 17.502018858325332,
+      "link:npu4>su0.gateway:SO": 264.70588235294116,
+      "link:su0.gateway>so.spine:SO": 529.4117647058823,
+      "link:so.spine>su1.gateway:SO": 529.4117647058823,
+      "link:su1.gateway>npu8:SO": 264.70588235294116,
+      "npu4.SO.tx": 264.70588235294116,
+      "cpu1.nic.tx": 1058.8235294117646,
+      "npu8.SO.rx": 264.70588235294116,
+      "cpu2.nic.rx": 1058.8235294117646,
+      "npu12.hbm": 17.502018858325332,
+      "link:npu8>npu12:SU": 14.705882352941176,
+      "npu8.SU.tx": 14.708525038598692,
+      "npu12.SU.rx": 14.708525038598692,
+      "link:npu12>su1.gateway:SO": 264.70588235294116,
+      "link:su1.gateway>so.spine:SO": 529.4117647058823,
+      "link:so.spine>su0.gateway:SO": 529.4117647058823,
+      "link:su0.gateway>npu0:SO": 264.70588235294116,
+      "npu12.SO.tx": 264.70588235294116,
+      "cpu3.nic.tx": 1058.8235294117646,
+      "npu0.SO.rx": 264.70588235294116,
+      "cpu0.nic.rx": 1058.8235294117646,
+      "npu1.hbm": 17.502018858325332,
+      "npu5.hbm": 17.502018858325332,
+      "link:npu1>npu5:SU": 14.705882352941176,
+      "npu1.SU.tx": 14.708525038598692,
+      "npu5.SU.rx": 14.708525038598692,
+      "npu9.hbm": 17.502018858325332,
+      "link:npu5>su0.gateway:SO": 264.70588235294116,
+      "link:su1.gateway>npu9:SO": 264.70588235294116,
+      "npu5.SO.tx": 264.70588235294116,
+      "npu9.SO.rx": 264.70588235294116,
+      "npu13.hbm": 17.502018858325332,
+      "link:npu9>npu13:SU": 14.705882352941176,
+      "npu9.SU.tx": 14.708525038598692,
+      "npu13.SU.rx": 14.708525038598692,
+      "link:npu13>su1.gateway:SO": 264.70588235294116,
+      "link:su0.gateway>npu1:SO": 264.70588235294116,
+      "npu13.SO.tx": 264.70588235294116,
+      "npu1.SO.rx": 264.70588235294116,
+      "npu0.compute": 0.21614316557653335,
+      "npu1.compute": 0.21614316557653335,
+      "npu4.compute": 0.21614316557653335,
+      "npu5.compute": 0.21614316557653335,
+      "npu8.compute": 0.21614316557653335,
+      "npu9.compute": 0.21614316557653335,
+      "npu12.compute": 0.21614316557653335,
+      "npu13.compute": 0.21614316557653335,
+      "link:npu0>npu1:SU": 0.002631720156862745,
+      "npu1.SU.rx": 0.00264268565751634,
+      "link:npu1>npu0:SU": 0.002631720156862745,
+      "npu0.SU.rx": 0.00264268565751634,
+      "link:npu4>npu5:SU": 0.002631720156862745,
+      "npu4.SU.tx": 0.00264268565751634,
+      "link:npu5>npu4:SU": 0.002631720156862745,
+      "npu5.SU.tx": 0.00264268565751634,
+      "link:npu8>npu9:SU": 0.002631720156862745,
+      "npu9.SU.rx": 0.00264268565751634,
+      "link:npu9>npu8:SU": 0.002631720156862745,
+      "npu8.SU.rx": 0.00264268565751634,
+      "link:npu12>npu13:SU": 0.002631720156862745,
+      "npu12.SU.tx": 0.00264268565751634,
+      "link:npu13>npu12:SU": 0.002631720156862745,
+      "npu13.SU.tx": 0.00264268565751634,
+      "npu2.hbm": 17.502018858325332,
+      "link:npu0>npu2:SU": 1.0965500653594771e-05,
+      "npu2.SU.rx": 0.00264268565751634,
+      "npu3.hbm": 17.502018858325332,
+      "link:npu1>npu3:SU": 1.0965500653594771e-05,
+      "npu3.SU.rx": 0.00264268565751634,
+      "npu6.hbm": 17.502018858325332,
+      "link:npu4>npu6:SU": 1.0965500653594771e-05,
+      "npu6.SU.rx": 14.708525038598692,
+      "npu7.hbm": 17.502018858325332,
+      "link:npu5>npu7:SU": 1.0965500653594771e-05,
+      "npu7.SU.rx": 14.708525038598692,
+      "npu10.hbm": 17.502018858325332,
+      "link:npu8>npu10:SU": 1.0965500653594771e-05,
+      "npu10.SU.rx": 0.00264268565751634,
+      "npu11.hbm": 17.502018858325332,
+      "link:npu9>npu11:SU": 1.0965500653594771e-05,
+      "npu11.SU.rx": 0.00264268565751634,
+      "npu14.hbm": 17.502018858325332,
+      "link:npu12>npu14:SU": 1.0965500653594771e-05,
+      "npu14.SU.rx": 14.708525038598692,
+      "npu15.hbm": 17.502018858325332,
+      "link:npu13>npu15:SU": 1.0965500653594771e-05,
+      "npu15.SU.rx": 14.708525038598692,
+      "link:npu2>npu6:SU": 14.705882352941176,
+      "npu2.SU.tx": 14.708525038598692,
+      "link:npu6>su0.gateway:SO": 264.70588235294116,
+      "link:su1.gateway>npu10:SO": 264.70588235294116,
+      "npu6.SO.tx": 264.70588235294116,
+      "npu10.SO.rx": 264.70588235294116,
+      "link:npu10>npu14:SU": 14.705882352941176,
+      "npu10.SU.tx": 14.708525038598692,
+      "link:npu14>su1.gateway:SO": 264.70588235294116,
+      "link:su0.gateway>npu2:SO": 264.70588235294116,
+      "npu14.SO.tx": 264.70588235294116,
+      "npu2.SO.rx": 264.70588235294116,
+      "link:npu3>npu7:SU": 14.705882352941176,
+      "npu3.SU.tx": 14.708525038598692,
+      "link:npu7>su0.gateway:SO": 264.70588235294116,
+      "link:su1.gateway>npu11:SO": 264.70588235294116,
+      "npu7.SO.tx": 264.70588235294116,
+      "npu11.SO.rx": 264.70588235294116,
+      "link:npu11>npu15:SU": 14.705882352941176,
+      "npu11.SU.tx": 14.708525038598692,
+      "link:npu15>su1.gateway:SO": 264.70588235294116,
+      "link:su0.gateway>npu3:SO": 264.70588235294116,
+      "npu15.SO.tx": 264.70588235294116,
+      "npu3.SO.rx": 264.70588235294116,
+      "npu2.compute": 0.21614316557653335,
+      "npu3.compute": 0.21614316557653335,
+      "npu6.compute": 0.21614316557653335,
+      "npu7.compute": 0.21614316557653335,
+      "npu10.compute": 0.21614316557653335,
+      "npu11.compute": 0.21614316557653335,
+      "npu14.compute": 0.21614316557653335,
+      "npu15.compute": 0.21614316557653335,
+      "link:npu2>npu3:SU": 0.002631720156862745,
+      "link:npu3>npu2:SU": 0.002631720156862745,
+      "link:npu6>npu7:SU": 0.002631720156862745,
+      "npu6.SU.tx": 0.00264268565751634,
+      "link:npu7>npu6:SU": 0.002631720156862745,
+      "npu7.SU.tx": 0.00264268565751634,
+      "link:npu10>npu11:SU": 0.002631720156862745,
+      "link:npu11>npu10:SU": 0.002631720156862745,
+      "link:npu14>npu15:SU": 0.002631720156862745,
+      "npu14.SU.tx": 0.00264268565751634,
+      "link:npu15>npu14:SU": 0.002631720156862745,
+      "npu15.SU.tx": 0.00264268565751634,
+      "link:npu2>npu0:SU": 1.0965500653594771e-05,
+      "link:npu3>npu1:SU": 1.0965500653594771e-05,
+      "link:npu6>npu4:SU": 1.0965500653594771e-05,
+      "link:npu7>npu5:SU": 1.0965500653594771e-05,
+      "link:npu10>npu8:SU": 1.0965500653594771e-05,
+      "link:npu11>npu9:SU": 1.0965500653594771e-05,
+      "link:npu14>npu12:SU": 1.0965500653594771e-05,
+      "link:npu15>npu13:SU": 1.0965500653594771e-05,
+      "cpu0.dram": 225.0,
+      "link:npu0>cpu0:D2H": 22.977941176470587,
+      "npu0.host.tx": 22.977941176470587,
+      "cpu0.host.rx": 91.91176470588235,
+      "cpu0.compute": 57.142857142857146,
+      "link:cpu0>npu0:H2D": 22.977941176470587,
+      "cpu0.host.tx": 91.91176470588235,
+      "npu0.host.rx": 22.977941176470587,
+      "link:npu1>cpu0:D2H": 22.977941176470587,
+      "npu1.host.tx": 22.977941176470587,
+      "link:cpu0>npu1:H2D": 22.977941176470587,
+      "npu1.host.rx": 22.977941176470587,
+      "link:npu2>cpu0:D2H": 22.977941176470587,
+      "npu2.host.tx": 22.977941176470587,
+      "link:cpu0>npu2:H2D": 22.977941176470587,
+      "npu2.host.rx": 22.977941176470587,
+      "link:npu3>cpu0:D2H": 22.977941176470587,
+      "npu3.host.tx": 22.977941176470587,
+      "link:cpu0>npu3:H2D": 22.977941176470587,
+      "npu3.host.rx": 22.977941176470587,
+      "cpu1.dram": 225.0,
+      "link:npu4>cpu1:D2H": 22.977941176470587,
+      "npu4.host.tx": 22.977941176470587,
+      "cpu1.host.rx": 91.91176470588235,
+      "cpu1.compute": 57.142857142857146,
+      "link:cpu1>npu4:H2D": 22.977941176470587,
+      "cpu1.host.tx": 91.91176470588235,
+      "npu4.host.rx": 22.977941176470587,
+      "link:npu5>cpu1:D2H": 22.977941176470587,
+      "npu5.host.tx": 22.977941176470587,
+      "link:cpu1>npu5:H2D": 22.977941176470587,
+      "npu5.host.rx": 22.977941176470587,
+      "link:npu6>cpu1:D2H": 22.977941176470587,
+      "npu6.host.tx": 22.977941176470587,
+      "link:cpu1>npu6:H2D": 22.977941176470587,
+      "npu6.host.rx": 22.977941176470587,
+      "link:npu7>cpu1:D2H": 22.977941176470587,
+      "npu7.host.tx": 22.977941176470587,
+      "link:cpu1>npu7:H2D": 22.977941176470587,
+      "npu7.host.rx": 22.977941176470587,
+      "cpu2.dram": 225.0,
+      "link:npu8>cpu2:D2H": 22.977941176470587,
+      "npu8.host.tx": 22.977941176470587,
+      "cpu2.host.rx": 91.91176470588235,
+      "cpu2.compute": 57.142857142857146,
+      "link:cpu2>npu8:H2D": 22.977941176470587,
+      "cpu2.host.tx": 91.91176470588235,
+      "npu8.host.rx": 22.977941176470587,
+      "link:npu9>cpu2:D2H": 22.977941176470587,
+      "npu9.host.tx": 22.977941176470587,
+      "link:cpu2>npu9:H2D": 22.977941176470587,
+      "npu9.host.rx": 22.977941176470587,
+      "link:npu10>cpu2:D2H": 22.977941176470587,
+      "npu10.host.tx": 22.977941176470587,
+      "link:cpu2>npu10:H2D": 22.977941176470587,
+      "npu10.host.rx": 22.977941176470587,
+      "link:npu11>cpu2:D2H": 22.977941176470587,
+      "npu11.host.tx": 22.977941176470587,
+      "link:cpu2>npu11:H2D": 22.977941176470587,
+      "npu11.host.rx": 22.977941176470587,
+      "cpu3.dram": 225.0,
+      "link:npu12>cpu3:D2H": 22.977941176470587,
+      "npu12.host.tx": 22.977941176470587,
+      "cpu3.host.rx": 91.91176470588235,
+      "cpu3.compute": 57.142857142857146,
+      "link:cpu3>npu12:H2D": 22.977941176470587,
+      "cpu3.host.tx": 91.91176470588235,
+      "npu12.host.rx": 22.977941176470587,
+      "link:npu13>cpu3:D2H": 22.977941176470587,
+      "npu13.host.tx": 22.977941176470587,
+      "link:cpu3>npu13:H2D": 22.977941176470587,
+      "npu13.host.rx": 22.977941176470587,
+      "link:npu14>cpu3:D2H": 22.977941176470587,
+      "npu14.host.tx": 22.977941176470587,
+      "link:cpu3>npu14:H2D": 22.977941176470587,
+      "npu14.host.rx": 22.977941176470587,
+      "link:npu15>cpu3:D2H": 22.977941176470587,
+      "npu15.host.tx": 22.977941176470587,
+      "link:cpu3>npu15:H2D": 22.977941176470587,
+      "npu15.host.rx": 22.977941176470587
+    },
+    "resource_work": {
+      "npu0.hbm": 52506056574976.0,
+      "npu4.hbm": 52506056574976.0,
+      "link:npu0>npu4:SU": 11250000000000.0,
+      "npu0.SU.tx": 11252021654528.0,
+      "npu4.SU.rx": 11252021654528.0,
+      "npu8.hbm": 52506056574976.0,
+      "link:npu4>su0.gateway:SO": 11250000000000.0,
+      "link:su0.gateway>so.spine:SO": 45000000000000.0,
+      "link:so.spine>su1.gateway:SO": 45000000000000.0,
+      "link:su1.gateway>npu8:SO": 11250000000000.0,
+      "npu4.SO.tx": 11250000000000.0,
+      "cpu1.nic.tx": 45000000000000.0,
+      "npu8.SO.rx": 11250000000000.0,
+      "cpu2.nic.rx": 45000000000000.0,
+      "npu12.hbm": 52506056574976.0,
+      "link:npu8>npu12:SU": 11250000000000.0,
+      "npu8.SU.tx": 11252021654528.0,
+      "npu12.SU.rx": 11252021654528.0,
+      "link:npu12>su1.gateway:SO": 11250000000000.0,
+      "link:su1.gateway>so.spine:SO": 45000000000000.0,
+      "link:so.spine>su0.gateway:SO": 45000000000000.0,
+      "link:su0.gateway>npu0:SO": 11250000000000.0,
+      "npu12.SO.tx": 11250000000000.0,
+      "cpu3.nic.tx": 45000000000000.0,
+      "npu0.SO.rx": 11250000000000.0,
+      "cpu0.nic.rx": 45000000000000.0,
+      "npu1.hbm": 52506056574976.0,
+      "npu5.hbm": 52506056574976.0,
+      "link:npu1>npu5:SU": 11250000000000.0,
+      "npu1.SU.tx": 11252021654528.0,
+      "npu5.SU.rx": 11252021654528.0,
+      "npu9.hbm": 52506056574976.0,
+      "link:npu5>su0.gateway:SO": 11250000000000.0,
+      "link:su1.gateway>npu9:SO": 11250000000000.0,
+      "npu5.SO.tx": 11250000000000.0,
+      "npu9.SO.rx": 11250000000000.0,
+      "npu13.hbm": 52506056574976.0,
+      "link:npu9>npu13:SU": 11250000000000.0,
+      "npu9.SU.tx": 11252021654528.0,
+      "npu13.SU.rx": 11252021654528.0,
+      "link:npu13>su1.gateway:SO": 11250000000000.0,
+      "link:su0.gateway>npu1:SO": 11250000000000.0,
+      "npu13.SO.tx": 11250000000000.0,
+      "npu1.SO.rx": 11250000000000.0,
+      "npu0.compute": 129685899345920.02,
+      "npu1.compute": 129685899345920.02,
+      "npu4.compute": 129685899345920.02,
+      "npu5.compute": 129685899345920.02,
+      "npu8.compute": 129685899345920.02,
+      "npu9.compute": 129685899345920.02,
+      "npu12.compute": 129685899345920.02,
+      "npu13.compute": 129685899345920.02,
+      "link:npu0>npu1:SU": 2013265920.0,
+      "npu1.SU.rx": 2021654528.0,
+      "link:npu1>npu0:SU": 2013265920.0,
+      "npu0.SU.rx": 2021654528.0,
+      "link:npu4>npu5:SU": 2013265920.0,
+      "npu4.SU.tx": 2021654528.0,
+      "link:npu5>npu4:SU": 2013265920.0,
+      "npu5.SU.tx": 2021654528.0,
+      "link:npu8>npu9:SU": 2013265920.0,
+      "npu9.SU.rx": 2021654528.0,
+      "link:npu9>npu8:SU": 2013265920.0,
+      "npu8.SU.rx": 2021654528.0,
+      "link:npu12>npu13:SU": 2013265920.0,
+      "npu12.SU.tx": 2021654528.0,
+      "link:npu13>npu12:SU": 2013265920.0,
+      "npu13.SU.tx": 2021654528.0,
+      "npu2.hbm": 52506056574976.0,
+      "link:npu0>npu2:SU": 8388608.0,
+      "npu2.SU.rx": 2021654528.0,
+      "npu3.hbm": 52506056574976.0,
+      "link:npu1>npu3:SU": 8388608.0,
+      "npu3.SU.rx": 2021654528.0,
+      "npu6.hbm": 52506056574976.0,
+      "link:npu4>npu6:SU": 8388608.0,
+      "npu6.SU.rx": 11252021654528.0,
+      "npu7.hbm": 52506056574976.0,
+      "link:npu5>npu7:SU": 8388608.0,
+      "npu7.SU.rx": 11252021654528.0,
+      "npu10.hbm": 52506056574976.0,
+      "link:npu8>npu10:SU": 8388608.0,
+      "npu10.SU.rx": 2021654528.0,
+      "npu11.hbm": 52506056574976.0,
+      "link:npu9>npu11:SU": 8388608.0,
+      "npu11.SU.rx": 2021654528.0,
+      "npu14.hbm": 52506056574976.0,
+      "link:npu12>npu14:SU": 8388608.0,
+      "npu14.SU.rx": 11252021654528.0,
+      "npu15.hbm": 52506056574976.0,
+      "link:npu13>npu15:SU": 8388608.0,
+      "npu15.SU.rx": 11252021654528.0,
+      "link:npu2>npu6:SU": 11250000000000.0,
+      "npu2.SU.tx": 11252021654528.0,
+      "link:npu6>su0.gateway:SO": 11250000000000.0,
+      "link:su1.gateway>npu10:SO": 11250000000000.0,
+      "npu6.SO.tx": 11250000000000.0,
+      "npu10.SO.rx": 11250000000000.0,
+      "link:npu10>npu14:SU": 11250000000000.0,
+      "npu10.SU.tx": 11252021654528.0,
+      "link:npu14>su1.gateway:SO": 11250000000000.0,
+      "link:su0.gateway>npu2:SO": 11250000000000.0,
+      "npu14.SO.tx": 11250000000000.0,
+      "npu2.SO.rx": 11250000000000.0,
+      "link:npu3>npu7:SU": 11250000000000.0,
+      "npu3.SU.tx": 11252021654528.0,
+      "link:npu7>su0.gateway:SO": 11250000000000.0,
+      "link:su1.gateway>npu11:SO": 11250000000000.0,
+      "npu7.SO.tx": 11250000000000.0,
+      "npu11.SO.rx": 11250000000000.0,
+      "link:npu11>npu15:SU": 11250000000000.0,
+      "npu11.SU.tx": 11252021654528.0,
+      "link:npu15>su1.gateway:SO": 11250000000000.0,
+      "link:su0.gateway>npu3:SO": 11250000000000.0,
+      "npu15.SO.tx": 11250000000000.0,
+      "npu3.SO.rx": 11250000000000.0,
+      "npu2.compute": 129685899345920.02,
+      "npu3.compute": 129685899345920.02,
+      "npu6.compute": 129685899345920.02,
+      "npu7.compute": 129685899345920.02,
+      "npu10.compute": 129685899345920.02,
+      "npu11.compute": 129685899345920.02,
+      "npu14.compute": 129685899345920.02,
+      "npu15.compute": 129685899345920.02,
+      "link:npu2>npu3:SU": 2013265920.0,
+      "link:npu3>npu2:SU": 2013265920.0,
+      "link:npu6>npu7:SU": 2013265920.0,
+      "npu6.SU.tx": 2021654528.0,
+      "link:npu7>npu6:SU": 2013265920.0,
+      "npu7.SU.tx": 2021654528.0,
+      "link:npu10>npu11:SU": 2013265920.0,
+      "link:npu11>npu10:SU": 2013265920.0,
+      "link:npu14>npu15:SU": 2013265920.0,
+      "npu14.SU.tx": 2021654528.0,
+      "link:npu15>npu14:SU": 2013265920.0,
+      "npu15.SU.tx": 2021654528.0,
+      "link:npu2>npu0:SU": 8388608.0,
+      "link:npu3>npu1:SU": 8388608.0,
+      "link:npu6>npu4:SU": 8388608.0,
+      "link:npu7>npu5:SU": 8388608.0,
+      "link:npu10>npu8:SU": 8388608.0,
+      "link:npu11>npu9:SU": 8388608.0,
+      "link:npu14>npu12:SU": 8388608.0,
+      "link:npu15>npu13:SU": 8388608.0,
+      "cpu0.dram": 90000000000000.0,
+      "link:npu0>cpu0:D2H": 1250000000000.0,
+      "npu0.host.tx": 1250000000000.0,
+      "cpu0.host.rx": 5000000000000.0,
+      "cpu0.compute": 40000000000000.0,
+      "link:cpu0>npu0:H2D": 1250000000000.0,
+      "cpu0.host.tx": 5000000000000.0,
+      "npu0.host.rx": 1250000000000.0,
+      "link:npu1>cpu0:D2H": 1250000000000.0,
+      "npu1.host.tx": 1250000000000.0,
+      "link:cpu0>npu1:H2D": 1250000000000.0,
+      "npu1.host.rx": 1250000000000.0,
+      "link:npu2>cpu0:D2H": 1250000000000.0,
+      "npu2.host.tx": 1250000000000.0,
+      "link:cpu0>npu2:H2D": 1250000000000.0,
+      "npu2.host.rx": 1250000000000.0,
+      "link:npu3>cpu0:D2H": 1250000000000.0,
+      "npu3.host.tx": 1250000000000.0,
+      "link:cpu0>npu3:H2D": 1250000000000.0,
+      "npu3.host.rx": 1250000000000.0,
+      "cpu1.dram": 90000000000000.0,
+      "link:npu4>cpu1:D2H": 1250000000000.0,
+      "npu4.host.tx": 1250000000000.0,
+      "cpu1.host.rx": 5000000000000.0,
+      "cpu1.compute": 40000000000000.0,
+      "link:cpu1>npu4:H2D": 1250000000000.0,
+      "cpu1.host.tx": 5000000000000.0,
+      "npu4.host.rx": 1250000000000.0,
+      "link:npu5>cpu1:D2H": 1250000000000.0,
+      "npu5.host.tx": 1250000000000.0,
+      "link:cpu1>npu5:H2D": 1250000000000.0,
+      "npu5.host.rx": 1250000000000.0,
+      "link:npu6>cpu1:D2H": 1250000000000.0,
+      "npu6.host.tx": 1250000000000.0,
+      "link:cpu1>npu6:H2D": 1250000000000.0,
+      "npu6.host.rx": 1250000000000.0,
+      "link:npu7>cpu1:D2H": 1250000000000.0,
+      "npu7.host.tx": 1250000000000.0,
+      "link:cpu1>npu7:H2D": 1250000000000.0,
+      "npu7.host.rx": 1250000000000.0,
+      "cpu2.dram": 90000000000000.0,
+      "link:npu8>cpu2:D2H": 1250000000000.0,
+      "npu8.host.tx": 1250000000000.0,
+      "cpu2.host.rx": 5000000000000.0,
+      "cpu2.compute": 40000000000000.0,
+      "link:cpu2>npu8:H2D": 1250000000000.0,
+      "cpu2.host.tx": 5000000000000.0,
+      "npu8.host.rx": 1250000000000.0,
+      "link:npu9>cpu2:D2H": 1250000000000.0,
+      "npu9.host.tx": 1250000000000.0,
+      "link:cpu2>npu9:H2D": 1250000000000.0,
+      "npu9.host.rx": 1250000000000.0,
+      "link:npu10>cpu2:D2H": 1250000000000.0,
+      "npu10.host.tx": 1250000000000.0,
+      "link:cpu2>npu10:H2D": 1250000000000.0,
+      "npu10.host.rx": 1250000000000.0,
+      "link:npu11>cpu2:D2H": 1250000000000.0,
+      "npu11.host.tx": 1250000000000.0,
+      "link:cpu2>npu11:H2D": 1250000000000.0,
+      "npu11.host.rx": 1250000000000.0,
+      "cpu3.dram": 90000000000000.0,
+      "link:npu12>cpu3:D2H": 1250000000000.0,
+      "npu12.host.tx": 1250000000000.0,
+      "cpu3.host.rx": 5000000000000.0,
+      "cpu3.compute": 40000000000000.0,
+      "link:cpu3>npu12:H2D": 1250000000000.0,
+      "cpu3.host.tx": 5000000000000.0,
+      "npu12.host.rx": 1250000000000.0,
+      "link:npu13>cpu3:D2H": 1250000000000.0,
+      "npu13.host.tx": 1250000000000.0,
+      "link:cpu3>npu13:H2D": 1250000000000.0,
+      "npu13.host.rx": 1250000000000.0,
+      "link:npu14>cpu3:D2H": 1250000000000.0,
+      "npu14.host.tx": 1250000000000.0,
+      "link:cpu3>npu14:H2D": 1250000000000.0,
+      "npu14.host.rx": 1250000000000.0,
+      "link:npu15>cpu3:D2H": 1250000000000.0,
+      "npu15.host.tx": 1250000000000.0,
+      "link:cpu3>npu15:H2D": 1250000000000.0,
+      "npu15.host.rx": 1250000000000.0
+    },
+    "resident_memory_bytes": {
+      "npu0.hbm": 2502064000000.0,
+      "cpu0.dram": 30000000000000.0,
+      "npu1.hbm": 2502064000000.0,
+      "npu2.hbm": 2502064000000.0,
+      "npu3.hbm": 2502064000000.0,
+      "npu4.hbm": 2502064000000.0,
+      "cpu1.dram": 30000000000000.0,
+      "npu5.hbm": 2502064000000.0,
+      "npu6.hbm": 2502064000000.0,
+      "npu7.hbm": 2502064000000.0,
+      "npu8.hbm": 2502064000000.0,
+      "cpu2.dram": 30000000000000.0,
+      "npu9.hbm": 2502064000000.0,
+      "npu10.hbm": 2502064000000.0,
+      "npu11.hbm": 2502064000000.0,
+      "npu12.hbm": 2502064000000.0,
+      "cpu3.dram": 30000000000000.0,
+      "npu13.hbm": 2502064000000.0,
+      "npu14.hbm": 2502064000000.0,
+      "npu15.hbm": 2502064000000.0
+    },
+    "resident_memory_categories_bytes": {
+      "npu0.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "cpu0.dram": {
+        "master_weights": 10000000000000.0,
+        "optimizer_states": 20000000000000.0
+      },
+      "npu1.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "npu2.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "npu3.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "npu4.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "cpu1.dram": {
+        "master_weights": 10000000000000.0,
+        "optimizer_states": 20000000000000.0
+      },
+      "npu5.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "npu6.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "npu7.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "npu8.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "cpu2.dram": {
+        "master_weights": 10000000000000.0,
+        "optimizer_states": 20000000000000.0
+      },
+      "npu9.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "npu10.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "npu11.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "npu12.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "cpu3.dram": {
+        "master_weights": 10000000000000.0,
+        "optimizer_states": 20000000000000.0
+      },
+      "npu13.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "npu14.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      },
+      "npu15.hbm": {
+        "weights": 1250000000000.0,
+        "gradients": 1250000000000.0,
+        "runtime_reserve": 2000000000.0,
+        "workspace": 64000000.0
+      }
+    },
+    "optimistic_schedule_memory_peak_bytes": {
+      "npu0.hbm": 3752064000000.0,
+      "cpu0.dram": 40000000000000.0,
+      "npu1.hbm": 3752064000000.0,
+      "npu2.hbm": 3752064000000.0,
+      "npu3.hbm": 3752064000000.0,
+      "npu4.hbm": 3752064000000.0,
+      "cpu1.dram": 40000000000000.0,
+      "npu5.hbm": 3752064000000.0,
+      "npu6.hbm": 3752064000000.0,
+      "npu7.hbm": 3752064000000.0,
+      "npu8.hbm": 3752064000000.0,
+      "cpu2.dram": 40000000000000.0,
+      "npu9.hbm": 3752064000000.0,
+      "npu10.hbm": 3752064000000.0,
+      "npu11.hbm": 3752064000000.0,
+      "npu12.hbm": 3752064000000.0,
+      "cpu3.dram": 40000000000000.0,
+      "npu13.hbm": 3752064000000.0,
+      "npu14.hbm": 3752064000000.0,
+      "npu15.hbm": 3752064000000.0
+    },
+    "communication": {
+      "transport_payload_bytes": 220032346472448.0,
+      "physical_bytes_by_domain": {
+        "SU": 90032346472448.0,
+        "SO": 360000000000000.0,
+        "D2H": 20000000000000.0,
+        "H2D": 20000000000000.0
+      },
+      "payload_by_semantic_bytes": {
+        "fsdp_weights": 120000000000000.0,
+        "tensor_parallel": 32212254720.0,
+        "pipeline_activation": 134217728.0,
+        "fsdp_gradients": 60000000000000.0,
+        "optimizer_offload": 40000000000000.0
+      },
+      "payload_by_collective_bytes": {
+        "all_gather": 120000000000000.0,
+        "all_reduce": 32212254720.0,
+        "point_to_point": 40000134217728.0,
+        "reduce_scatter": 60000000000000.0
+      },
+      "classification_note": "Semantic and collective breakdowns are two views of the same payload; do not add them."
+    },
+    "event_count": 19149,
+    "memory_note": "Resident memory is a necessary bound; optimistic schedule peaks ignore contention/slots and are not feasibility proofs."
+  },
+  "metrics": {},
+  "slo": {
+    "specified": false,
+    "satisfied": null,
+    "checks": []
+  },
+  "requirements": {
+    "per_resource": {
+      "npu0.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "npu4.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu0>npu4:SU": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu0.SU.tx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "npu4.SU.rx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "npu8.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu4>su0.gateway:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "link:su0.gateway>so.spine:SO": {
+        "work": 45000000000000.0,
+        "unit": "byte/s",
+        "capacity": 85000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 42500000000.0,
+        "required_average_rate_lower_bound": 45000000000.0
+      },
+      "link:so.spine>su1.gateway:SO": {
+        "work": 45000000000000.0,
+        "unit": "byte/s",
+        "capacity": 85000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 42500000000.0,
+        "required_average_rate_lower_bound": 45000000000.0
+      },
+      "link:su1.gateway>npu8:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu4.SO.tx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "cpu1.nic.tx": {
+        "work": 45000000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 42500000000.0,
+        "required_average_rate_lower_bound": 45000000000.0
+      },
+      "npu8.SO.rx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "cpu2.nic.rx": {
+        "work": 45000000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 42500000000.0,
+        "required_average_rate_lower_bound": 45000000000.0
+      },
+      "npu12.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu8>npu12:SU": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu8.SU.tx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "npu12.SU.rx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "link:npu12>su1.gateway:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "link:su1.gateway>so.spine:SO": {
+        "work": 45000000000000.0,
+        "unit": "byte/s",
+        "capacity": 85000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 42500000000.0,
+        "required_average_rate_lower_bound": 45000000000.0
+      },
+      "link:so.spine>su0.gateway:SO": {
+        "work": 45000000000000.0,
+        "unit": "byte/s",
+        "capacity": 85000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 42500000000.0,
+        "required_average_rate_lower_bound": 45000000000.0
+      },
+      "link:su0.gateway>npu0:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu12.SO.tx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "cpu3.nic.tx": {
+        "work": 45000000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 42500000000.0,
+        "required_average_rate_lower_bound": 45000000000.0
+      },
+      "npu0.SO.rx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "cpu0.nic.rx": {
+        "work": 45000000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 42500000000.0,
+        "required_average_rate_lower_bound": 45000000000.0
+      },
+      "npu1.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "npu5.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu1>npu5:SU": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu1.SU.tx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "npu5.SU.rx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "npu9.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu5>su0.gateway:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "link:su1.gateway>npu9:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu5.SO.tx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu9.SO.rx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu13.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu9>npu13:SU": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu9.SU.tx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "npu13.SU.rx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "link:npu13>su1.gateway:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "link:su0.gateway>npu1:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu13.SO.tx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu1.SO.rx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu0.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu1.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu4.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu5.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu8.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu9.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu12.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu13.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "link:npu0>npu1:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "npu1.SU.rx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "link:npu1>npu0:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "npu0.SU.rx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "link:npu4>npu5:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "npu4.SU.tx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "link:npu5>npu4:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "npu5.SU.tx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "link:npu8>npu9:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "npu9.SU.rx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "link:npu9>npu8:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "npu8.SU.rx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "link:npu12>npu13:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "npu12.SU.tx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "link:npu13>npu12:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "npu13.SU.tx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "npu2.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu0>npu2:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "npu2.SU.rx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "npu3.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu1>npu3:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "npu3.SU.rx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "npu6.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu4>npu6:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "npu6.SU.rx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "npu7.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu5>npu7:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "npu7.SU.rx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "npu10.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu8>npu10:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "npu10.SU.rx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "npu11.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu9>npu11:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "npu11.SU.rx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "npu14.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu12>npu14:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "npu14.SU.rx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "npu15.hbm": {
+        "work": 52506056574976.0,
+        "unit": "byte/s",
+        "capacity": 3000000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 49589053431.92178,
+        "required_average_rate_lower_bound": 52506056574.976
+      },
+      "link:npu13>npu15:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "npu15.SU.rx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "link:npu2>npu6:SU": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu2.SU.tx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "link:npu6>su0.gateway:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "link:su1.gateway>npu10:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu6.SO.tx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu10.SO.rx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "link:npu10>npu14:SU": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu10.SU.tx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "link:npu14>su1.gateway:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "link:su0.gateway>npu2:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu14.SO.tx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu2.SO.rx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "link:npu3>npu7:SU": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu3.SU.tx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "link:npu7>su0.gateway:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "link:su1.gateway>npu11:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu7.SO.tx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu11.SO.rx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "link:npu11>npu15:SU": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu11.SU.tx": {
+        "work": 11252021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10626909340.387556,
+        "required_average_rate_lower_bound": 11252021654.528
+      },
+      "link:npu15>su1.gateway:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "link:su0.gateway>npu3:SO": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu15.SO.tx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu3.SO.rx": {
+        "work": 11250000000000.0,
+        "unit": "byte/s",
+        "capacity": 42500000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 10625000000.0,
+        "required_average_rate_lower_bound": 11250000000.0
+      },
+      "npu2.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu3.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu6.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu7.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu10.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu11.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu14.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "npu15.compute": {
+        "work": 129685899345920.02,
+        "unit": "FLOP/s",
+        "capacity": 600000000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 122481127160.03558,
+        "required_average_rate_lower_bound": 129685899345.92001
+      },
+      "link:npu2>npu3:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "link:npu3>npu2:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "link:npu6>npu7:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "npu6.SU.tx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "link:npu7>npu6:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "npu7.SU.tx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "link:npu10>npu11:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "link:npu11>npu10:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "link:npu14>npu15:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "npu14.SU.tx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "link:npu15>npu14:SU": {
+        "work": 2013265920.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1901417.8133333335,
+        "required_average_rate_lower_bound": 2013265.92
+      },
+      "npu15.SU.tx": {
+        "work": 2021654528.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1909340.3875555557,
+        "required_average_rate_lower_bound": 2021654.528
+      },
+      "link:npu2>npu0:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "link:npu3>npu1:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "link:npu6>npu4:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "link:npu7>npu5:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "link:npu10>npu8:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "link:npu11>npu9:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "link:npu14>npu12:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "link:npu15>npu13:SU": {
+        "work": 8388608.0,
+        "unit": "byte/s",
+        "capacity": 765000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 7922.5742222222225,
+        "required_average_rate_lower_bound": 8388.608
+      },
+      "cpu0.dram": {
+        "work": 90000000000000.0,
+        "unit": "byte/s",
+        "capacity": 400000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 85000000000.0,
+        "required_average_rate_lower_bound": 90000000000.0
+      },
+      "link:npu0>cpu0:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu0.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "cpu0.host.rx": {
+        "work": 5000000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 4722222222.222222,
+        "required_average_rate_lower_bound": 5000000000.0
+      },
+      "cpu0.compute": {
+        "work": 40000000000000.0,
+        "unit": "FLOP/s",
+        "capacity": 700000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 37777777777.77778,
+        "required_average_rate_lower_bound": 40000000000.0
+      },
+      "link:cpu0>npu0:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "cpu0.host.tx": {
+        "work": 5000000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 4722222222.222222,
+        "required_average_rate_lower_bound": 5000000000.0
+      },
+      "npu0.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:npu1>cpu0:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu1.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:cpu0>npu1:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu1.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:npu2>cpu0:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu2.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:cpu0>npu2:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu2.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:npu3>cpu0:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu3.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:cpu0>npu3:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu3.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "cpu1.dram": {
+        "work": 90000000000000.0,
+        "unit": "byte/s",
+        "capacity": 400000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 85000000000.0,
+        "required_average_rate_lower_bound": 90000000000.0
+      },
+      "link:npu4>cpu1:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu4.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "cpu1.host.rx": {
+        "work": 5000000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 4722222222.222222,
+        "required_average_rate_lower_bound": 5000000000.0
+      },
+      "cpu1.compute": {
+        "work": 40000000000000.0,
+        "unit": "FLOP/s",
+        "capacity": 700000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 37777777777.77778,
+        "required_average_rate_lower_bound": 40000000000.0
+      },
+      "link:cpu1>npu4:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "cpu1.host.tx": {
+        "work": 5000000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 4722222222.222222,
+        "required_average_rate_lower_bound": 5000000000.0
+      },
+      "npu4.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:npu5>cpu1:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu5.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:cpu1>npu5:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu5.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:npu6>cpu1:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu6.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:cpu1>npu6:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu6.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:npu7>cpu1:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu7.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:cpu1>npu7:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu7.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "cpu2.dram": {
+        "work": 90000000000000.0,
+        "unit": "byte/s",
+        "capacity": 400000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 85000000000.0,
+        "required_average_rate_lower_bound": 90000000000.0
+      },
+      "link:npu8>cpu2:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu8.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "cpu2.host.rx": {
+        "work": 5000000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 4722222222.222222,
+        "required_average_rate_lower_bound": 5000000000.0
+      },
+      "cpu2.compute": {
+        "work": 40000000000000.0,
+        "unit": "FLOP/s",
+        "capacity": 700000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 37777777777.77778,
+        "required_average_rate_lower_bound": 40000000000.0
+      },
+      "link:cpu2>npu8:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "cpu2.host.tx": {
+        "work": 5000000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 4722222222.222222,
+        "required_average_rate_lower_bound": 5000000000.0
+      },
+      "npu8.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:npu9>cpu2:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu9.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:cpu2>npu9:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu9.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:npu10>cpu2:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu10.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:cpu2>npu10:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu10.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:npu11>cpu2:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu11.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:cpu2>npu11:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu11.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "cpu3.dram": {
+        "work": 90000000000000.0,
+        "unit": "byte/s",
+        "capacity": 400000000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 85000000000.0,
+        "required_average_rate_lower_bound": 90000000000.0
+      },
+      "link:npu12>cpu3:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu12.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "cpu3.host.rx": {
+        "work": 5000000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 4722222222.222222,
+        "required_average_rate_lower_bound": 5000000000.0
+      },
+      "cpu3.compute": {
+        "work": 40000000000000.0,
+        "unit": "FLOP/s",
+        "capacity": 700000000000.0,
+        "work_unit": "FLOP",
+        "average_rate_at_lower_bound": 37777777777.77778,
+        "required_average_rate_lower_bound": 40000000000.0
+      },
+      "link:cpu3>npu12:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "cpu3.host.tx": {
+        "work": 5000000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 4722222222.222222,
+        "required_average_rate_lower_bound": 5000000000.0
+      },
+      "npu12.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:npu13>cpu3:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu13.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:cpu3>npu13:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu13.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:npu14>cpu3:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu14.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:cpu3>npu14:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu14.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:npu15>cpu3:D2H": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu15.host.tx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "link:cpu3>npu15:H2D": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      },
+      "npu15.host.rx": {
+        "work": 1250000000000.0,
+        "unit": "byte/s",
+        "capacity": 54400000000.0,
+        "work_unit": "byte",
+        "average_rate_at_lower_bound": 1180555555.5555556,
+        "required_average_rate_lower_bound": 1250000000.0
+      }
+    },
+    "target_window_s": 1000.0,
+    "window_note": "Whole-workload step/throughput deadline only; TTFT/TPOT have different subgraph windows. Average rates are necessary, not sufficient.",
+    "cache_mte": {
+      "level": "Operator footprints and access/transfer demand; not L1/L2/L3 capacity or MTE queue/channel predictions.",
+      "per_device": {
+        "npu0": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu1": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu2": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu3": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu4": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu5": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu6": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu7": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu8": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu9": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu10": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu11": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu12": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu13": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu14": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        },
+        "npu15": {
+          "hbm_access_bytes": 52506056574976.0,
+          "max_operator_working_set_bytes": 375016777216.0,
+          "largest_transfer_payload_bytes": 31250000000.0
+        }
+      }
+    }
+  }
+}

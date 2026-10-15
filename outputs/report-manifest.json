@@ -1,0 +1,902 @@
+{
+  "schema_version": 1,
+  "snapshot_at_Asia_Shanghai": "2026-10-15T19:31:52+08:00",
+  "repository": "GuangyuZhu04/supernode_simulation",
+  "branch": "report",
+  "base_commit": "37d52e533172bb6a5f7a0704b474538dc26e82b6",
+  "report_count": 17,
+  "report_file_count": 21,
+  "report_files": [
+    "outputs/10t-fp16/report.md",
+    "outputs/10t-fp8/report.md",
+    "outputs/10t-inference/report.md",
+    "outputs/active-sweep/report.md",
+    "outputs/ascend960-970-kimi-10t/report.html",
+    "outputs/ascend960-970-kimi-10t/report.md",
+    "outputs/ascend_a5_1024_long_context/report.md",
+    "outputs/ascend_a5_1024_long_context/results.html",
+    "outputs/kimi-k3-10t-1024/report.html",
+    "outputs/kimi-k3-10t-1024/report.md",
+    "outputs/kimi-k3-10t-sp/report.html",
+    "outputs/kimi-k3-10t-sp/report.md",
+    "outputs/kimi-k3-ascend950-comparison.md",
+    "outputs/kimi-k3-ascend950-fp16/report.md",
+    "outputs/kimi-k3-ascend950-fp8/report.md",
+    "outputs/kimi-k3-ascend950-mxfp4/report.md",
+    "outputs/kimi-k3-ascend950-training-muon-128/report.md",
+    "outputs/kimi-k3-ascend950-training-muon/report.md",
+    "outputs/precision-sweep/report.md",
+    "outputs/su-search/report.md",
+    "outputs/topology-integration-smoke/simulation/report.md"
+  ],
+  "ascend960_970_status": {
+    "complete": false,
+    "cases_expected": 288,
+    "cases_complete": 152,
+    "generated_at_Asia_Shanghai": "2026-10-15T19:27:50+08:00",
+    "issues": [
+      "a7-sp32-top64-1M-b32: runtime/config provenance mismatch"
+    ]
+  },
+  "scope": "Report exports and linked summary/audit assets; excludes raw event/tensor timelines, checkpoints, complete case/raw sets, caches, logs and presentation build files.",
+  "files": [
+    {
+      "path": "outputs/10t-fp16/config.resolved.json",
+      "bytes": 4649,
+      "sha256": "22eb404b502e286162505974c6bcc2e06033ce177c3900ec6f19c1702c1eb2d2",
+      "git_blob_sha1": "3779fe66f8a671cbb2610b3783505b71d70f2bd3"
+    },
+    {
+      "path": "outputs/10t-fp16/memory.csv",
+      "bytes": 1284,
+      "sha256": "6b4f20e843e98164ef5cadb5fe0fdb88012a3cb5c9d07f94888cf2ea43bd0498",
+      "git_blob_sha1": "07e12eeb639aff0652095add7b57414be5145cc6"
+    },
+    {
+      "path": "outputs/10t-fp16/report.md",
+      "bytes": 4740,
+      "sha256": "f39b7d896f4f3204109b5a916d11a420aa5990908d46770da14c6dd8fc936257",
+      "git_blob_sha1": "889f1eedcf9b737e991552a5e04aca8510c112f2"
+    },
+    {
+      "path": "outputs/10t-fp16/resources.csv",
+      "bytes": 20813,
+      "sha256": "f3611cd5bf9a37ece50e46c8367027757fe7ef97cd0e83622f186ebd4d9f5a68",
+      "git_blob_sha1": "761b94a82f076e47601008aed5cb2a7b02dae36b"
+    },
+    {
+      "path": "outputs/10t-fp16/result.json",
+      "bytes": 107007,
+      "sha256": "e8932ffd75f8bf4ae04fc1e30167baee786f4453f7f8110f0b9bd7b296a09581",
+      "git_blob_sha1": "e06bda5322ba25f641c603a982544531080d4c35"
+    },
+    {
+      "path": "outputs/10t-fp8/config.resolved.json",
+      "bytes": 4646,
+      "sha256": "1230fb58ee014a6d499a734c7f523c639676eb77406e449b7749349762d150f0",
+      "git_blob_sha1": "918d7f11dcaa2d12973af6c75a19dece220c2e51"
+    },
+    {
+      "path": "outputs/10t-fp8/memory.csv",
+      "bytes": 1284,
+      "sha256": "0c54c773bcfa601a824f28fe2fb06cfbc49e7964bed895301ea31268574e4bd4",
+      "git_blob_sha1": "5ff6cfbf293ac9056bacd8d7e76ce53a35b8e582"
+    },
+    {
+      "path": "outputs/10t-fp8/report.md",
+      "bytes": 4725,
+      "sha256": "02d6d3c06ae2348de6f318a87a198f2b7eb5dc5b3c277e70415ca3616be7eab1",
+      "git_blob_sha1": "c6d592fca27513a70d0ae054135811d3176bcc93"
+    },
+    {
+      "path": "outputs/10t-fp8/resources.csv",
+      "bytes": 22223,
+      "sha256": "08bcf60e7b32c1d6fe522f0897630063d9e26c33f7d2a5d14727e34353e3edd7",
+      "git_blob_sha1": "d245bc6d83a894e875aa49e3ec88c7affb3e57bc"
+    },
+    {
+      "path": "outputs/10t-fp8/result.json",
+      "bytes": 113667,
+      "sha256": "08696d4f5525232e918b8e866afe53b05125e523b56e828f493554e33503bafb",
+      "git_blob_sha1": "781a11398a2f4a8154d3768078196e56cea0530c"
+    },
+    {
+      "path": "outputs/10t-inference/config.resolved.json",
+      "bytes": 4366,
+      "sha256": "1d267d28561387f2b3af21ac1c91c4ed3de7319f01e52614d8c8b49b0dd10219",
+      "git_blob_sha1": "b8e104212852b0c15f291979356af1cef954c40b"
+    },
+    {
+      "path": "outputs/10t-inference/memory.csv",
+      "bytes": 1285,
+      "sha256": "28843c3d9fab6d2c9355e332a9c6c2ae0462cc4addaf682b3a51f484988b041a",
+      "git_blob_sha1": "c1facde5e8658ad2d2c2796b73ede05c6cf87a23"
+    },
+    {
+      "path": "outputs/10t-inference/report.md",
+      "bytes": 3852,
+      "sha256": "408f7a415e28c10fe3a24fd88170436bd714aad2f2f828dcd6977a6158febdbb",
+      "git_blob_sha1": "36f3fa890ce9749eec0dcf5fad74a7f56331393a"
+    },
+    {
+      "path": "outputs/10t-inference/resources.csv",
+      "bytes": 20979,
+      "sha256": "835495ff8cc8078bf03d8e76f563c38f355678fa11190525487e1ea205229029",
+      "git_blob_sha1": "60e7857bb4a79e181550fb0c379c395d9950fef7"
+    },
+    {
+      "path": "outputs/10t-inference/result.json",
+      "bytes": 33308523,
+      "sha256": "e15f2be8b9e98696ec74ae2dcbcdae2e0c8a9a28561a905a7af54b36172226f1",
+      "git_blob_sha1": "5db0596a289e098fe7045905499c870a870d4cf7"
+    },
+    {
+      "path": "outputs/active-sweep/report.md",
+      "bytes": 697,
+      "sha256": "ebcd1e55b41acf62b4bf568966c393d18317124312c9e04f00d7fe6834f879de",
+      "git_blob_sha1": "6bea4eee4f28acace507b3969e9da9e4555e0447"
+    },
+    {
+      "path": "outputs/active-sweep/result.json",
+      "bytes": 107184,
+      "sha256": "6d63a3acfaf22839244d01db2587abf93fc63356f1767570c9175788fd85daa0",
+      "git_blob_sha1": "8681ff2c6241e39c61836dd194912a873dbdb5fe"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/README.md",
+      "bytes": 4153,
+      "sha256": "705f133a1eadf2894e5a052c3b874217b93cf2b58931acf5c8cd2e3f738c5deb",
+      "git_blob_sha1": "c6ac802f52e2792641967d8b2be8f19f2334c8b4"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/audit/final-reproducibility-audit.json",
+      "bytes": 26577,
+      "sha256": "a5f0d92999b02eaf04e90aa9b4d66efbdef2e7a14b047b92f29c1fa116867c33",
+      "git_blob_sha1": "401eebfd90b4d81470c82818a1478178a6fbd61f"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/audit/synchronous-rounds/README.md",
+      "bytes": 4600,
+      "sha256": "a434b825272c5869ee1addc6211794ea25077af8af2bb6cbb5f3357c0399af42",
+      "git_blob_sha1": "3b6f19b3c88144e888ac6305d44ae6e607f46540"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/audit/synchronous-rounds/all-cases-eligibility.json",
+      "bytes": 43571,
+      "sha256": "ca0d930633d3ed17450d56acdd8abc49e282748636ff471186b3ef2da690cbc8",
+      "git_blob_sha1": "9a35c875e3efe89d59904588cee903fed90f2b75"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/code/runtime-manifest.json",
+      "bytes": 3968,
+      "sha256": "2dee3d1251d0f44389d761fc03060059acbeaeae0e70aeaafa2f82e0e07d31b3",
+      "git_blob_sha1": "23ad52f2ca4d04dcc6ce24c8e04779f86a10d87b"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/code/runtime-synchronous-rounds-manifest.json",
+      "bytes": 5561,
+      "sha256": "9d96c1b7257e8f0c762086c087aa400bac2d8d0d3f1b0ac2a29c515e3ed51c8e",
+      "git_blob_sha1": "83c7477de01a32a67429a6c05e7f74c1842ade71"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/comparison.csv",
+      "bytes": 98959,
+      "sha256": "f236b329d7d5942fb7bcad636f70640d43ed79c467ec6036066b2135b2270dc1",
+      "git_blob_sha1": "51d11bd7cfed4b3682ac4f2f327f32aba1fe703e"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/failure_diagnostics.json",
+      "bytes": 368037,
+      "sha256": "d6a086cd49c3a50ee6e03b478cb1938f2bb3dc493bdf062c41209678d5d75c9c",
+      "git_blob_sha1": "2da039a69a629367bc78c99f5d9fe6e696a2859e"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/input-manifest.json",
+      "bytes": 98679,
+      "sha256": "46a4764671c9d45f25251af6cf8d29eba0fa4a592f377c6c81457b11c6d97aa8",
+      "git_blob_sha1": "20f38fd07b7d26fa7428b553b50b38214f5fba1f"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/manifest.json",
+      "bytes": 249071,
+      "sha256": "088533d98d9f746150aa8c2475207f344ee730ce40d538af6ce93e08fd4041bb",
+      "git_blob_sha1": "7fec603f8abd79285679e25f0aed76c53507a981"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/node_traffic.csv",
+      "bytes": 10597152,
+      "sha256": "3efbe4b7d02b3c13ef1df03404762c3986ee9ac0a592daedb218da06c9c88f5d",
+      "git_blob_sha1": "108b1661351ef131b6e119305ff38e8c17d5a1d7"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/phase_traffic.csv",
+      "bytes": 140732,
+      "sha256": "0c6de74a6514bb0de8d966e17e98b5c52836413e5a15822cd4ddb2478d0ba918",
+      "git_blob_sha1": "0933ba295b3b59287da68f1247e649687b8afd62"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/planned_phase_traffic.csv",
+      "bytes": 207203,
+      "sha256": "bb3d89478948af7048323d5c9d16d02c7f5d6f604ea99bd53b22458dc8c3ea29",
+      "git_blob_sha1": "c5e222095db15a6fd7bab561e84e6d1ee2e7c3a4"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/profiles/provenance.json",
+      "bytes": 34554,
+      "sha256": "51bcceafac063a992210536cc0b35eea37097e0d7fdf4de8bcf596402bcc2908",
+      "git_blob_sha1": "29614f59981b916c02a93f0cc352315bfe27a9fc"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/rack_traffic.csv",
+      "bytes": 1820734,
+      "sha256": "0f271f703150e35f9b381f7b9dbff416c3e4e84c4b148f0b93bd2559c92e3c20",
+      "git_blob_sha1": "90fe2fd3fe4eff320680cf5d64b297955945c70c"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/report.html",
+      "bytes": 1105224,
+      "sha256": "b07c0c0069ff782bdf609c5f56347c1a31e7dc9b4c84f1980405bb982e0b2b28",
+      "git_blob_sha1": "44bbc0558e301084957eaf7f7bf2f6b4aa8bc010"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/report.md",
+      "bytes": 5285,
+      "sha256": "2560d2c5d5847b6b58b553ddda6e1af79a1a8e006cd2a1c93271f618933775c8",
+      "git_blob_sha1": "cdc9907a3d995395a847c46d2aed3c4aa499c0c9"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/report_status.json",
+      "bytes": 65239,
+      "sha256": "a2753504f653579a6cf6d884553635f1c4f71ea8e309eec5ca032eddd4cc5e82",
+      "git_blob_sha1": "8fd11a2218b43d9e73c3ee397fccd8cd1776f654"
+    },
+    {
+      "path": "outputs/ascend960-970-kimi-10t/summary.csv",
+      "bytes": 259499,
+      "sha256": "e1a4c72e41fda005e979f1b839d8b555a9d529b4d364827bdc9138e701771405",
+      "git_blob_sha1": "e854203898890decf573f7fdfa4fd110924be509"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/audit_calculations.json",
+      "bytes": 28598,
+      "sha256": "92abeb5e494c3b54f7ee22a51e472a1282ed667f14b6f136e3c39dc4565c0e50",
+      "git_blob_sha1": "09830c5c8fe5fff34a6f0cd22d0d1c688814363a"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/audit_review.json",
+      "bytes": 2767,
+      "sha256": "e4771586825561bbd9cd6866bf37f472cccf2b31ac79b16bd6237e1818e2f709",
+      "git_blob_sha1": "7bae8d0a3901bfe1316a5d984ab6180cbb27fb17"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/browser_verification.json",
+      "bytes": 886,
+      "sha256": "c4a6abcfbd8c930c4c86366e52d48ea64a610b47c44a2d669781e291fb2b72f7",
+      "git_blob_sha1": "a315698662740a7c6ba474fe18a54d918b5c2e8a"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/cases.json",
+      "bytes": 3723,
+      "sha256": "4f8927ac061ee703f3ff6489d78708de3acc8bddba553eadde51be641a0b808c",
+      "git_blob_sha1": "b2fee04713278d9b5c8d62ebdb56016c2c556478"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/execution_manifest.json",
+      "bytes": 759,
+      "sha256": "394fa6346e4f4ebb0ae9c2c28c6290872edee3d2a159d676848d773bfbc76899",
+      "git_blob_sha1": "146baab1a986f9b6a449288f78a692ece851cfeb"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/memory_capacity.csv",
+      "bytes": 4939,
+      "sha256": "30464ef629b5666e58cd242d20527242ada505c8d89c10f1e2996b1883c28531",
+      "git_blob_sha1": "1e12db69bd268a9f073bbff81c0023109514159f"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/memory_capacity_notes.txt",
+      "bytes": 2641,
+      "sha256": "574652a61683b760796f9ca5b2f732cfd7f236721d80562037e31b66c00f6f42",
+      "git_blob_sha1": "e2ba6eb7f0dbbbc72dae420a864585d47e179c09"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/memory_parameters_by_component.csv",
+      "bytes": 590,
+      "sha256": "dd87062c57fe60ddbe66471a7030633824ee8c2c568b37854fedf691e34aeac6",
+      "git_blob_sha1": "1d026b519394586a680a7da4c05872763e715150"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/package_manifest.json",
+      "bytes": 10453,
+      "sha256": "2537b2a1e819e9aaee22bc5ca051085633675534bc4f498401a9667fc30f5950",
+      "git_blob_sha1": "8fec68d0b46a2375d52f6a200f2f85dfa011eb0a"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/report.md",
+      "bytes": 10578,
+      "sha256": "beda9ab06e8faf31f1aa52ee5af194008879aa19df04fdac3bce0954bdc5df4e",
+      "git_blob_sha1": "52fd0a3037e3dc9e601e5da023cb95fe6cafd976"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/results-ui.js",
+      "bytes": 11866,
+      "sha256": "0c58bc73f1fbc7ee996cfdcd0fe1ec11ee5481b8a5747ce92af7fb91b059cbed",
+      "git_blob_sha1": "7cb97447c91b6ed5d00edd278d0e78f30e8337f0"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/results.html",
+      "bytes": 14462,
+      "sha256": "71528b14510acebda01520e41d98274cff60ca78c5a985f112c2cac208abf822",
+      "git_blob_sha1": "1b9438a166c982ceb13a2ad234efaa0f1fe9e4ae"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/source_verification.txt",
+      "bytes": 3401,
+      "sha256": "0e6ac6dfa3f37337bd50032ca165dbf143aa73e4221408cfb126b4b08fdb5209",
+      "git_blob_sha1": "04daf80843378886a1ebbedfee3cff59642d83d4"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/streaming_validation.json",
+      "bytes": 2291,
+      "sha256": "e23de08f22190c4a67918c6bdcd53168611ae09fb86232f1fe4fa6c644563230",
+      "git_blob_sha1": "26f2e1fc06a8562c9751f67cd4059190914a13b4"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/summary.csv",
+      "bytes": 3574,
+      "sha256": "a9ca7420ab6eb0861c350d7b6e13d889c21b53439ca3878bace36d729a0fd3d9",
+      "git_blob_sha1": "a3c47df7fa1834c1846f38d342f4382959dfcbdb"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/summary.json",
+      "bytes": 7663617,
+      "sha256": "f3b3f2f37cfec029f6386ebce7fb0ff0f13056ca8e68820be56674f7afeb0e6c",
+      "git_blob_sha1": "93e4b3f895380c4fa8ace523f564ed025c647721"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/timing_sampling_audit.json",
+      "bytes": 288,
+      "sha256": "67a61b8dfda0f1d086d1c120a1b86b84d812271694d3ac057061e70670fb5db4",
+      "git_blob_sha1": "3ad7335228b37e467c9b95b47bfe03aee79dac25"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/traffic.svg",
+      "bytes": 3019,
+      "sha256": "23ff29def2c429148f7442511b856f69beec8b88049ac89155e5a55bde45ac84",
+      "git_blob_sha1": "9a0474e0882051a4930dcb32a6f939054facd8ea"
+    },
+    {
+      "path": "outputs/ascend_a5_1024_long_context/verification.json",
+      "bytes": 387,
+      "sha256": "8ed2f694917648ed009b5712a5963c0e3fcff070ca6074ed7f78dc4c6c81b67a",
+      "git_blob_sha1": "2b50d693c3855491e8eb65802dbfb8001f4b3558"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-1024/failure_diagnostics.json",
+      "bytes": 538229,
+      "sha256": "e222f796e5534504e47e732be12ab89d96cd263db041e8c9b3f19965e0dd1c24",
+      "git_blob_sha1": "f6190e4aed16263d1b632c8eee64aa13646d3828"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-1024/manifest.json",
+      "bytes": 9989,
+      "sha256": "f14864a7564c44208608a70ac6e385a3bd223ad38d288ea903b48cf9a7e6e90a",
+      "git_blob_sha1": "a6fb4e6909ff9a1e5a861bfabeeb2548470c77f6"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-1024/node_traffic.csv",
+      "bytes": 2868483,
+      "sha256": "83cb53122fedb64676d87228aa333571cd6a9b77d21de7f204945b592c83c570",
+      "git_blob_sha1": "a4dfe27ca14ca4b4e4df747f3686f02149f7d9a4"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-1024/peak_components.csv",
+      "bytes": 29230,
+      "sha256": "68181b3821f024c87d182337ee997a3da6f0aba07230dbdfc271940f3cd5b2fd",
+      "git_blob_sha1": "cf40f122166ac86e3cfa4d01578ee9b88aa3c89c"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-1024/phase_traffic.csv",
+      "bytes": 30629,
+      "sha256": "390c07fd9d62358a2fe7ec96bb30ae523756f8b83278f75c0fc3cb7da386ad0e",
+      "git_blob_sha1": "ad11dedb7d2d560e2e51bb1bb2d26dbdde5f140f"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-1024/planned_phase_traffic.csv",
+      "bytes": 21504,
+      "sha256": "35c7346855f397b029aaee629e83776fa58ed42873c162822122f1d9e4c677fc",
+      "git_blob_sha1": "14fbd97f73b7ae2bde27306dfa5571f0a6548e13"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-1024/rack_traffic.csv",
+      "bytes": 360777,
+      "sha256": "4bd3d467ee72506de3f9782def47e1862b1c8f4611251cf2660486b4b78b1380",
+      "git_blob_sha1": "d0e458d64392810b19deb94fc345f4fc80bf49c6"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-1024/report.html",
+      "bytes": 92056,
+      "sha256": "e0e217ea427f0be31afb26e9eac35146ac831b3b1c794462b2c00696d2a06043",
+      "git_blob_sha1": "971032b72e8ddc6aa3e8e8db5961e975f23a042f"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-1024/report.md",
+      "bytes": 38513,
+      "sha256": "0173b50c4fbb501ab4fbe990a64ea0e5b9d5745ed882a20ee2f859544c460476",
+      "git_blob_sha1": "3b0554c5eb27695b2576964f5bf2b45d54dfa84b"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-1024/report_status.json",
+      "bytes": 3802,
+      "sha256": "00725d7477547518709927ef3bb04e767378d1900af3ea65a11b65ede141f5c0",
+      "git_blob_sha1": "5454677e4f59d9e53e7cb3edf35970f9e0b83ca5"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-1024/summary.csv",
+      "bytes": 34321,
+      "sha256": "0c8cfc4139d0a77124fea1e43a72f6ac8d7790d0a34a8ecd69f26f8739b14674",
+      "git_blob_sha1": "a3b57cd39130949c852f81d3de8fa367e465b42d"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/audit/frozen-reference-replays/sp16-top32-1M-b1.json",
+      "bytes": 1564,
+      "sha256": "9e8e02ae5f91d9cd37bc17bb1ddeed3bcdfa7cef568e18d98b4f842922f80e99",
+      "git_blob_sha1": "ebaee9a718b19f31ea263ce74c574b85d55767e0"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/audit/frozen-reference-replays/sp32-top64-1M-b32.json",
+      "bytes": 11295,
+      "sha256": "767c75e0bfa1dc9f22428a9806f6f1974b0d029e79a95d8b44fbd1de2527ef64",
+      "git_blob_sha1": "b70c8156d874b7c22c352d824eebb9e9e9244f5f"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/audit/parallelism-review.md",
+      "bytes": 5423,
+      "sha256": "e697c70fa781592bf8425dd67ac2138d991f601060cebe82c90e1f8ded3a069e",
+      "git_blob_sha1": "ea8fc449faab9b84b892538845bd6047ee65bf1d"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/audit/runtime-provenance.json",
+      "bytes": 144525,
+      "sha256": "87722067fabc761c7afbb526cb927ec245ae4acb7ae48e62e6cb30cb2bcacec5",
+      "git_blob_sha1": "5f23c883ef534656866a0fdeccd642020bc16ee9"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/comparison.csv",
+      "bytes": 43218,
+      "sha256": "7d3816bd528be898d4fa0695e425ece1bc4172bd9e124d25e70d02667bf8162a",
+      "git_blob_sha1": "e6032060b512014c82059966ac10058c80504fd1"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/failure_diagnostics.json",
+      "bytes": 4,
+      "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+      "git_blob_sha1": "60b0742537a340e24cd759907e52a344943fb386"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/manifest.json",
+      "bytes": 29393,
+      "sha256": "6097ffa1e182530776d8929496c23a2dc3fe8701f78babf1b438af6ad336a16c",
+      "git_blob_sha1": "0697be4658699066c7dd595933bbe0dae7f8d5fd"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/node_traffic.csv",
+      "bytes": 5950525,
+      "sha256": "220221f684c7c568917fb4722eec7868f682c204cc31b1f19e756335cc260ac7",
+      "git_blob_sha1": "36bbca2797d586bc4981a3e4ec5cbffae9cb43ba"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/peak_components.csv",
+      "bytes": 100857,
+      "sha256": "52e3bdac2c9ff22627390300c55efe2bfdf4232c9a7fe3c33494961f1f745212",
+      "git_blob_sha1": "5b09ad93299dfc5917e7eabd616aec01dfdf2d3e"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/phase_traffic.csv",
+      "bytes": 67238,
+      "sha256": "69eef0c7fa85797220cff52ef4787129569fc165f70bcdef8ae1f117099fccbf",
+      "git_blob_sha1": "87cc634e48405c41ac92ee60b5db520361104989"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/planned_phase_traffic.csv",
+      "bytes": 91182,
+      "sha256": "457521d610e227c00fbae7c5adb8d73392390a367edb4b7f1368c6306b06bcd4",
+      "git_blob_sha1": "9a8ef7caab617a2bf0a1de1b9412f122a5e8bb2c"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/rack_traffic.csv",
+      "bytes": 746943,
+      "sha256": "c8ad2c7e7c98fc925a3946d4d970975198247ebc6e1f3e50b27dd210a3bb63b7",
+      "git_blob_sha1": "6fad56ca29cf664de9be928da66450492483a694"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/report.html",
+      "bytes": 356869,
+      "sha256": "72c53a4e829e62f62de99cda0b09d93af4652c29a4bf8f922e5f63f9a5eaf135",
+      "git_blob_sha1": "01691add01e0da6fd4076e9a89cf2629fd7c1c2e"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/report.md",
+      "bytes": 17775,
+      "sha256": "a094d83831ddba210cc893621f0905cbcc8b4898713d5edef92b689bde424562",
+      "git_blob_sha1": "ecaa2bba9344c4108528abd5a706b71a2002316d"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/report_status.json",
+      "bytes": 13466,
+      "sha256": "daef72c3b3ababaa70e55a2a9aa1c472e6d7dae5f586d405b918cb183e4aea84",
+      "git_blob_sha1": "bf909507a71797d4f4bcaaa277b2d64e4ee230d9"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/runtime-frozen/manifest.json",
+      "bytes": 9338,
+      "sha256": "df8ee1b69970f6cd5095e8e9d3992b3cc44fe03bdf2099196a492c3ecbbd5c3d",
+      "git_blob_sha1": "c68bf0604379c1b72099603b6990d988fe7b301e"
+    },
+    {
+      "path": "outputs/kimi-k3-10t-sp/summary.csv",
+      "bytes": 95747,
+      "sha256": "8fe355e2533c98fa212b798a900ce0f24035d620dbb3ffa9791d93f299bdb43c",
+      "git_blob_sha1": "b7da2f0cab40f084455de4a795fd10bb77cddeea"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-comparison.md",
+      "bytes": 3767,
+      "sha256": "346ccfdb9a29e8a78899189eedbe9d7f7dc789c05fe873974116ad8a0d2630ec",
+      "git_blob_sha1": "eb2989f37cff68583a86c47a715aa5f66acc52bd"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp16/component_memory.csv",
+      "bytes": 250583,
+      "sha256": "cd045454b6249ed008aad814723f8459491e89a80a03c68462f480b280b8546f",
+      "git_blob_sha1": "c257b40113ecc2823a4f6f756863a898815a61d5"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp16/config.resolved.json",
+      "bytes": 17862,
+      "sha256": "48793e526db7dcdbb0d327a882370fbf2e22c226cc2af0848371e9a850ecf48e",
+      "git_blob_sha1": "c322b9ec9485a44051bb11305693e70ba3c921ef"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp16/memory.csv",
+      "bytes": 4896,
+      "sha256": "ba7feaeb7d0e89d889cf6657d679d1d21c526504bb370a94b0152ceec5cdeba4",
+      "git_blob_sha1": "a05c4d9cd45cee15863093351212e7dcb5044531"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp16/memory_peaks.csv",
+      "bytes": 127674,
+      "sha256": "b288d804958ffd6871d6d8fdddf13dad0309818bdf648e419251746ba8360096",
+      "git_blob_sha1": "bc7d4a712effa88a0443e9d1bf691ab0e0288a9e"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp16/model_parameters.csv",
+      "bytes": 374637,
+      "sha256": "70a61599a52908f1e2ce6168021036b8b59e76ddb81aa54b6d44822108592a29",
+      "git_blob_sha1": "867c5dd142898524d109b6850b962314eb7773bf"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp16/report.md",
+      "bytes": 15313,
+      "sha256": "712b704d7cdbc684829993a50765328c7805feb0a4046804a1489c94a201174d",
+      "git_blob_sha1": "a3e47d47488a7c8977ef2c2440a4b120b0d4e670"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp16/resources.csv",
+      "bytes": 92083,
+      "sha256": "8d2d3767a8971adaee34ae90e04f74c7760d4e5014cff1ad4eda79342c9c4f80",
+      "git_blob_sha1": "4edf40466f72ba269f62d72f2e336a76b5a1e6a5"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp16/result.json",
+      "bytes": 5587530,
+      "sha256": "c83d70cd7088e436ef35619bfa9c721fc298bc8aee47a9fe2be67c7ac353274b",
+      "git_blob_sha1": "bb8f495dfbf98549f94c70f74ccf4e7036f15200"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp16/state_memory.csv",
+      "bytes": 70186,
+      "sha256": "dfe09d06e695472ce8e4830737fe8e728618619d2888d8221325f4659c5040d6",
+      "git_blob_sha1": "ad97314fe2c4401391b1bcb9c261586d2c00c274"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp8/component_memory.csv",
+      "bytes": 349353,
+      "sha256": "af60ff59bd9a20e4172a6d2c050c6f05b3614f2e3a82459efe74f3c9ac240723",
+      "git_blob_sha1": "8324a639a72a88134748d7947fccbfd7209ef4e5"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp8/config.resolved.json",
+      "bytes": 17858,
+      "sha256": "c9884130b0c2dd321dc40f4194c24f6b70efd1bc81998f879994193b3fcc596b",
+      "git_blob_sha1": "f9fa417e4c6313941b3aef33549e55efb96d0fe4"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp8/memory.csv",
+      "bytes": 4704,
+      "sha256": "a75928963062ecc921e9bb8fdac2eeac6b735210bf8f7c90a974287d3d4b01bd",
+      "git_blob_sha1": "3315c896cd56bc18e654e85c79c5efa09f7cb080"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp8/memory_peaks.csv",
+      "bytes": 185210,
+      "sha256": "c907453f33b8e4af83a6ba6575950541e24f98f04d4ddbae7b38e5e18cd4d9bb",
+      "git_blob_sha1": "eb40dff14c621b29d3e10204fbd56d230b5f308d"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp8/model_parameters.csv",
+      "bytes": 374637,
+      "sha256": "70a61599a52908f1e2ce6168021036b8b59e76ddb81aa54b6d44822108592a29",
+      "git_blob_sha1": "867c5dd142898524d109b6850b962314eb7773bf"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp8/report.md",
+      "bytes": 15470,
+      "sha256": "5acb1752a64615ef936f637098fd9e82eadce22a06d501a8ba9ce2a63fa065ae",
+      "git_blob_sha1": "6ff9acc823f0becc4a5683c4b49cd69a37203c04"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp8/resources.csv",
+      "bytes": 99881,
+      "sha256": "554423f0ae7e0dc8ae1763b8c78b59d27072b9b365564dc905899d8768c177df",
+      "git_blob_sha1": "d96400f1ece25a030152536fff4e165298b80d21"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp8/result.json",
+      "bytes": 6236483,
+      "sha256": "48ea302a1e19790718676bdbb36ac53d0e9e595572e7c747ce4a46e46230546b",
+      "git_blob_sha1": "7014eeca5a1e0cf1fd5eec5925601b9380ee795b"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-fp8/state_memory.csv",
+      "bytes": 91980,
+      "sha256": "61914970b34f6b6b9ae1efe221c1327c03c38bef9152e00759cbc06bea6ee944",
+      "git_blob_sha1": "01057dfc81711cf8c51fea99efc7b5da18539685"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-mxfp4/component_memory.csv",
+      "bytes": 286457,
+      "sha256": "584a6025662ce9ac27c7d91e41160e33169a868d5aca96297c241b2a304b50e2",
+      "git_blob_sha1": "ab6ddf05eec8bcfe6be1158050f738d57c8127e3"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-mxfp4/config.resolved.json",
+      "bytes": 18184,
+      "sha256": "2cc6bad41fd4c242a1bd5867e0ec6cefec753b9d8eb9c877238e161b047c3875",
+      "git_blob_sha1": "8a37de36d486a89f07548b3cf9dcd7f1d327ad67"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-mxfp4/memory.csv",
+      "bytes": 5344,
+      "sha256": "297954ad67ca2b4a4af1dc728fae9f3e07cda7dd967242833ad8a5fafe318906",
+      "git_blob_sha1": "633e64a3c5256e9b987931742ed2254369aa9cca"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-mxfp4/memory_peaks.csv",
+      "bytes": 146170,
+      "sha256": "d9d372bbe8fc9a9ac5d2108b5416eb6062ae1e2ea8fe7a08204747448388a22f",
+      "git_blob_sha1": "dab4c3c750e4326e3f274f2ee290e0c6d603f20b"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-mxfp4/model_parameters.csv",
+      "bytes": 374637,
+      "sha256": "70a61599a52908f1e2ce6168021036b8b59e76ddb81aa54b6d44822108592a29",
+      "git_blob_sha1": "867c5dd142898524d109b6850b962314eb7773bf"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-mxfp4/report.md",
+      "bytes": 15724,
+      "sha256": "0253b435a147299a650da9bc0581823322356eaf3efdba4cb67b12e1bd102eb8",
+      "git_blob_sha1": "fb4a87a73eacde14dd60842ea813d93ea5587ac4"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-mxfp4/resources.csv",
+      "bytes": 101289,
+      "sha256": "a71df52560203ac408315580e584d1ce57c417cf063eb09536179821e770e413",
+      "git_blob_sha1": "31cf780ccae00159befb38451e1659c5929599c9"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-mxfp4/result.json",
+      "bytes": 5869973,
+      "sha256": "a2116e65c8411cc3fe50439641e6c47c4f04333583018175d5aff1b08cd2307c",
+      "git_blob_sha1": "68f6d43760def078f68c159bc01043720faa5527"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-mxfp4/state_memory.csv",
+      "bytes": 96780,
+      "sha256": "589ea93b70aa3a0b601eea9e203c89529c7bca8fcfeafbc5ae3d33cc84a28986",
+      "git_blob_sha1": "f6621cb0784fe92dce21dc6fcc23147c9f512b06"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon-128/component_memory.csv",
+      "bytes": 1254597,
+      "sha256": "c07fb2cdf0e62a2836341c73c1fc3048d221a4ab195ceffc97a2b9b5c8131a8b",
+      "git_blob_sha1": "831ab3cb1935731c3c139e16db3ac3e54936b45b"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon-128/config.resolved.json",
+      "bytes": 18920,
+      "sha256": "100fb3a504207a4b614d566ed75398d9aab214b6277c9e18d1d1200bc0aca070",
+      "git_blob_sha1": "d084259a255b53097bf17f14b00d54b4bea0325c"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon-128/memory.csv",
+      "bytes": 10010,
+      "sha256": "0286cae8490c4eb39d9381edba3fa03350d8e8b48961d81795a22930941ded86",
+      "git_blob_sha1": "46c0b81ee00733638a4c2891a08584c5103f33dc"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon-128/memory_peaks.csv",
+      "bytes": 639532,
+      "sha256": "99e055deb5806b03a0afa9f797ad3b3bce6a3ff966ea6f5448ab1bb6fc810a4f",
+      "git_blob_sha1": "4ed2fc3a5e0f411e822a7e4a5d932fe002c18ca9"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon-128/model_parameters.csv",
+      "bytes": 374637,
+      "sha256": "70a61599a52908f1e2ce6168021036b8b59e76ddb81aa54b6d44822108592a29",
+      "git_blob_sha1": "867c5dd142898524d109b6850b962314eb7773bf"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon-128/report.md",
+      "bytes": 18895,
+      "sha256": "c3d5a991c6118970fbb1f61a6511df7eac90fbd43e9f4cdf96c5ae14759a1243",
+      "git_blob_sha1": "f7596972c37582a8fe9c8eefcb133e301f2460ef"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon-128/resources.csv",
+      "bytes": 342673,
+      "sha256": "4b0dc79d5273d4a8c749bdb6c304d11418ac5af59e8bedfc4e14f41b1a75ef00",
+      "git_blob_sha1": "09a081ed37c2f789250658938525f9adfcc88d54"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon-128/result.json",
+      "bytes": 12210735,
+      "sha256": "36435939c79709e311c5813ea4ebefaa196cd65b179047f96f2d36f4a0daf141",
+      "git_blob_sha1": "22689a4d23c9a37f5f54de02cb095f576a424035"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon-128/state_memory.csv",
+      "bytes": 157210,
+      "sha256": "35c54ad3c9457ab80d3b20f5e90039291b34bb79539a462dffb2bf5f01c087c4",
+      "git_blob_sha1": "ed9415d0b5a4e6b390ac446921ccd505cb23845a"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon/component_memory.csv",
+      "bytes": 274495,
+      "sha256": "3d582723e83fa594cbb7c6936c6024fb4b96ba3e2f27539819dde391d72dfe17",
+      "git_blob_sha1": "e51b8903112fba95f8f053e65b733455ca34a1f2"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon/config.resolved.json",
+      "bytes": 18477,
+      "sha256": "b1d4370c5438b86b789ffa35859f497ae59a9970740bd4a64e58bdbfeb2e75b5",
+      "git_blob_sha1": "4a113194375691111f171a7e918972a1c4fbb96d"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon/memory.csv",
+      "bytes": 5216,
+      "sha256": "681af892deb68e83b23cc4c2a7cbab4d1844528c4260101b292af75c110921c2",
+      "git_blob_sha1": "035547b9a82cf355eeb7dc484c029dd6bc406b36"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon/memory_peaks.csv",
+      "bytes": 208586,
+      "sha256": "65b89b7cd7a5aaf958803c117ff5067a5dbe772a14aca13afbd142d22dc710dd",
+      "git_blob_sha1": "6ac3132767923430a4fe7c6e1234d6a0dbc2294f"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon/model_parameters.csv",
+      "bytes": 374637,
+      "sha256": "70a61599a52908f1e2ce6168021036b8b59e76ddb81aa54b6d44822108592a29",
+      "git_blob_sha1": "867c5dd142898524d109b6850b962314eb7773bf"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon/report.md",
+      "bytes": 17903,
+      "sha256": "cbb4d11e25124610a941a0fdb2552b95380987ba2ee1d71f94b7445a3228015b",
+      "git_blob_sha1": "4e1989ce48158b8bb806c3d8ca500a478c301eb3"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon/resources.csv",
+      "bytes": 85529,
+      "sha256": "18da3b14a023ef016093d63210e11dd14581420154f44cb8cedda55757cba638",
+      "git_blob_sha1": "c338200cfd43359ecdf0bd64a96ab760406ea76e"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon/result.json",
+      "bytes": 6028433,
+      "sha256": "f5aeaf3b42c4c999e44758a8864dc57306cd875e8487e24dae39d1200fee165a",
+      "git_blob_sha1": "177a14a3a37ae92747333e91d0d2f643f73a65b7"
+    },
+    {
+      "path": "outputs/kimi-k3-ascend950-training-muon/state_memory.csv",
+      "bytes": 41178,
+      "sha256": "bca0c8c1c2e96a45074f47139cfda76ac2314c050243097bdd1978b7782438ec",
+      "git_blob_sha1": "ec2a79b8de66571e30ad7781e264cddd93fc0578"
+    },
+    {
+      "path": "outputs/precision-sweep/report.md",
+      "bytes": 731,
+      "sha256": "e6ca9e4fe9bbf3ffaae60f27c76132ac9d886c0a664dda0b191ec156e84809ff",
+      "git_blob_sha1": "6de55bb6753f6c41634d412fc099da6450986894"
+    },
+    {
+      "path": "outputs/precision-sweep/result.json",
+      "bytes": 189434,
+      "sha256": "3a523514478a4617a8c62ba9a7b61d241267bb2a0620aaec658e69ce5f4c5206",
+      "git_blob_sha1": "ec268654cb6af181cef3b7d66bdf39d219460617"
+    },
+    {
+      "path": "outputs/su-search/report.md",
+      "bytes": 1255,
+      "sha256": "b0e3d130b6f1123b27c94d4c1b047dc2879c11b174740f14fd7c490f8348d74c",
+      "git_blob_sha1": "50511b25059e5ae59b736dc3ecccc95a673afdf6"
+    },
+    {
+      "path": "outputs/su-search/result.json",
+      "bytes": 113692,
+      "sha256": "6cfcb517ea51e6de17073a295da6faf2394db21d93c082ef5fbd587b65418e70",
+      "git_blob_sha1": "bc50863df6cdaf0cd7006d6cf37f3424ef2174b5"
+    },
+    {
+      "path": "outputs/topology-integration-smoke/simulation/component_memory.csv",
+      "bytes": 12665,
+      "sha256": "f7611304806d959ad795d2c190ec004b365ca48ed861a8fd3a748d6e77685ebd",
+      "git_blob_sha1": "4f2e51577ffea20789180f92cf691319ad015b1b"
+    },
+    {
+      "path": "outputs/topology-integration-smoke/simulation/config.resolved.json",
+      "bytes": 34005,
+      "sha256": "c0c148e212f481faedd422e87227ae49eabf92a825018aa2c4af22c51e7995a3",
+      "git_blob_sha1": "4bf6b8c150aee62c1f532283a81fa2fdb48c1766"
+    },
+    {
+      "path": "outputs/topology-integration-smoke/simulation/memory.csv",
+      "bytes": 850,
+      "sha256": "dfd0da0f64f273775b7a7ba20e20b7cc4e53ed7792277ebe86a6e556a7ad7332",
+      "git_blob_sha1": "bc0f2cb83526c06915b7952932340bee234f9b3c"
+    },
+    {
+      "path": "outputs/topology-integration-smoke/simulation/memory_peaks.csv",
+      "bytes": 10428,
+      "sha256": "9e3c1932a48033e8a77c729bfd0914ade2cbeab593cfde2e7c63f9093d0e0003",
+      "git_blob_sha1": "c54235dc2c0b47ca7b40bad2ba9bd914ebc1c3fc"
+    },
+    {
+      "path": "outputs/topology-integration-smoke/simulation/model_parameters.csv",
+      "bytes": 357,
+      "sha256": "2d6e0e2fd9554ac08918f8ee9f7f73c486a328c04129a6666319481ec3d3a248",
+      "git_blob_sha1": "2191f02828b118bc42e0a1f720634a8a9ff468ff"
+    },
+    {
+      "path": "outputs/topology-integration-smoke/simulation/report.md",
+      "bytes": 12086,
+      "sha256": "b7240b400d934aa64eb73eda705725a2e1ca10b0c2acbf358efc75cc5ddff71f",
+      "git_blob_sha1": "83e85a1fa825a2559b0e8ba387423d07ff74ab4f"
+    },
+    {
+      "path": "outputs/topology-integration-smoke/simulation/resources.csv",
+      "bytes": 23259,
+      "sha256": "bd0b72f4f116d21da6b3436dec62e6c4547ee9f3cd1cd799157b1f737f4c9355",
+      "git_blob_sha1": "43f7e44008b11141c45988f1a9fca8172fb63d81"
+    },
+    {
+      "path": "outputs/topology-integration-smoke/simulation/result.json",
+      "bytes": 4472043,
+      "sha256": "691f6203c19fdce39c19ef9e60c611ad6ebb239b08b3702665fa602522e47bd1",
+      "git_blob_sha1": "03f91638145d88045a49ae670ab6348a3f47367c"
+    },
+    {
+      "path": "outputs/topology-integration-smoke/simulation/state_memory.csv",
+      "bytes": 10596,
+      "sha256": "04b4e1556055c00075ae34b564bc2d9d7ca17a565fd4af521a627ce6d1ab7ee5",
+      "git_blob_sha1": "c37385a27916cf59fa0b806be4aede9480a85074"
+    },
+    {
+      "path": "REPORTS.md",
+      "bytes": 3766,
+      "sha256": "d9ba9448ca4f193a9417aa0f18d02f138d8b4b66ce8150adfc7d868a9c3edf58",
+      "git_blob_sha1": "07133b5f9229508185eaefed019fae6cbb9ae0e6"
+    }
+  ]
+}

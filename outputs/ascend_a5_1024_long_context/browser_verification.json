@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "browser": "Chrome",
+  "preview": "local loopback only; not published",
+  "checks": [
+    {"prefill": 131072, "output": 4096, "transport_TB_displayed": "27.687", "SO_transport_TB_displayed": "19.967", "TPOT_ms_displayed": "120.717", "status_displayed": "Prefill 可完成 · 模型窗口内"},
+    {"prefill": 1048576, "output": 131072, "transport_TB_displayed": "241.630", "SO_transport_TB_displayed": "174.255", "TPOT_ms_displayed": "137.669", "status_displayed": "当前 Prefill 策略内存失败 · 超出模型官方 1M 总窗口"}
+  ],
+  "row_count_verified": 12,
+  "chart_visual_inspection": "Chart loaded, labels and colored SU/SO bars readable; no clipped text or overlaps in the inspected viewport.",
+  "interaction": "Both native comboboxes update selected case values and pressure/memory status.",
+  "temporary_tab": "closed after verification"
+}

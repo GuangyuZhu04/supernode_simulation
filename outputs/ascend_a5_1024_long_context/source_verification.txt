@@ -1,0 +1,24 @@
+核验日期：2026-10-08（用户日期）
+范围：只读官方资料核验，未下载权重、未执行远端模型代码；未修改仿真引擎或已有来源快照。
+
+1. A5硬件口径
+A5是950系列产品标识，不能由A5名称唯一断定为950DT。昇腾社区官方CANN页面将Ascend-cann-950-ops包说明为Atlas A5系列产品。参考：https://www.hiascend.com/en/software/cann/community/?id=6.0.0.alpha003 。若采用已有950DT配置，应标为“A5按Ascend950DT假设”。
+华为官方2025-09-18演讲确认950DT面向Decode/训练，HiZQ2.0容量144GB、内存访问4TB/s，950系列1PFLOPS FP8和2PFLOPS MXFP4，互联2TB/s。2TB/s没有方向说明；FP16峰值、dense/sparse、HBM单位二进制/十进制、有效利用率、SO NIC均未确定。参考：https://www.huawei.com/cn/news/2025/9/hc-xu-keynote-speech 。不得将1TB/s/方向、FP16比例或400Gb/s SO NIC等假设称为官方规格。
+同一官方演讲的Atlas950满配为8192卡、128计算柜+32互联柜。用户要求的8卡单机、128卡scale-up Clos和1024卡scale-out属于本次场景定义；不能声称复现官方完整8192卡系统。2026-03-02官方新闻补充Atlas950每柜64NPU、最多8192NPU：https://www.huawei.com/en/news/2026/3/mwc-superpod-ai 。
+
+2. Kimi K3
+官方GitHub：https://github.com/MoonshotAI/Kimi-K3
+官方config：https://huggingface.co/moonshotai/Kimi-K3/raw/main/config.json
+本地2026-09-23来源快照docs/sources/README.md已给出结构和实现边界。此次官网config仍确认文本93层、hidden7168、24层full attention和69层KDA、896 routed专家top16及2 shared、第一层dense；max_position_embeddings=1048576。
+使用本地组件级Kimi模型时，保留LatentMoE routed维度3584、intermediate3072、共享专家全宽7168、MLA compressed布局576元素/token/full-attn-layer以及KDA recurrent状态。发布MXFP4混合精度不等同于全模型0.5byte/参数；如改为FP8/BF16应视为设计方案。完整细节由docs/sources/README.md和官方实现提供。
+
+3. DeepSeek V4.1 Flash
+已经公开官方config和README；不能说无公开结构，也不能按V3/旧V4代替。
+config：https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/raw/main/config.json
+README：https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/blob/main/README.md
+发布公告：https://api-docs.deepseek.com/zh-cn/news/news260910/
+关键结构：CED由20层causal encoder和20层decoder组成，552B backbone（其中196B Engram）；prefill每token仅激活8B、decode16B。CSA2共享main KV与indexer K且复用TopK；FP4 global主KV约890bytes/token；SWA bounded replay。若引擎缺少CED、CSA2共享、Engram lookup与FP4缓存等实现，不应输出伪装为V4.1真实结构的泛化仿真。
+config摘要：text hidden5120、40层、attention64、KV heads1、head_dim512、RoPE64、q_lora1280、o_lora1024、o_groups8；384routed专家top6+1shared、moe intermediate2304；sliding_window128；kv_source_layer_ids=[2,8,14,20]、index_source_layer_ids=[2,8,14,20,24,28,32,36]；max_position_embeddings=1048576。
+
+4. 上下文限制
+两个模型config均为1048576位置。若k=1024、1M=1048576，则1M输入+任何正decode长度都超出官方上下文。可按请求输出外推压力结果并明确超限，同时另附“总上下文1M，prefill=1048576-decode”的合法边界场景。不能将超限组合标为官方可部署。
