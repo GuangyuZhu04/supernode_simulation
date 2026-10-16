@@ -1,11 +1,11 @@
 flowchart TD
     ENTRY["run_reference_experiment.main()"] --> CONFIG["load_config() → fingerprint()<br/>resolved config + 指定数值源码"]
-    CONFIG --> WRAP["内部：保存 analysis 原函数并安装进度包装<br/>准备 checkpoint/fingerprint 前20位目录"]
-    WRAP --> RUN["analysis.run(config, simulate, full_detail=False)"]
+    CONFIG --> WRAP["内部：保存 analysis 原函数并安装进度包装<br/>checkpoint/fingerprint 前20位目录<br/>--full-detail 追加 -full；可选 gzip 压缩级别"]
+    WRAP --> RUN["analysis.run(config, simulate,<br/>full_detail=args.full_detail)"]
     RUN --> COMPILE["包装 compile_graph() → 原 compile_graph()<br/>包装 graph_estimate() → 原 graph_estimate()"]
-    COMPILE --> SIM["包装 simulate_graph(graph)"]
+    COMPILE --> SIM["包装 simulate_graph(graph, **kwargs)"]
     SIM --> EXISTS{"内部：已提交 manifest.json？"}
-    EXISTS -->|否| PHYSICS["原 engine.simulate(graph)"]
+    EXISTS -->|否| PHYSICS["原 engine.simulate(graph, **kwargs)<br/>传递 retain_event_payload 策略"]
     PHYSICS --> SAVE["save_records(trace) + save_records(memory_log)<br/>gzip JSONL 临时文件完成后替换"]
     SAVE --> COMMIT["内部：最后提交 manifest.json<br/>fingerprint / count / size / simulation 摘要"]
     EXISTS -->|是| LOAD["load_checkpoint(directory, fingerprint)"]
@@ -13,5 +13,5 @@ flowchart TD
     LOAD --> CHECK["内部：校验 fingerprint 与文件大小<br/>大记录使用 JSONLRecords，否则加载 list"]
     CHECK --> METRIC["run() 继续 execution_metrics() / evaluate_targets()"]
     METRIC --> MEM["包装 breakdown() → build_memory_breakdown()<br/>按 sequence 回放日志，流式记录省临时明细"]
-    MEM --> EXPORT["write_report(result, output)<br/>继续生成汇总与导出"]
+    MEM --> EXPORT["write_report(result, output,<br/>full_detail=args.full_detail)"]
     EXPORT --> FINALLY["内部 finally：恢复 analysis 原函数与 GC 状态"]

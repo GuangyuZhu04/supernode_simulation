@@ -1,8 +1,8 @@
 # 超节点流量仿真系统整体架构设计
 
-系统以 `supernode-modeling` skill 为交互入口，以 `supernode_sim` 为数值内核，将模型、负载、并行策略与 SU/SO 拓扑统一编译为资源事件图，分析存储、计算、通信需求及 SLO。整体采用“Skill 编排 + 严格配置 + 统一中间表示 + 解析下界 / 离散事件执行 + 可追溯报告”的分层架构。
+系统通过 `supernode-modeling` skill、CLI / Python API 和本地 Web 工作台接入同一 `supernode_sim` 数值内核，将模型、负载、并行策略与 SU/SO 拓扑编译为资源事件图，分析存储、计算、通信需求及 SLO。整体采用“交互与任务编排 + 严格配置 + 统一事件语义 + 全图下界 / 离散事件执行 / 受限结构化流式执行 + 可追溯报告”的分层架构。
 
-设计基线：当前仓库实现；更新日期：2026-10-09；引擎版本：`0.1.0`；配置与结果 schema：`1.0`。适用读者为模型与网络架构分析人员、仿真引擎开发者和 Skill 维护者。第 11 节列出演进建议，其余章节描述当前能力及使用约束。
+设计基线：当前仓库实现；更新日期：2026-10-16；引擎版本：`0.1.0`；配置与结果 schema：`1.0`。适用读者为模型与网络架构分析人员、仿真引擎开发者和 Skill 维护者。第 11 节列出演进建议，其余章节描述当前能力及使用约束。
 
 配套文件：[函数级仿真流程图](simulation-function-flows.md)。图中区分真实函数调用、函数内部控制流和运行时事件依赖；各张图也提供独立 `.mmd` 源文件。
 
@@ -10,7 +10,7 @@
 
 项目是面向超节点架构分析的**配置驱动、算子粒度的解析模型与离散事件仿真器**。它把模型结构、硬件拓扑、并行策略和负载编译成事件 DAG，再计算容量、计算/访存/通信需求、执行时序及 SLO。
 
-`supernode-modeling` skill 是面向使用者的编排和解释层：收集参数、选择场景、调用命令、检查输出、解释假设。数值计算由 Python 包执行。Skill 目录没有独立仿真引擎，也没有常驻 agent 服务。
+`supernode-modeling` skill 是面向使用者的编排和解释层：收集参数、选择场景、调用命令、检查输出、解释假设。数值计算由 Python 包执行。Skill 目录没有独立仿真引擎。仓库另提供仅绑定本机的 HTTP 工作台，任务由独立、可取消的 Python worker 运行同一引擎；不提供远程 worker 协议。
 
 父 skill 可接收独立 topology spec，包含 SU 结构、SO 域的 SU 成员分区与有向域间链路。嵌套子 skill [`supernode-topology`](../skills/supernode-modeling/subskills/supernode-topology/SKILL.md) 将自然语言转为规范，`build_topology.py` 编译成原生显式图，再进入同一 `Config` / `Topology` / 数值执行流程。它是配置生成器，不是另一套流量仿真器。生成的 `routing_policy: su_so` 防止 NPU 通信经其他链路类别绕行；旧显式图默认仍用 `shortest_hop`。
 
@@ -44,40 +44,66 @@
 ```mermaid
 flowchart TB
     U["用户问题：训练 / 推理 / 流量 / SU 选型"] --> S["supernode-modeling：场景编排与结果解释"]
+    U --> CLI["CLI / Python API"]
+    U --> W["本地 Web：loopback HTTP + 静态前端"]
+    S --> LF["launch_frontend.py：预检 / 服务复用 / 有限端口避让"]
+    LF -->|实际 inputs_url，由 Skill 打开| W
     S --> TS["supernode-topology：自然语言转 topology spec"]
     TS --> TC["build_topology.py：校验与编译显式图"]
     TC --> C
     S --> C["场景 YAML/JSON：model / hardware / workload / execution / targets"]
-    C --> V["config.load_config() + Config.model_validate()"]
+    C --> V["load_config() / Config.model_validate()"]
+    CLI --> V
+    W --> J["JobManager：单个活动任务 / 状态持久化 / 取消"]
+    J --> WW["独立 web_worker：estimate / simulate"]
+    WW --> V
     V --> A["analysis.run() / search.sweep() / search.size_su()"]
+    V --> F["feedback.feedback()：有限联合候选网格"]
+    F -->|simulate| A
+    F -->|streaming / auto 适用时| L["run_streaming()：structured inference，DP=PP=1"]
+    V -->|独立 Python API| L
     A --> G["analysis.compile_graph()"]
-    G --> B["构图器：structured.Builder / training._TrainingBuilder / inference.build_inference()"]
+    G --> B["structured.Builder / training._TrainingBuilder / inference.build_inference()"]
     B --> D["core.Graph：Event + Resource + Allocation + metadata"]
-    T["Topology：设备、链路、路径与通信映射"] --> B
+    T["Topology：设备、链路、确定性路径与通信展开"] --> B
     P["components：形状、参数与状态公式"] --> B
     D --> K["apply_kernel_profiles()：匹配实测 kernel"]
     K --> E["graph_estimate()：必要性能下界"]
     E -->|simulate 模式| X["engine.simulate()：依赖、内存准入、slot、资源争用"]
     E -->|estimate 模式| R["需求 / 指标 / SLO / 组件内存账本"]
-    X --> R
-    R --> O["report.write_report()：JSON / Markdown / CSV / timeline"]
+    X -->|全图结果| R
+    R --> O["write_report()：JSON / Markdown / CSV / timeline"]
+    L --> SB["同一 Builder：按 barrier 发出 chunk，保留跨块存储状态"]
+    SB --> CK["逐块校准 / 有预算的时序缓存 / 容量复核"]
+    CK -->|未命中或模板不适用| X
+    CK --> Q["流式数值摘要：phase / chunk / token / 资源 / 峰值"]
+    X -->|chunk 结果| Q
+    Q --> F
+    R --> F
+    F --> FO["feedback_report：候选 / 最优配置 / Pareto 前沿"]
+    O --> UI["Web worker：ui.result.json 有界展示摘要"]
+    UI --> W
     O --> S
+    FO --> S
 ```
 
-上图是职责与数据流视图。具体执行顺序见函数流程图：`run()` **总是先构图并执行 `graph_estimate()`**，只有 `mode='simulate'` 时才继续执行数值仿真。
+上图是职责与数据流视图，不表示每个入口都遍历全部节点。`analysis.run()` **总是先完整构图并执行 `graph_estimate()`**，只有 `mode='simulate'` 时才继续执行全图仿真；`run_streaming()` 直接使用结构化 Builder 按 barrier 输出小图并调用同一执行器，不经过完整 `compile_graph()` / `graph_estimate()` / `write_report()` 链。Web 当前只提交 estimate / simulate；feedback 可由 CLI / Python API 发起。
 
 ## 2. 目录与分层职责
 
 | 层次 | 文件 / 目录 | 主要职责与接口 |
 |---|---|---|
 | Skill 编排 | [`skills/supernode-modeling/SKILL.md`](../skills/supernode-modeling/SKILL.md) | 定位引擎、选资料、形成可重跑配置、先校验再计算、解释口径 |
-| Skill 使用资料 | [`references/`](../skills/supernode-modeling/references/) | configuration、training、inference、topology、memory-breakdown、ascend950-kimi-k3 六类说明 |
+| Skill 使用资料 | [`references/`](../skills/supernode-modeling/references/) | configuration、training、inference、topology、memory-breakdown、feedback、frontend、resource-usage 与 ascend950-kimi-k3 等说明 |
+| 前端启动器 | [`launch_frontend.py`](../skills/supernode-modeling/scripts/launch_frontend.py) | 查找引擎/解释器、预检依赖与静态资源、复用或隐藏启动本地服务，返回实际输入页 URL |
 | Skill 展示元数据 | [`agents/openai.yaml`](../skills/supernode-modeling/agents/openai.yaml) | 展示名称、简介和默认提示词；不实现任务调度 |
 | 拓扑子 Skill | [`subskills/supernode-topology/`](../skills/supernode-modeling/subskills/supernode-topology/) | 生成独立 topology spec、原生 hardware / 场景、成员表与拓扑图 |
 | 拓扑编译器 | [`build_topology.py`](../skills/supernode-modeling/subskills/supernode-topology/scripts/build_topology.py) | `TopologySpec`、`compile_topology()`；校验域划分、生成有向链路与共享瓶颈、合并 base 场景 |
 | 配置与输入 | [`config.py`](../supernode_sim/config.py) | Pydantic 类型/交叉约束、YAML/JSON、校准合并、HF 模型片段导入 |
 | 命令入口 | [`cli.py`](../supernode_sim/cli.py)、[`__main__.py`](../supernode_sim/__main__.py) | `snmodel` 与 `python -m supernode_sim`，命令分派、退出码和报告落盘 |
 | 分析编排 | [`analysis.py`](../supernode_sim/analysis.py) | `compile_graph()`、`graph_estimate()`、`run()`、指标与 SLO、设备需求 |
+| 本地 Web | [`web.py`](../supernode_sim/web.py)、[`web_static/`](../supernode_sim/web_static/) | loopback HTTP、配置编辑/校验、单活动任务、状态/日志/产物查询与取消 |
+| 数值工作进程 | [`web_worker.py`](../supernode_sim/web_worker.py) | 重校验已保存配置、调用 run / write_report、生成有界 UI 摘要 |
 | 模型组件 | [`components.py`](../supernode_sim/components.py) | 形状参数清单、优化器状态、activation、MLA/KDA/AttnRes 状态公式 |
 | 结构化构图 | [`structured.py`](../supernode_sim/structured.py) | `Builder` 将显式组件结构编译为训练/推理事件图 |
 | 参数预算构图 | [`training.py`](../supernode_sim/training.py)、[`inference.py`](../supernode_sim/inference.py) | 未提供 architecture 时，使用声明的参数预算和粗粒度层算子构图 |
@@ -86,17 +112,20 @@ flowchart TB
 | 校准 | [`calibration.py`](../supernode_sim/calibration.py) | 精确工作量匹配 kernel 实测条目，同时保留物理资源争用 |
 | 内存归因 | [`memory_breakdown.py`](../supernode_sim/memory_breakdown.py) | 回放有序内存日志，计算组件×状态、池峰值和集群并发峰值 |
 | 搜索与扫描 | [`search.py`](../supernode_sim/search.py) | 笛卡尔积扫描、有限 SU 候选枚举、必要条件剪枝、候选仿真 |
+| 推理反馈搜索 | [`feedback.py`](../supernode_sim/feedback.py)、[`feedback_report.py`](../supernode_sim/feedback_report.py) | 固定模型/硬件的 TP/EP/SP × 输入长度 × batch 联合穷举、SLO、最优候选与前沿 |
+| 结构化流式执行 | [`streaming.py`](../supernode_sim/streaming.py) | structured inference、DP=PP=1，按组件/层/token barrier 执行小图并保留持久状态 |
+| 缓存预算 | [`cache.py`](../supernode_sim/cache.py) | `BoundedCache` 的 LRU、Python 对象计量预算与条目上限；供时序及路由复用 |
 | 输出 | [`report.py`](../supernode_sim/report.py) | 中文报告、结构化结果、CSV、Trace；大图明细精简与导出清单 |
 | 大实验辅助 | [`scripts/run_reference_experiment.py`](../scripts/run_reference_experiment.py) | 进度、完成态仿真检查点、流式重读与继续导出 |
 | 场景与证据 | `examples/`、`profiles/hardware/`、`docs/sources/`、`tests/` | 合成场景、参考硬件片段、公开来源快照、回归测试 |
 
 运行依赖为 Python 3.11+、Pydantic 2 和 PyYAML；测试依赖 pytest。`profiles/hardware/` 是参考数据文件，`load_config()` 不会仅凭硬件名称自动查找或继承 profile；实际值必须进入场景配置，或通过 `calibration` 的 hardware 覆盖合并。
 
-分层的主要边界是：Skill 输出可执行配置；构图器输出 Graph；执行器消费 Graph 并输出 trace 与资源 / 内存日志；指标和报告层读取这些记录。模型公式与路径字节量进入代码，不能由 Skill 用文字推导替代正式数值结果。现有 `analysis.run()` 已组合各阶段，对外提供稳定的单次分析入口。
+分层的主要边界是：Skill 输出可执行配置；构图器输出 Graph；执行器消费 Graph 并输出 trace 与资源 / 内存日志；指标和报告层读取这些记录。模型公式与路径字节量进入代码，不能由 Skill 用文字推导替代正式数值结果。现有 `analysis.run()` 组合全图分析各阶段；`run_streaming()` 提供受限的流式数值入口，两者返回契约不同。Web 的任务层与数值 worker 分进程；HTTP 线程不执行仿真循环。
 
 ## 3. Skill 工作流与命令边界
 
-Skill 的标准步骤是：定位本项目/已安装包 → 按问题读取参考资料 → 保留用户场景并补齐必要参数与来源 → `validate` → `estimate` / `simulate` / `sweep` / `size-su` → 阅读数值输出并解释约束。
+Skill 默认先通过启动器准备本地前端，并由可用浏览器工具打开实际 `inputs_url`；明确只用 CLI 或运行环境不支持时按相应边界继续。准备页面本身不会提交数值任务。分析步骤是：定位本项目/已安装包 → 按问题读取参考资料 → 保留用户场景并补齐必要参数与来源 → `validate` → `estimate` / `simulate` / `sweep` / `size-su` / `feedback` → 阅读数值输出并解释约束。
 
 若输入为自然语言拓扑，先在子 skill 中形成独立规范并编译，再回到上述流程。仅生成拓扑时，不要求用户提供模型与负载。正式分析保留原场景与独立输出目录；容量失败也属于有效分析结果，不自动增加卡数、改变 DP 或调整 global batch 来掩盖失败。
 
@@ -109,10 +138,12 @@ Skill 的标准步骤是：定位本项目/已安装包 → 按问题读取参�
 | `simulate` | `run(..., 'simulate')` | 在同一图上做资源争用与内存准入仿真，再计算指标和 SLO |
 | `sweep` | `search.sweep()` → 每候选 `run()` | 对 dotted-path 配置字段取笛卡尔积，逐项校验并保留失败候选 |
 | `size-su` | `search.size_su()` → `run(estimate)` → 必要时 `run(simulate)` | 有限候选集合内搜索最小 SU；单域/多域分别报告 |
+| `feedback` | `feedback()` → 每候选 `run_streaming(all)` 或 `run(simulate)` | 固定模型/硬件的有限联合搜索；需 TTFT、TPOT 和至少 2 个输出 token |
+| `web` | `web.main()` → HTTP / JobManager → 独立 `web_worker.main()` | 本地工作台；任务只支持 estimate / simulate，不直接提供 sweep / size-su / feedback HTTP 接口 |
 
-所有常规分析命令最终由 `write_report()` 导出。Python API 的 `run()` 只返回字典，**不会自动写文件**。CLI `main()` 暂停循环 GC，并在 `finally` 恢复原状态，这是大图内存管理优化。
+所有常规分析命令最终由 `write_report()` 导出。Python API 的 `run()` 只返回字典，**不会自动写文件**。数值 CLI `main()` 暂停循环 GC，并在 `finally` 恢复原状态，这是大图内存管理优化；长期运行的 `web` 服务保留 GC，短生命周期 worker 单独应用暂停/恢复策略。
 
-CLI 退出码：输入/图相关错误通常为 `2`，顶层 `infeasible` / `slo_failed` 为 `3`，正常完成为 `0`。扫描/搜索要继续检查候选与子搜索的 `status`：例如 `size-su` 无可行候选时，子结果为 `no_feasible_candidate`，顶层仍可为 `completed`，不能只看进程退出码。
+CLI 退出码：输入/图相关错误通常为 `2`，顶层 `infeasible` / `slo_failed` / `no_feasible_candidate` 为 `3`，正常完成为 `0`。扫描/搜索要继续检查候选与子搜索的 `status`：例如 `size-su` 无可行候选时，子结果为 `no_feasible_candidate`，顶层仍可为 `completed`，不能只看进程退出码。
 
 配置校验、图校验、执行可行性与 SLO 是四个独立关口。`validate` 成功后，实际 communicator 仍可能没有可达路径；图有效后，运行仍可能因内存无法准入而失败；执行完成后，仍可能出现 `slo_failed`。
 
@@ -125,11 +156,11 @@ CLI 退出码：输入/图相关错误通常为 `2`，顶层 `infeasible` / `slo
 | `model` | 参数预算，或逐层 architecture 与张量形状 | 有 architecture 时派生 total/active 参数；公开四舍五入值放 `reported_*` |
 | `hardware` | NPU/CPU、HBM/DRAM、SU/SO、host link、外部存储、显式链路 | `su_size` 整除总卡数；容量、速率、精度算力需有效 |
 | `workload` | training/inference、batch、长度、累积步、训练步数 | 推理长度列表必须与 batch 一致，缺省由标量长度展开 |
-| `execution` | TP/PP/EP/DP/FSDP、rank 放置、精度、offload、optimizer | `TP × PP × EP × DP = NPU 数`；FSDP 整除 DP，不再乘入总卡数 |
+| `execution` | TP/PP/EP/DP/FSDP、SP、rank 放置、精度、offload、optimizer | `TP × PP × EP × DP = NPU 数`；FSDP 整除 DP，SP 共享 TP ranks，均不再乘入总卡数 |
 | `targets` | 吞吐、TTFT、TPOT、step time 和候选集合 | 场景区分训练与推理指标，候选数量受 `max_candidates` 限制 |
 | `sources` / `assumptions` / `calibration` | 来源与假设、硬件校准覆盖 | 来源状态为 assumed/public/user/measured；校准仅接受 hardware 和 source |
 
-`Spec` 禁止未知字段与非有限数值。`batch_size` 是每个 DP 副本的 batch，因此增加 DP 同时改变聚合负载。默认物理映射顺序为 `[dp, pp, ep, tp]`，`rank_order` 可重排物理设备。
+`Spec` 禁止未知字段与非有限数值。`batch_size` 是每个 DP 副本的 batch，因此增加 DP 同时改变聚合负载。默认物理映射顺序为 `[dp, pp, ep, tp]`，`rank_order` 可重排物理设备。`sequence_parallel=true` 当前仅接受结构化推理、`TP>1` 且 `PP=1`；SP degree 为 TP，不是独立的 world-size 轴。
 
 精度独立配置为 weight、compute、gradient、master、optimizer、kv、weight_transfer、activation、communication、recurrent，并可单独指定 routed expert 的权重存储精度。不能从 FP8 权重驻留推导出 FP8 计算或 FP8 回传。
 
@@ -144,7 +175,7 @@ CLI 退出码：输入/图相关错误通常为 `2`，顶层 `infeasible` / `slo
 | `Event` | `id, deps, work, startup_s, allocs, releases, metadata, slots` | DAG 节点；依赖、同时需要的各类资源工作量、启动延迟、生命周期和独占执行槽 |
 | `Graph` | `resources, memory_caps, initial_allocations, events, metadata` | 资源速率、内存容量、驻留状态、事件图和指标标记 |
 
-`Resource.capacity` 表达**速率**，`Graph.memory_caps` 表达**容量**，`slots` 表达**互斥**；三者分别建模。一个 kernel 可同时消耗 FLOPs 与 HBM 字节，并占用设备 compute slot。事件之间保存 ID 依赖，不使用对象反向引用。
+`Resource.capacity` 表达**速率**，`Graph.memory_caps` 表达**容量**，`slots` 表达**互斥**；三者分别建模。一个 kernel 可同时消耗 FLOPs 与 HBM 字节，并占用设备 compute slot。事件之间保存 ID 依赖，不使用对象反向引用。Graph / Event / Resource / Allocation 使用 `dataclass(slots=True)`，减少大图中逐对象属性字典的开销。
 
 构图器生成 `step_end_events` 或 `sequence_token_completion_events` 等标记；指标层根据这些事件的实际结束时间计算训练步时和逐请求 token 延迟。图的 metadata 也携带组件清单、假设、模型近似和校准命中信息。
 
@@ -158,7 +189,7 @@ CLI 退出码：输入/图相关错误通常为 `2`，顶层 `infeasible` / `slo
 | Graph → 执行记录 | 事件时间、资源工作量、按序内存日志 | 准入分配原子化，释放按生命周期执行；同一共享组容量一致，工作量按经过的链路累计 |
 | 执行记录 → 结果 / 报告 | 指标、归因、失败诊断、导出清单 | 失败不声明 SLO 可行；独立峰值不可当成并发峰值相加 |
 
-Graph 本身是内存中的 Python 数据结构，当前没有独立的图文件协议或图缓存服务。对外复跑使用配置与版本化结果；`config_sha256` 标识解析后输入，完整复现还需要保留引擎版本或源码修订。
+Graph 本身是内存中的 Python 数据结构，当前没有独立的图文件协议或图缓存服务。可选的流式时序/驻留快照缓存只复用数值模板，不是完整 DAG 持久化；Web 通过任务目录保存配置、状态和产物。对外复跑使用配置与版本化结果；`config_sha256` 标识解析后输入，完整复现还需要保留引擎版本或源码修订。
 
 ## 5. 构图架构：先看 architecture，再看场景
 
@@ -198,6 +229,7 @@ Graph 本身是内存中的 Python 数据结构，当前没有独立的图文件
 - KV offload 将部分持久 KV 放入 host/remote；decode 按需读取旧 KV，写回新 KV，传输包含 KV 数据与量化 scale；page table 只计驻留容量，不进入 KV 读写 payload。KDA recurrent/conv state 保留在 NPU，不参与 KV offload。结构化路径含显式旧 KV 解码 buffer 与释放依赖。
 - MoE 使用 EP dispatch → 专家计算 → combine，TP 与 PP 通信按各路径的函数展开。Engram 在指定层产生查询、存储端资源需求和数据传输，受缓存命中假设影响。
 - `component_order()` 控制结构化组件顺序；prefill 的 Output layer logits 只针对每个序列最后一个位置计算。
+- 结构化 SP 在 TP ranks 上分片 norm / AttnRes / residual 的序列行；每个 EP 来源按 `ceil(valid_tokens / TP)` 填充等长块。attention / FFN 前执行 TP all-gather，之后以 reduce-scatter 替代普通 TP all-reduce；完整 gathered 输入保留到组件结束。pointwise kernel 处理填充行，attention / FFN / KV 只处理有效 token。Embedding 以 reduce-scatter 进入 SP，Output gather 选中的位置后做词表分片投影。SP MoE 在每条 TP lane 独立保留 latent dispatch / combine，不建模 fused DeepEP 或跨 lane 去重。
 
 ### 5.3 编译后处理与校准
 
@@ -236,7 +268,7 @@ SU 支持 full mesh、ring、mesh、Clos / Fat-tree 等配置；SO 支持其规�
 
 `Topology.collective()` 将 all-gather、reduce-scatter、all-reduce 展开为 ring 点对点轮次，all-to-all-v 按流量矩阵展开；`transfer()` 再调用 `path()`，给端点内存、沿途链路、注入带宽及共享组等资源记账，返回 Event。collective 的发送/接收临时 buffer 和 tx/rx slot 由 `collective()` 添加，普通点对点 buffer 由相应构图器管理。
 
-`path()` 依次检查缓存、显式 routes、同 SU full_mesh 懒建直连，再进行确定性最少 hop 搜索，以字典序打破平局。自动路由在模板拓扑或 `routing_policy=su_so` 下，同 SU NPU 通信限走 SU，跨 SU 限走 SO；人工 routes 只有在 `su_so` 下才检查该域约束。旧显式图默认允许混合链路路径，模板在默认策略下提供人工 routes 时也需自行检查绕行。路由不按实时负载选路。AG/RS 的 size 表示每 rank 完整张量大小，共 N−1 轮，每 rank 每轮发送 size/N；AR 为 RS→AG 两阶段，A2AV 为按矩阵的 N−1 轮 pairwise。每轮所有 transfer 完成 ID 成为下一轮依赖。
+`path()` 依次检查缓存、显式 routes、同 SU full_mesh 懒建直连，再进行确定性最少 hop 搜索，以字典序打破平局。自动路由在模板拓扑或 `routing_policy=su_so` 下，同 SU NPU 通信限走 SU，跨 SU 限走 SO；人工 routes 只有在 `su_so` 下才检查该域约束。旧显式图默认允许混合链路路径，模板在默认策略下提供人工 routes 时也需自行检查绕行。路由不按实时负载选路。最短路径通过按边 ID 排序的 BFS tree 复用，缓存预算与 lazy full-mesh 的特殊语义见第 8.4 节。AG/RS 的 size 表示每 rank 完整张量大小，共 N−1 轮，每 rank 每轮发送 size/N；AR 为 RS→AG 两阶段，A2AV 为按矩阵的 N−1 轮 pairwise。每轮所有 transfer 完成 ID 成为下一轮依赖。
 
 流量有不同视图：`transport_payload_bytes` 是展开后的传输 payload 总量；`physical_bytes_by_domain` 是沿路逐跳字节量；semantic（如 dispatch/combine）与 collective（如 all-to-all-v）是同一 payload 的不同分类，不能再相加。
 
@@ -259,7 +291,7 @@ SU 支持 full mesh、ring、mesh、Clos / Fat-tree 等配置；SO 支持其规�
 3. 按事件 ID 排序检查 ready 集合：slot 可用且所有新增分配都可容纳时，原子准入并开始 startup；否则等待。
 4. 对 startup 已结束的 active 事件调用 `max_min_rates()`，按其独占 roofline 进度速率做归一化 max-min 共享。
 5. 时间跳到最近的 startup 结束或事件完成点，更新进度、资源工作量和 busy time，再进入循环。
-6. 全部完成返回 `feasible`；无 active 且 ready 事件因容量无法启动，返回 `status=infeasible`、`diagnostics.code=memory_admission_deadlock`；非法图、错误释放或其他无法推进情形返回 `error`。
+6. 事件完成后释放已消费的后继邻接项，事件准入后移除其依赖计数；这些内部索引缩减不修改输入 Graph。全部完成返回 `feasible`；无 active 且 ready 事件因容量无法启动，返回 `status=infeasible`、`diagnostics.code=memory_admission_deadlock`；非法图、错误释放或其他无法推进情形返回 `error`。
 
 一个事件对多个资源同时推进，因此 kernel 计算和访存服务时间采用 roofline 最大项，不简单相加。相同单链路上的不同大小流会先获得相同 byte/s，而不是相同完成时间。引擎是确定性流体近似，未实现包级排队、拥塞控制或周期级硬件行为。
 
@@ -291,10 +323,12 @@ slot 从事件准入起持有到完成，覆盖 startup 与工作阶段；当前
 | `resources.csv`、`memory.csv` | 资源工作量/容量/利用率、驻留与乐观/仿真峰值 |
 | `events.csv`、`timeline.json` | simulate 的事件明细；后者用于 Perfetto/Chrome Trace |
 | `component_memory.csv`、`state_memory.csv` | 组件×状态和状态汇总，同时保留峰值时刻口径 |
-| `tensors.csv`、`memory_peaks.csv` | allocation 生命周期、逐池峰值及构成 |
+| `tensors.csv` 或 `tensors.csv.gz`、`memory_peaks.csv` | allocation 生命周期、逐池峰值及构成；compact 导出保留张量超过 50,000 行时，张量 CSV 使用无损 gzip |
 | `model_parameters.csv` | 存在组件清单时导出的逻辑参数张量和形状 |
 
-## 8. 搜索、大图与检查点
+feedback 使用独立导出分支，生成 `report.md`、`result.json`、`config.resolved.json`、`candidates.csv`，存在最优候选时增加 `best.config.json`。它保存每个候选的数值摘要与诊断，不为每个候选自动导出完整 trace / 张量账本。Web 任务另有 `input.config.json`、`job.json`、`worker.log` 与 `ui.result.json`，详见第 9.1 节。
+
+## 8. 搜索、大图、流式执行与缓存
 
 ### 8.1 有限候选搜索
 
@@ -306,49 +340,75 @@ slot 从事件准入起持有到完成，覆盖 startup 与工作阶段；当前
 
 当前扫描与搜索按候选串行执行。`size_su()` 未指定布局时会按总卡数推导 DP，这会改变聚合负载，比较结论需同时保留每个候选的解析配置。显式 `explicit_links` 绑定卡数、SU 分组与 SO 域成员；修改这些字段时，必须由拓扑规范逐候选重编译并验证，不能直接复用原图运行内置搜索。当前搜索未自动完成这种重编译。
 
-### 8.2 大图明细精简
+### 8.2 Compact：大图执行记录与导出精简
 
-有两层不同的精简策略，均不减少被仿真的事件或分配：
+全图路径有两层不同的精简策略，均不减少被仿真的事件或分配；不能把 compact 等同于流式构图：
 
 - `run(full_detail=False)`：超过 50,000 个事件时，trace 不再复制 work/allocations/releases 负载字段；超过 50,000 个 allocation 时，内存账本不物化临时 buffers 的宽明细行。调度、资源总量和完整 memory_log 仍参与计算。
-- `write_report(full_detail=False)`：对大结果导出保留 kernel、token/step 标记和保留模型张量的分配事件，省略重复临时通信记录及原始内存日志；`artifact_export` 记录原始/保留/省略数量。
+- `write_report(full_detail=False)`：trace、原始 allocation 或 memory_log 任一超过 50,000 行（或上游已省略临时张量行）时，保留 kernel、token/step 标记和保留模型张量的分配事件，仅省略非初始的 `state=buffers` 张量行及原始内存日志；`artifact_export` 记录原始/可用/保留/省略数量与实际文件名。保留张量明细仍超过 50,000 行时写 `tensors.csv.gz`。数值汇总、通信/资源总量及精确并发峰值构成不变。
 
-Python `run()` 默认 `full_detail=True`，CLI `estimate/simulate` 默认 false，`write_report()` 默认 false。需要完整导出时，计算与导出两个阶段都必须保留 full detail；不能从已精简结果补回丢失字段。
+Python `run()` 默认 `full_detail=True`，CLI `estimate/simulate` 默认 false，`write_report()` 默认 false。需要完整导出时，计算与导出两个阶段都必须保留 full detail；不能从已精简结果补回丢失字段；请求 full-detail 导出时若上游已省略 event payload 或临时 tensor rows，`write_report()` 会明确报错。compact 的 `result.json` 中 trace/tensors 可能是产物引用，不能当作完整 `run()` 结果再次交给 `write_report()`。
 
 ### 8.3 检查点与恢复
 
-`run_reference_experiment.py` 包装 analysis 中的构图、下界、simulate 和内存归因函数，打印进度并在结束时恢复原函数。检查点路径为 `checkpoint/<fingerprint前20位>/`，使用 `trace.jsonl.gz`、`memory_log.jsonl.gz` 和最后提交的 `manifest.json`。
+`run_reference_experiment.py` 包装 analysis 中的构图、下界、simulate 和内存归因函数，打印进度并在结束时恢复原函数。默认检查点路径为 `checkpoint/<fingerprint前20位>/`，`--full-detail` 使用独立的 `checkpoint/<fingerprint前20位>-full/`；记录由 `trace.jsonl.gz`、`memory_log.jsonl.gz` 和最后提交的 `manifest.json` 组成。compact 检查点不能补回已省略的 event payload，完整明细需以 full-detail 路径重跑或恢复其匹配检查点。
 
-fingerprint 包含解析后配置和 core/config/components/structured/training/inference/topology/engine/calibration 源文件；报告与归因逻辑可在重读结果时重新执行。恢复会核验 fingerprint、文件大小和迭代记录数。
+fingerprint 包含解析后配置和 core/config/components/structured/training/inference/topology/engine/calibration/cache 源文件；报告与归因逻辑可在重读结果时重新执行。恢复会核验 fingerprint、文件大小和迭代记录数。
 
 这是**已完成一次数值执行后的结果检查点**：恢复仍会构图、重新算下界并回放日志，只跳过 `engine.simulate()`。它不能从仿真循环中途的 event 进度继续；若尚未提交 manifest，需重新数值执行。大结果通过可重复迭代的 `JSONLRecords` 流式读取，避免一次性加载全部原始记录。
 
 运行器通过临时包装 analysis 函数接入进度与恢复，适合独立进程的参考实验。若要嵌入并发服务，应改为显式执行接口；当前包装会改变进程内函数绑定。fingerprint 不包含 analysis、report 和 memory_breakdown，允许这些分析 / 展示层重新处理旧日志；若后续把影响数值执行的新逻辑放入这些模块，应同步调整指纹范围。
 
+### 8.4 有预算的缓存
+
+`BoundedCache` 是对不可变容器快照的 LRU：同时限制条目数和估算 Python 对象字节量，超大条目直接不留存，预算为 0 可禁用；计量按条目递归去重，共享子对象跨条目重复计量以倾向提前淘汰。它限制缓存账面占用，**不限制进程 RSS**。
+
+| 缓存 | 当前默认预算与作用 | 边界 |
+|---|---|---|
+| 流式 timing / 初始驻留快照 | 单次 `run_streaming()` 默认共用 64 MiB / 256 条；调用者可传同一个 `BoundedCache` 跨实验复用 | 传普通 dict 仍是不设预算的旧行为；Engram 开启时禁用初始驻留快照复用 |
+| 静态拓扑 pair route | 每个 Topology 为 16 MiB / 65,536 条 | full_mesh 使用普通 dict 保留已查询 pair 的历史路径；此例外没有同一预算上限 |
+| 路由 BFS trees | 每种 unrestricted / SU / SO 模式分别为 16 MiB / 128 个来源树 | 树过大不缓存，本次查询仍使用刚算出的树；边新增时失效相关模式的树和邻接快照 |
+
+### 8.5 结构化推理流式执行
+
+`run_streaming(config, phase='all'|'prefill'|'decode', progress=None, cache=None)` 只接受有 architecture 的 inference 且 DP=PP=1。它利用原 Builder 的组件、层和 token barrier，将已完成的跨块依赖剥离成独立 Graph，逐块调用 `apply_kernel_profiles()` 和同一 `engine.simulate()`，累计时间、资源与通信总量、逐池峰值及峰值分类。持久 allocation 按 pool/category/dtype 合并，其他存活 allocation 按 ID 跨块携带；不保留完整 DAG、逐事件 trace 或逐张量生命周期。
+
+时序缓存键保留资源 ID/容量、精确工作量、startup、slot、依赖、dtype、分配及释放，仅规范化重复层前缀。先获得忽略容量限制的调度模板，只有模板峰值加上当前驻留量仍可装入真实容量时才复用；装不下则回到普通准入调度。可复用的组件宏还要求没有存活临时 allocation，且不释放已有命名状态；宏键包含 token index，每个 token 完成后清理。kernel profile 场景保留 layer 区别，避免跨层替换事件相关校准。
+
+`phase='all'` 执行完整 prefill+decode 并按同一 token 标记计算 TTFT/TPOT；`prefill` 在首 token 后结束且 TPOT 为 null；`decode` 要求最大输出长度至少为 2，仅播种 prefill 后的持久 KV/KDA 等状态，跳过 prefill 运算与临时内存，TTFT 为 null。独立 decode 可在完整 prefill 不可行时用于暖缓存实验，不能据此声明完整请求可行。返回值是 `execution_mode=structured_layer_streaming` 的独立数值摘要（含 phase_metrics/chunks），不是 `write_report()` 的输入，也不提供完整组件张量账本；`feedback` 只调用 phase=all。失败 chunk 会保留摘要、progress 与 diagnostics 后立即停止，TTFT/TPOT 保持 null；final_memory 来自最后成功的 chunk，失败块通信量不并入 phase 总量，因此失败结果只能按已观察前缀解读。
+
+### 8.6 固定模型与硬件的反馈搜索
+
+`FeedbackSpec` 的轴为 TP、EP、SP 开关、prefill length 与 decode batch；模型、硬件/拓扑、PP、DP、FSDP、rank_order、精度和其他 features 保持基线。每个候选的输入长度在请求间统一，prefill 和 decode 使用同一固定 batch 与布局，候选逐项重新校验，保留 invalid_config、infeasible、slo_failed 与 error；不做单调性假定或 estimate 剪枝。未给定长度/batch 轴时，默认是基线边界内的 2 的幂加精确端点，不能解释为全部整数穷举。组合数超过显式或 targets.max_candidates 上限即报错。
+
+必须同时提供 TTFT/TPOT 目标，`tpop_s` 是 TPOT 的输入别名；输出 token 数固定且至少为 2，ragged 输出需显式统一长度。`engine=auto` 对 structured DP=PP=1 选择 streaming，其余选择全图 simulate；显式 streaming 不适用时拒绝。全 prefill/decode 容量准入、两个延迟目标及已有吞吐目标均通过才计为可行。
+
+目标为 `decode_throughput_tokens_s`：每序列除首 token 外的 token 总数，除以“最晚末 token − 最早首 token”窗口。DP>1 或 PP>1 时该窗口可能与其他请求剩余 prefill 重叠；两个输出 token 仅测得一个 decode 间隔。排序先最大化此吞吐，再优先长输入、大 batch、低 TTFT/TPOT、升序 TP/EP/SP。结果还保存以输入长度、batch、吞吐三者最大化的 Pareto 前沿与布局边界；某布局的最大长度和最大 batch 可来自不同候选，只有真实候选组合被联合验证。任何候选 error 都使 search_complete=false、顶层 status=error；最优性只限声明的有限网格与固定调度器。
+
 ## 9. 部署与运行架构
 
 ### 9.1 当前部署形态
 
-系统在本地或服务器的单个 Python 进程中运行。Skill 与引擎可以分别安装；Skill 定位用户给定项目、`SUPERNODE_SIM_ROOT` 或当前目录中的仓库，再调用已安装包或项目解释器。模拟 NPU、CPU 和网络资源不要求机器上存在对应硬件。
+CLI / Python API 在调用进程中执行；Web 由一个长期运行的本机 HTTP 服务与每任务独立数值 worker 组成。Skill 与引擎可分别安装，模拟 NPU、CPU 和网络不要求宿主机存在对应硬件。网页使用随 Python 包分发的 HTML / CSS / JavaScript，无需 Node / npm 构建。详细交互/API 见 [本地 Web 工作台](web-interface.md)。
 
-```mermaid
-flowchart LR
-    S["Codex / Skill 交互环境"] --> C["场景与拓扑文件"]
-    C --> P["Python 进程：CLI 或 Python API"]
-    P --> E["内存中的 Graph 与执行状态"]
-    E --> O["独立输出目录：报告、CSV、Trace"]
-    E --> K["参考运行器：完成态 checkpoint"]
-    H["公开资料 / 用户输入 / 实测 profile"] --> C
-```
+`launch_frontend.py` 按显式项目根、SUPERNODE_SIM_ROOT、当前目录/脚本祖先定位仓库，优先选择项目 .venv，并预检 Python 3.11+、依赖、包来源及三个静态资源。它在默认 8765 起的 10 个候选端口内，验证 health 的 app/root/output、预设和静态响应后复用服务；占用者不匹配则尝试下一个端口。新服务以隐藏/分离进程启动，输出目录按端口隔离，锁与随机 launch token 区分并发启动及归属；超时只停止本次未就绪进程。返回实际 url / inputs_url / workspace_url，启动器自身不打开浏览器、不安装依赖、不提交仿真。Skill 再使用浏览器工具进入 `#inputs`，保留已有输入草稿。
+
+`web.create_server()` 仅接受 localhost 或 IPv4 loopback，默认 127.0.0.1:8765。ThreadingHTTPServer 提供同源静态页面和 JSON API，检查 Host、写入请求的 Origin / Sec-Fetch-Site，并限制 JSON 为 2 MiB、网页 batch_size 为 100,000；配置拒绝 calibration 路径，要求已解析参数。预设从 examples 通过 load_config 解析后提供。
+
+`JobManager` 同时只允许一个 queued/running 任务，新增提交不会排成长队。提交时保存 input.config.json 与 job.json，再由管理线程启动 `python -m supernode_sim.web_worker`，解析 stdout 的阶段 JSON 并保留 worker.log。worker 重校验快照，执行 run → write_report → compact_result，最后原子提交 ui.result.json；前端轮询任务、读取摘要和下载产物。取消会 terminate，必要时 kill worker；服务关闭会取消活动任务，重启发现旧活动任务则标为 failed，不恢复数值进度。
+
+任务状态与物理结果独立：queued → running → completed / failed / cancelled；phase 另细分 validating、estimating / simulating、exporting、summarizing。completed 表示产物和 UI 摘要成功生成，result_status 仍可能是 infeasible 或 slo_failed。UI 最多展示 240 个池、160 项资源、300 个采样事件，并限制解释性 metadata；精确数值表以产物为准，默认大图产物也受第 8.2 节 compact 策略约束。
 
 | 运行方式 | 接口与责任 |
 |---|---|
-| 命令行分析 | `snmodel` / `python -m supernode_sim`，负责加载、计算、导出与退出码 |
-| Python 集成 | `load_config()` → `run()` → 可选 `write_report()`，调用者管理输出与异常 |
-| 参考实验 | `run_reference_experiment.py`，增加阶段进度、完成态检查点与继续导出 |
-| 多组独立实验 | 可由外部调度器启动独立进程与独立输出目录；当前包未提供任务队列或分布式执行服务 |
+| 命令行分析 | snmodel / python -m supernode_sim，负责加载、计算、导出与退出码 |
+| Python 集成 | load_config → run → 可选 write_report；或独立 run_streaming，调用者管理输出与异常 |
+| 本地 Web | snmodel web / python -m supernode_sim.web；HTTP 管理配置/状态/取消，隔离 worker 执行 estimate / simulate |
+| Skill 前端准备 | launch_frontend.py 返回 started / reused 与实际输入页地址，Skill 负责浏览器打开及后续已授权操作 |
+| 参考实验 | run_reference_experiment.py，增加阶段进度、完成态检查点与继续导出 |
+| 多组独立实验 | 可由外部调度器启动独立进程与输出目录；Web 只提供本机单活动任务管理，不是分布式队列 |
 
-仓库不包含 Web 服务、常驻仿真 agent、数据库或远程 worker 协议。服务化属于第 11 节的演进方向，当前交付单元是 Skill、Python 包、场景文件及分析产物。
+当前状态存储为任务目录 JSON 与文件产物，没有数据库、远程 worker 协议或多用户认证部署层。本地 Web 的配置/任务服务与固定 batch 的被仿真模型是不同层次，不能从 HTTP 任务管理推导出动态 serving 仿真能力。
 
 ### 9.2 运行与复现
 
@@ -361,13 +421,14 @@ python -m supernode_sim validate examples/demo_training.yaml
 python -m supernode_sim estimate examples/demo_training.yaml -o outputs/demo-training-estimate
 python -m supernode_sim simulate examples/demo_training.yaml -o outputs/demo-training
 python -m supernode_sim simulate examples/demo_inference.yaml -o outputs/demo-inference
+python -m supernode_sim web --output outputs/web
 ```
 
-复跑使用输出目录内的 `config.resolved.json`。归档同时保存配置 hash、引擎版本、源码修订、命令、来源与假设；仅保存模型 / 硬件名称不足以复现。每次实验使用独立目录，避免报告或检查点被其他实验覆盖。
+全图单次分析复跑使用输出目录内的 `config.resolved.json`；feedback 的最优候选使用 `best.config.json`，完整搜索还须保留 search_space / 搜索参数与命令。归档同时保存配置 hash、引擎版本、源码修订、命令、来源与假设；仅保存模型 / 硬件名称不足以复现。每次实验使用独立目录，避免报告或检查点被其他实验覆盖。
 
 ### 9.3 规模、可观测性与失败处理
 
-大图成本主要来自事件展开、DAG 与分配驻留、trace / 内存日志和归因导出。ring collective 的点对点事件数随 communicator rank 数平方增长；精简导出减少报告体积，未减少被执行的事件。检查点支持流式重读日志，当前构图仍在内存中完成，不能据此认为已实现流式 DAG 执行。
+大图成本主要来自事件展开、DAG 与分配驻留、trace / 内存日志和归因导出。ring collective 的点对点事件数随 communicator rank 数平方增长；精简导出减少报告体积，未减少被执行的事件。参考检查点仅流式重读日志，全图路径仍完整构图；受限的 `run_streaming()` 则通过现有 barrier 逐块构图执行，适用范围见第 8.5 节。
 
 | 失败阶段 | 可观测结果 | 处理方式 |
 |---|---|---|
@@ -375,7 +436,8 @@ python -m supernode_sim simulate examples/demo_inference.yaml -o outputs/demo-in
 | 构图 / 路径 | 不可达 communicator、非法资源或依赖错误 | 修复拓扑或构图逻辑；`validate` 成功不排除此类错误 |
 | 容量 / 准入 | `infeasible`、池容量和 `memory_admission_deadlock` 等诊断 | 分析驻留与并发工作集，保留失败场景 |
 | 指标目标 | `slo_failed` 与逐项 target / actual | 对瓶颈和目标做方案比较 |
-| 导出中断 | 已提交的 checkpoint、阶段进度、导出清单 | 校验匹配检查点后重建分析与导出；未提交完成态则重跑数值执行 |
+| 导出中断 | 参考运行器已提交的 checkpoint、阶段进度、导出清单 | 校验匹配检查点后重建分析与导出；普通 CLI / Web 不自动创建此检查点 |
+| Web worker / 服务中断 | job.json 的 failed / cancelled、phase、worker.log | 保留原快照与失败产物；重新提交形成新任务，不从已结束 worker 中途续算 |
 
 时间线面向事件依赖与重叠分析，资源 CSV 面向负载和瓶颈，内存峰值表面向同一时刻的组件构成。三类结果来自同一图与执行记录，需要同时阅读。
 
@@ -390,10 +452,13 @@ python -m supernode_sim simulate examples/demo_inference.yaml -o outputs/demo-in
 | 新指标或目标 | 图 metadata 完成标记 → execution_metrics / evaluate_targets → report；搜索剪枝需另证明必要性 |
 | 新报表视图 | memory_breakdown / report；保持并发峰值的可加性口径 |
 | 新 Skill 分析场景 | SKILL.md 与 references；数值规则仍应进入引擎和测试 |
+| 新反馈搜索轴 / 目标 | FeedbackSpec → 候选重校验与执行 → 排序 / 前沿 / feedback_report；说明有限网格与固定项 |
+| 新流式执行范围 | structured barrier 与 streaming 状态交接；先验证依赖、容量准入、资源和指标等价性 |
+| 新 Web 任务类型 / 展示 | web 的任务协议 → web_worker → 有界 UI 摘要 / 静态前端；保留原始配置与产物计数 |
 
 当前限制包括：无 PD 分离、投机推理、expert offload、连续请求排队/P99、包级与周期级模拟。原生 Clos/Fat-tree 模板使用简化单 spine；拓扑子 skill 编译器支持配置多个 spine 及上联共享约束，但仍使用确定性单路径，不模拟 ECMP。MoE 默认均匀路由，稀疏 decode 权重读取按期望触达专家估算。缓存/MTE 输出是工作集和搬运需求，不可直接解释为精确 L1/L2/L3 容量或硬件通道数。
 
-配置显式拒绝的组合还包括：无 architecture 的 Muon、结构化 FSDP lookahead prefetch、跨 PP 的 tied embedding 和 AttnRes、非权重状态使用 FP4。MLA compressed/expanded 改变容量和访存模型，不表示两种实际 kernel 均已校准。
+配置显式拒绝的组合还包括：无 architecture 的 Muon、结构化 FSDP lookahead prefetch、跨 PP 的 tied embedding 和 AttnRes、非权重状态使用 FP4、非结构化推理 / TP=1 / PP>1 下的 SP。MLA compressed/expanded 改变容量和访存模型，不表示两种实际 kernel 均已校准。
 
 当前训练不支持 interleaved pipeline、pipeline zero2 schedule、activation offload 或 distributed Muon 正交化。两条推理构图路径的 KV 分片和量化 scale 取整公式也存在差异，尤其 TP 不能整除 KV heads 的场景，应以对应路径的输出为准，不把两条路线视为数值等价。
 
@@ -406,11 +471,13 @@ python -m supernode_sim simulate examples/demo_inference.yaml -o outputs/demo-in
 | 决策 | 原因 | 代价或约束 |
 |---|---|---|
 | Skill 编排与数值引擎分离 | 自然语言理解与可重跑计算分别维护 | Skill 必须找到引擎并读取真实结果 |
-| 所有构图路径统一到 Graph | 复用下界、调度、资源与内存归因 | 预算版与结构化版仍有不同执行策略 |
-| 解析下界先行，必要时仿真 | 快速发现必要条件失败，并支持安全剪枝 | 下界不能证明 SLO 满足；搜索目前重复构图 |
+| 构图路径统一到 Graph 事件语义 | 全图和流式 chunk 共享资源调度与准入 | 预算版与结构化版仍有不同策略；流式不保留完整归因记录 |
+| 全图解析下界先行，必要时仿真 | 快速发现必要条件失败，并支持安全剪枝 | 下界不能证明 SLO 满足；搜索目前重复构图 |
 | 速率、容量和执行槽分别建模 | 同时表达吞吐争用、内存峰值和互斥 | 抽象粒度不覆盖包级与周期级行为 |
 | 拓扑规范独立编译 | 将 SO 域成员和高层网络描述转换为严格原生图 | 显式图规模变化必须重编译 |
 | 完成态检查点与报告分离 | 数值执行完成后可恢复耗时的归因与导出 | 不支持仿真循环中途续算 |
+| 本地 HTTP 与数值 worker 隔离 | 界面可轮询、下载与取消，不阻塞 HTTP 线程 | 单活动任务、文件状态；不提供远程/多用户部署协议 |
+| 流式 barrier 与有预算缓存 | 限制可复用场景的常驻事件/模板规模 | 仅 structured DP=PP=1；缓存预算不是 RSS 限制，full_mesh pair 缓存为例外 |
 | 来源、假设和校准命中随结果保存 | 将公开结构、合成参数与实测性能分开 | 正式选型仍需针对具体 kernel / collective 校准 |
 
 ### 11.2 建议演进顺序
@@ -422,8 +489,8 @@ python -m supernode_sim simulate examples/demo_inference.yaml -o outputs/demo-in
 | P1 | 显式拓扑候选重编译与 SO 域级流量归因 | search 对接 topology spec 编译器；每个候选校验成员与路径，按域汇总可与逐事件账本核对 |
 | P1 | 执行 / 分析接口与完成态缓存解耦 | 拆出显式构图、执行、恢复与导出接口，复用同一 Graph，替代进程内函数包装 |
 | P1 | kernel 与 collective 校准完善 | 保留实测工作量、环境与来源，建立独占服务时间及共享资源情形的校准案例 |
-| P2 | 大图事件压缩或流式执行 | 优化 ring 展开与常驻记录规模，以小图等价性验证容量、时序和流量守恒 |
-| P2 | 服务化任务管理 | 在现有 Python API 外封装任务状态、独立 worker、产物与取消机制，保留底层配置契约 |
+| P2 | 流式执行扩展与 collective 表达优化 | 在现有 DP1/PP1 推理流式路径外扩展更一般的依赖前沿，优化 ring 展开，并验证容量、时序和流量守恒 |
+| P2 | 任务管理的规模化接口 | 在已有本地单活动任务和独立 worker 之外，按需求定义队列、并发/资源上限与恢复协议，保留底层配置契约 |
 | P3 | 动态 serving 与新优化特性 | 新增请求到达、连续 batching、PD / 投机 / expert offload 的事件语义，再扩展指标与搜索 |
 
 新执行特性应先确定张量和通信语义，再补配置、事件依赖、分配 / 释放、指标和校准验证。新增 SLO 或剪枝规则需说明其时间窗口，并验证是必要条件；不能仅在报告中添加名称就视为实现。
@@ -440,7 +507,11 @@ python -m supernode_sim simulate examples/demo_inference.yaml -o outputs/demo-in
 | 下界与指标 | [`graph_estimate() / execution_metrics()`](../supernode_sim/analysis.py)、[`size_su()`](../supernode_sim/search.py) | `test_integration.py`、`test_device_requirements.py` |
 | 峰值与导出 | [`build_memory_breakdown()`](../supernode_sim/memory_breakdown.py)、[`write_report()`](../supernode_sim/report.py) | `test_memory_breakdown.py`、`test_report_export.py`、`test_compact_simulation.py` |
 | 恢复 | [`fingerprint() / load_checkpoint()`](../scripts/run_reference_experiment.py) | `test_reference_checkpoint.py` |
+| SP | [`ExecutionSpec / Config`](../supernode_sim/config.py)、[`Builder.inference()`](../supernode_sim/structured.py) | `test_sequence_parallel.py` |
+| 流式与缓存 | [`run_streaming()`](../supernode_sim/streaming.py)、[`BoundedCache`](../supernode_sim/cache.py)、[`Topology.path()`](../supernode_sim/topology.py) | `test_streaming.py`、`test_streaming_initial_cache.py`、`test_cache_budgets.py`、`test_topology_route_cache.py`、`test_engine_memory_efficiency.py` |
+| 反馈搜索 | [`feedback()`](../supernode_sim/feedback.py)、[`write_feedback_report()`](../supernode_sim/feedback_report.py) | `test_feedback.py` |
+| 本地前端 / worker | [`launch()`](../skills/supernode-modeling/scripts/launch_frontend.py)、[`JobManager`](../supernode_sim/web.py)、[`web_worker.main()`](../supernode_sim/web_worker.py) | `test_frontend_launcher.py`、`test_web.py`、`test_web_input_edit.cjs` |
 
-架构变更的验证以不变量和真实场景为中心：配置 / 拓扑校验覆盖非法字段、域分区和不可达路径；执行覆盖 DAG 依赖、共享速率、准入及释放；账本覆盖逻辑与物理容量、传输 payload 与逐跳字节量、同一时刻峰值构成；指标覆盖 token / step 完成标记、失败状态和 SLO；恢复覆盖指纹匹配、完成态提交和导出完整性。
+架构变更的验证以不变量和真实场景为中心：配置 / 拓扑校验覆盖非法字段、域分区和不可达路径；执行覆盖 DAG 依赖、共享速率、准入及释放；账本覆盖逻辑与物理容量、传输 payload 与逐跳字节量、同一时刻峰值构成；指标覆盖 token / step 完成标记、失败状态和 SLO；恢复覆盖指纹匹配、完成态提交和导出完整性；流式/缓存覆盖与全图执行的一致性、预算和容量回退；feedback 覆盖有限网格、失败保留与排序；Web 覆盖输入快照、单活动任务、取消、启动归属和展示限额。
 
 文档维护需同步总体图、配套函数图和 Skill 引用，核对 CLI 与 Python 入口、相对链接及能力边界。上述测试文件是各层的回归验证入口；代码变更时运行受影响的测试，数值算法或公共契约变化再执行完整回归。新模型与硬件案例应分别标明公开结构、运行假设和实测校准范围。

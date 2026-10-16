@@ -1,20 +1,43 @@
 flowchart TB
     U["用户问题：训练 / 推理 / 流量 / SU 选型"] --> S["supernode-modeling：场景编排与结果解释"]
+    U --> CLI["CLI / Python API"]
+    U --> W["本地 Web：loopback HTTP + 静态前端"]
+    S --> LF["launch_frontend.py：预检 / 服务复用 / 有限端口避让"]
+    LF -->|实际 inputs_url，由 Skill 打开| W
     S --> TS["supernode-topology：自然语言转 topology spec"]
     TS --> TC["build_topology.py：校验与编译显式图"]
     TC --> C
     S --> C["场景 YAML/JSON：model / hardware / workload / execution / targets"]
-    C --> V["config.load_config() + Config.model_validate()"]
+    C --> V["load_config() / Config.model_validate()"]
+    CLI --> V
+    W --> J["JobManager：单个活动任务 / 状态持久化 / 取消"]
+    J --> WW["独立 web_worker：estimate / simulate"]
+    WW --> V
     V --> A["analysis.run() / search.sweep() / search.size_su()"]
+    V --> F["feedback.feedback()：有限联合候选网格"]
+    F -->|simulate| A
+    F -->|streaming / auto 适用时| L["run_streaming()：structured inference，DP=PP=1"]
+    V -->|独立 Python API| L
     A --> G["analysis.compile_graph()"]
-    G --> B["构图器：structured.Builder / training._TrainingBuilder / inference.build_inference()"]
+    G --> B["structured.Builder / training._TrainingBuilder / inference.build_inference()"]
     B --> D["core.Graph：Event + Resource + Allocation + metadata"]
-    T["Topology：设备、链路、路径与通信映射"] --> B
+    T["Topology：设备、链路、确定性路径与通信展开"] --> B
     P["components：形状、参数与状态公式"] --> B
     D --> K["apply_kernel_profiles()：匹配实测 kernel"]
     K --> E["graph_estimate()：必要性能下界"]
     E -->|simulate 模式| X["engine.simulate()：依赖、内存准入、slot、资源争用"]
     E -->|estimate 模式| R["需求 / 指标 / SLO / 组件内存账本"]
-    X --> R
-    R --> O["report.write_report()：JSON / Markdown / CSV / timeline"]
+    X -->|全图结果| R
+    R --> O["write_report()：JSON / Markdown / CSV / timeline"]
+    L --> SB["同一 Builder：按 barrier 发出 chunk，保留跨块存储状态"]
+    SB --> CK["逐块校准 / 有预算的时序缓存 / 容量复核"]
+    CK -->|未命中或模板不适用| X
+    CK --> Q["流式数值摘要：phase / chunk / token / 资源 / 峰值"]
+    X -->|chunk 结果| Q
+    Q --> F
+    R --> F
+    F --> FO["feedback_report：候选 / 最优配置 / Pareto 前沿"]
+    O --> UI["Web worker：ui.result.json 有界展示摘要"]
+    UI --> W
     O --> S
+    FO --> S

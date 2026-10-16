@@ -1,0 +1,28 @@
+flowchart TD
+    SKILL["Skill 调用 launch_frontend.launch()"] --> DISCOVER["discover_project() → select_python() → _preflight()<br/>定位引擎与解释器，检查依赖与静态文件"]
+    DISCOVER --> REUSE["_ready() / _identity()<br/>匹配 engine root、output 与健康状态<br/>复用服务或在可用端口启动"]
+    REUSE --> URL["_result()<br/>返回 url / inputs_url / workspace_url<br/>由 Skill 打开 inputs_url"]
+    URL --> EDIT["内部：前端可编辑输入页<br/>载入预设/JSON/历史副本 → 编辑 → 校验/提交"]
+    ENTRY["cli._main() → web.main()<br/>或 python -m supernode_sim.web"] --> SERVER["create_server() → WebServer.__init__()<br/>本机 IPv4 loopback / localhost"]
+    REUSE -->|需要新服务| SERVER
+    SERVER --> RESTORE["JobManager.__init__()<br/>读取 job.json；遗留 active 标记 failed"]
+    RESTORE --> HTTP["WebHandler.do_GET() / do_HEAD() / do_POST()<br/>_handle() → _route() → _check_request()"]
+    EDIT --> HTTP
+    HTTP --> ROUTE{"内部：API / 静态资源"}
+    ROUTE -->|schema / presets / health / static| READ["内部：只读响应 / _file()"]
+    ROUTE -->|POST validate| VALID["validate_config()<br/>拒绝 calibration 路径、batch > 100000<br/>Config.model_validate()"]
+    ROUTE -->|POST jobs| SUBMIT["JobManager.submit() → validate_config()<br/>仅 estimate / simulate；一次一个 active job"]
+    SUBMIT --> SAVE["内部：创建目录，保存 input.config.json / job.json<br/>线程调用 _execute()"]
+    SAVE --> PROCESS["JobManager._execute()<br/>启动 python -u -m supernode_sim.web_worker<br/>隔离子进程，Windows CREATE_NO_WINDOW"]
+    PROCESS --> WORKER["web_worker.main()<br/>禁用 GC → 读取并校验 input.config.json"]
+    WORKER --> RUN["analysis.run(config, mode, full_detail=False)<br/>完整构图路径，见图 1 / 8"]
+    RUN --> EXPORT["write_report(result, directory, full_detail=False)<br/>见图 9"]
+    EXPORT --> UI["compact_result()<br/>有界展示摘要 → 临时文件 replace ui.result.json"]
+    UI --> END["内部：输出 completed/result_status 进度行<br/>finally 恢复 GC；异常输出 failed 并返回1"]
+    PROCESS --> PROGRESS["内部：逐行读取 stdout → worker.log<br/>解析 _phase() JSON 更新 job phase/log"]
+    END --> PROGRESS
+    PROGRESS --> COMPLETE["内部：未 cancelled 时判断进程结果<br/>退出0且 ui.result.json 存在则 completed，否则 failed<br/>独立保留 result_status"]
+    ROUTE -->|GET jobs / result / artifacts| QUERY["JobManager.get() / list() / directory()<br/>completed 后读取 UI 结果；产物按列出的文件名下载"]
+    ROUTE -->|POST cancel| CANCEL["JobManager.cancel()<br/>标记 cancelled，terminate 后必要时 kill"]
+    CANCEL --> PROCESS
+    SERVER -->|服务关闭| CLOSE["server_close() → JobManager.close()<br/>取消并回收活动 worker"]

@@ -2,17 +2,19 @@ flowchart TD
     ENTRY["build_structured() → Builder.__init__()"] --> INIT["Builder.inference() → initial()<br/>驻留权重 / runtime / 可选 Engram"]
     INIT --> DP["内部：遍历 DP replica"]
     DP --> TOKEN["内部：遍历 output step<br/>0 = prefill；其余 = decode"]
-    TOKEN --> ACTIVE["内部：筛选 output_length 大于 step 的序列<br/>按 EP lane 分配 tokens"]
+    TOKEN --> ACTIVE["内部：筛选 output_length 大于 step 的序列<br/>按 EP lane 分配 tokens；SP 计算 padded rows"]
     ACTIVE --> LAYER["内部：遍历 layer → 确定 PP stage"]
     LAYER --> STATE["attention_state() / attnres_state()<br/>KDA 固定状态 或 paged KV 增量<br/>可选残差状态"]
-    STATE --> COMPONENT["component_order(layer)<br/>遍历 embedding / norm / attention / FFN / output"]
-    COMPONENT --> DISPATCH["MoE 时 collective(EP dispatch)"]
-    DISPATCH --> ACT["逐 rank activation_rows()<br/>prefill Output 仅算每序列末位"]
+    STATE --> COMPONENT["component_order(layer)<br/>内部可选 streaming component-before hook"]
+    COMPONENT --> SP["SP 时 attention / FFN / Output 前<br/>barrier() 分配 padded input → collective(all_gather)"]
+    SP --> DISPATCH["MoE 时 collective(EP dispatch)"]
+    DISPATCH --> ACT["逐 rank activation_rows()<br/>norm / AttnRes 用 SP 局部 rows<br/>prefill Output 仅算每序列末位"]
     ACT --> READ["内部可选：旧 KV fetch → decode conversion<br/>PreNorm 前 Engram lookup"]
     READ --> KERNEL["kernel()<br/>权重转换 + component Event"]
     KERNEL --> WRITE["内部可选：新 KV encode → offload write"]
-    WRITE --> COMM["MoE combine<br/>attention / FFN 后 TP all_reduce"]
-    COMM --> MOREC{"内部：还有组件？"}
+    WRITE --> COMM["MoE 时 collective(combine)<br/>attention / FFN 后 TP AR；SP 时改为 RS<br/>SP WordEmbedding 后也执行 RS"]
+    COMM --> RELEASE["barrier() 释放 SP gather buffer<br/>内部可选 streaming component-after hook"]
+    RELEASE --> MOREC{"内部：还有组件？"}
     MOREC -->|是| COMPONENT
     MOREC -->|否| DONE["barrier(layer_done)<br/>释放上个 stage 的 receive buffer"]
     DONE --> PP{"内部：跨 PP stage？"}
@@ -25,4 +27,4 @@ flowchart TD
     MORET -->|是| TOKEN
     MORET -->|否| MORED{"内部：还有 replica？"}
     MORED -->|是| DP
-    MORED -->|否| RETURN["annotate_collective_allocations()<br/>返回 Graph"]
+    MORED -->|否| RETURN["build_structured() 调用<br/>annotate_collective_allocations() → 返回 Graph"]

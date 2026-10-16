@@ -1,5 +1,5 @@
 flowchart TD
-    ENTRY["engine.simulate(graph)"] --> CHECK["内部：校验唯一 ID、资源、allocation、依赖和 DAG"]
+    ENTRY["engine.simulate(graph, retain_event_payload)"] --> CHECK["内部：校验唯一 ID、资源、allocation、依赖和 DAG"]
     CHECK --> VALID{"内部：图合法？"}
     VALID -->|否| ERROR["闭包 fail(error, code, detail)<br/>result() 带 diagnostics"]
     VALID -->|是| INIT["闭包 allocate(initial_allocations)<br/>记录 sequence / time / 占用 / 峰值"]

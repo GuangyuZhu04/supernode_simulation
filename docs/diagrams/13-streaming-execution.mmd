@@ -1,0 +1,35 @@
+flowchart TD
+    ENTRY["run_streaming(config, phase, progress, cache)"] --> CHECK["内部：structured inference 且 DP=PP=1<br/>phase 为 all / prefill / decode"]
+    CHECK --> BUILDER["Builder.__init__() + Topology.__init__()<br/>默认 timing cache = BoundedCache()"]
+    BUILDER --> HOOKS["内部：安装 cached_initial() 与 state/component hooks<br/>graph.events 替换为 _EventSink"]
+    HOOKS --> COMPILE["Builder.inference() → initial()<br/>无 Engram 时可复用折叠初始驻留缓存<br/>按现有 token → layer → component 生成事件"]
+    COMPILE --> DECODE{"内部：standalone decode 且 step=0？"}
+    DECODE -->|是| SEED["skip_prefill_kernel() / skip_prefill_collective()<br/>accept_event() 仅记录永久 KV/KDA 等状态"]
+    SEED --> COMPILE
+    DECODE -->|否| MACRO["before_component() → macro_key()<br/>尝试本 token 内同形组件宏重放"]
+    MACRO --> ACCEPT["accept_event()<br/>state_hook() / after_component() 及 layer/token 屏障<br/>触发 flush()"]
+    ACCEPT --> FLUSH["flush()<br/>验证跨块依赖均为已完成屏障<br/>带存活分配建立 chunk → apply_kernel_profiles()"]
+    FLUSH --> KEY["内部：规范化层前缀构造 timing key<br/>保留容量/work、依赖、slot、dtype、alloc/release"]
+    KEY --> HIT{"内部：已有 template 或宏？"}
+    HIT -->|否且可缓存| TEMPLATE["simulate(unconstrained, retain_event_payload=False)<br/>记录 duration / work / peak与final delta"]
+    HIT -->|是| FIT{"内部：当前驻留 + template peak delta<br/>满足所有真实 pool capacity？"}
+    TEMPLATE --> FIT
+    HIT -->|否且不缓存| SIM["simulate(chunk, retain_event_payload=False)<br/>完整 slot / memory admission"]
+    FIT -->|否| SIM
+    FIT -->|是| REPLAY["内部：复用时间与资源结果<br/>按当前驻留恢复真实 peak / final / 分类"]
+    SIM --> MERGE["内部：累计 duration / work / busy / peaks / phase / chunks<br/>可选 progress 回调"]
+    REPLAY --> MERGE
+    MERGE --> STATUS{"内部：chunk feasible？"}
+    STATUS -->|否| STOP["内部：以 _Stop 结束构图<br/>失败保留诊断；prefill 到目标后正常停止"]
+    STATUS -->|是| CARRY["内部：累计本块通信；按 releases 更新 named 存活项<br/>永久状态按 pool/category/dtype 合并<br/>满足条件时保存组件宏"]
+    CARRY --> TOKEN{"内部：token complete？"}
+    TOKEN -->|是| MARK["内部：记录 marker；清理本 token 的宏与旧屏障"]
+    TOKEN -->|否| CONT["内部：清空 sink，继续构图"]
+    MARK --> PREFILL{"内部：phase=prefill 且 token0 完成？"}
+    PREFILL -->|是| STOP
+    PREFILL -->|否| CONT
+    CONT --> COMPILE
+    STOP --> CLEAN["内部 finally：移除 hooks 与闭包引用，清空 sink"]
+    COMPILE -->|正常结束| CLEAN
+    CLEAN --> METRIC["可行且有 token 标记时派生指标<br/>all 用 execution_metrics()；prefill 仅 TTFT<br/>decode 仅 TPOT；失败 TTFT/TPOT=null"]
+    METRIC --> OUT["返回紧凑数值结果<br/>simulation / phase_metrics / chunks / marker派生指标"]
