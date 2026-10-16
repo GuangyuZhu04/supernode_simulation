@@ -66,11 +66,14 @@ python -u scripts/run_reference_experiment.py examples/kimi_k3_ascend950_trainin
 - `result.json`：版本化结果、完整参数来源、配置哈希与详细指标。
 - `config.resolved.json`：包含校准值的独立可重跑配置。
 - `resources.csv`、`memory.csv`：资源访问量、容量/速率和峰值。
+- `latency_breakdown.csv`：TTFT / TPOT（TPOP）的计算、node 内 / scale-up / scale-out / 其他通信、显式同步、调度槽位、内存准入等待和资源争用，单位秒；搜索输出包含逐候选标识。中文报告和网页使用毫秒展示相同拆解。
 - 仿真另有 `events.csv` 和可在 Perfetto/Chrome Trace 中导入的 `timeline.json`。
 
 单位是 byte、second、FLOP；报告容量 TB 使用十进制。`unit` 是资源速率单位，`work_unit` 是累计工作量单位。
 
 推理不模拟请求到达队列：TTFT 从开始执行计时；每请求 TPOT 为首 token 后的平均间隔；批量 SLO 使用请求中最大的 TTFT 和 TPOT。输出长度为 1 时 TPOT 为 null。`throughput_tokens_s` 为本次完整执行期间产生的输出 token 数/耗时，输入吞吐另列；Feedback 另以首 token 后的输出数和对应执行时间窗计算 Decode 吞吐。训练报告首次、后续平均以及逐步耗时。
+
+`tpop_s` 是 `tpot_s` 的同值输出别名。`metrics.latency_breakdown` 沿决定各指标的请求关键依赖路径归因，各分项可加和为总时延，不累加并发 rank 的耗时或重复计入已归因上游依赖的同步等待。通信按实际路径限制资源分类，资源争用独立列出；估算、训练、未完成执行及未定义指标显示不可用。具体字段与口径见 [时延拆解说明](skills/supernode-modeling/references/latency-breakdown.md)。
 
 `estimate` 给出必要下界，不声明 SLO 已满足。其乐观内存时间线忽略争用，不能作为通用容量下界；搜索只用固定驻留内存和严格性能下界剪枝，再仿真候选。
 

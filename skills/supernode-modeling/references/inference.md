@@ -9,9 +9,11 @@
 这是预加载权重后的固定 batch 执行：完成的序列退出 decode，但没有新请求到达，不模拟 continuous batching、服务排队或冷启动权重加载。
 
 - TTFT：执行开始到首个输出 token 完成；报告中聚合 TTFT 取批内序列的最大值。
-- TPOT：每序列首 token 之后的平均完成间隔；聚合值取这些序列平均值的最大值，并保留逐 token 间隔。
+- TPOT（TPOP）：每序列首 token 之后的平均完成间隔；聚合值取这些序列平均值的最大值，并保留逐 token 间隔。输出同时包含 `tpot_s` 和同值别名 `tpop_s`。
 - `throughput_tokens_s` 为所有 DP 副本输出 tokens/s；输入吞吐另报，分母均为整次执行时间。
 - 只生成一个 token 的序列没有 TPOT；不要据此做 TPOT SLO 判断。指标不是 P99 请求延迟。
+
+两项指标都输出计算、分域通信与等待的可加和分解，按 [latency-breakdown.md](latency-breakdown.md) 解读 `metrics.latency_breakdown` 和 `latency_breakdown.csv`。不能用流量占比估算通信时延，或把并发 rank 耗时总和当作请求时延。
 
 ## KV 结构、精度与放置
 

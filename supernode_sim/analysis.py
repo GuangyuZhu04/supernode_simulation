@@ -16,6 +16,7 @@ from .topology import Topology
 from .calibration import apply_kernel_profiles
 from .components import inventory_summary
 from .memory_breakdown import build_memory_breakdown
+from .latency_breakdown import build_latency_breakdown, latency_breakdown_metadata
 
 
 def compile_graph(config: Config | dict) -> Graph:
@@ -205,6 +206,7 @@ def execution_metrics(config: Config, graph: Graph, simulation: dict) -> dict:
                 intervals = [b - a for a, b in zip(token_times, token_times[1:])]
                 requests.append({'replica': replica, 'sequence': seq, 'ttft_s': token_times[0],
                                  'tpot_s': sum(intervals) / len(intervals) if intervals else None,
+                                 'tpop_s': sum(intervals) / len(intervals) if intervals else None,
                                  'itl_s': intervals, 'token_completion_s': token_times})
         if not requests:
             raise ValueError('Inference compiler did not supply sequence token completion metadata')
@@ -218,6 +220,13 @@ def execution_metrics(config: Config, graph: Graph, simulation: dict) -> dict:
                        throughput_tokens_s=output_tokens / duration if duration else 0,
                        throughput_per_replica_tokens_s=output_tokens / e.dp / duration if duration else 0,
                        requests=requests, slo_aggregation='Maximum per-sequence TTFT and mean TPOT in a fixed batch; no arrival queue.')
+        metrics['tpop_s'] = metrics['tpot_s']
+        # Streaming supplies the same attribution before releasing its chunks.
+        # A marker-only trace cannot reconstruct operator service or waits.
+        if 'latency_breakdown' in simulation:
+            metrics['latency_breakdown'] = simulation['latency_breakdown']
+        elif graph.events:
+            metrics['latency_breakdown'] = build_latency_breakdown(graph, simulation, requests)
     return metrics
 
 
@@ -296,6 +305,10 @@ def run(config: Config | dict, mode: str = 'simulate', *, full_detail: bool = Tr
         result['metrics'] = execution_metrics(spec, graph, sim)
         result['slo'] = evaluate_targets(spec, result['metrics'], sim['status'] == 'feasible')
         result['status'] = sim['status'] if sim['status'] != 'feasible' or result['slo']['satisfied'] else 'slo_failed'
+    if spec.workload.scenario == 'inference' and 'latency_breakdown' not in result['metrics']:
+        unavailable = latency_breakdown_metadata()
+        unavailable['unavailable_reason'] = ('estimate_only' if mode == 'estimate' else 'execution_incomplete')
+        result['metrics'].update(ttft_s=None, tpot_s=None, tpop_s=None, latency_breakdown=unavailable)
     allocation_count = len(graph.initial_allocations) + sum(len(event.allocs) for event in graph.events)
     result['memory_breakdown'] = build_memory_breakdown(graph, result.get('simulation'), estimate,
         include_ephemeral_details=full_detail or allocation_count <= 50_000)

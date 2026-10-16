@@ -437,11 +437,43 @@ function renderResults(result, job) {
       kpis.append(metricCard('已完成事件', compact(result.simulation && result.simulation.completed_events), '', '引擎执行计数'));
     } else {
       kpis.append(metricCard('执行 TTFT', number(metrics.ttft_s == null ? null : metrics.ttft_s * 1000, 3), 'ms', ...sloNote('ttft_s')));
-      kpis.append(metricCard('批内最大平均 TPOT', number(metrics.tpot_s == null ? null : metrics.tpot_s * 1000, 3), 'ms', ...sloNote('tpot_s')));
+      kpis.append(metricCard('批内最大平均 TPOT（TPOP）', number(metrics.tpot_s == null ? null : metrics.tpot_s * 1000, 3), 'ms', ...sloNote('tpot_s')));
       kpis.append(metricCard('聚合输出吞吐', number(metrics.throughput_tokens_s, 2), 'tok/s', ...sloNote('throughput_tokens_s')));
     }
   }
-  renderCommunication(); renderMemoryFilter(); renderMemory(); renderResources(); renderTrace(); renderDiagnostics(); renderArtifactLinks(job);
+  renderLatencyBreakdown(); renderCommunication(); renderMemoryFilter(); renderMemory(); renderResources(); renderTrace(); renderDiagnostics(); renderArtifactLinks(job);
+}
+function renderLatencyBreakdown() {
+  const breakdown = (state.result.metrics || {}).latency_breakdown || {};
+  const host = $('#latency-breakdown'); host.replaceChildren();
+  const labels = [
+    ['total_s', '总时延'], ['compute_s', '计算 / kernel 访存'],
+    ['communication_node_s', '通信 · node 内'], ['communication_scaleup_s', '通信 · scale-up'],
+    ['communication_scaleout_s', '通信 · scale-out'], ['communication_other_s', '通信 · 其他路径 / 内存限制'],
+    ['synchronization_wait_s', '显式同步等待'], ['scheduling_wait_s', '调度槽位等待'],
+    ['memory_wait_s', '内存准入等待'], ['resource_contention_s', '资源争用'], ['other_s', '其他'],
+  ];
+  const table = el('table', 'memory-matrix'), head = el('thead'), header = el('tr');
+  ['分项', 'TTFT / ms', 'TPOT（TPOP）/ ms'].forEach(label => header.append(el('th', '', label)));
+  head.append(header); table.append(head);
+  const body = el('tbody');
+  labels.forEach(([key, label]) => {
+    const row = el('tr'); row.append(el('td', '', label));
+    ['ttft', 'tpot'].forEach(metric => {
+      const record = breakdown[metric];
+      const value = record && (key === 'total_s' ? record.total_s : (record.components_s || {})[key]);
+      const cell = el('td', '', number(value == null ? null : value * 1000, 5));
+      if (record) cell.title = 'DP 副本 ' + (record.replica ?? '—') + ' · 序列 ' + (record.sequence ?? '—');
+      row.append(cell);
+    });
+    body.append(row);
+  });
+  table.append(body); host.append(table);
+  const note = '各列分项相加得到该请求的总时延，不累加并发 rank。TTFT 与最大平均 TPOT 可能来自不同请求。依赖同步的上游时间已归因，不重复算等待；通信服务按路径限制资源分类（同主机 / 跨主机 SU / SO），启动延迟按各跳域分类。跨 token 边界事件按窗口覆盖比例归因。';
+  const scenario = (state.result.config && state.result.config.workload || {}).scenario;
+  const explanation = scenario === 'training' ? '训练不定义 TTFT / TPOT。' : state.result.mode === 'estimate' ? '解析估算没有实际调度轨迹，不提供执行时延拆解。' : (breakdown.unavailable_reason || '');
+  const unavailable = (!breakdown.ttft || !breakdown.tpot) ? ' “—”为未定义或不可用，不能视为零。' + explanation : '';
+  text('#latency-note', note + unavailable + ' 完整秒值与候选拆解见 latency_breakdown.csv。');
 }
 function renderCommunication() {
   const result = state.result;

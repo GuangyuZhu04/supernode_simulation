@@ -120,7 +120,8 @@ def _main(argv: list[str] | None = None) -> int:
             summary.update(counts=result['counts'], search_complete=result['search_complete'],
                            best=({'id': best['id'], 'parameters': best['parameters'],
                                   'metrics': {key: best['metrics'].get(key) for key in
-                                              ('ttft_s', 'tpot_s', 'decode_throughput_tokens_s', 'decode_window_s')}}
+                                              ('ttft_s', 'tpot_s', 'tpop_s', 'latency_breakdown',
+                                               'decode_throughput_tokens_s', 'decode_window_s')}}
                                  if best else None))
         print(json.dumps(summary, ensure_ascii=False, allow_nan=False))
         return 2 if result['status'] in ('error', 'missing_input') else (3 if result['status'] in ('infeasible', 'slo_failed', 'no_feasible_candidate') else 0)

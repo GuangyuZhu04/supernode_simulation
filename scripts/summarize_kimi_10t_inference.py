@@ -20,12 +20,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+LATENCY_NOTE = ('TTFT / TPOT（TPOP）的计算、node 内 / scale-up / scale-out / 其他通信、显式同步、调度、内存准入等待与资源争用见 '
+                '[latency_breakdown.csv](latency_breakdown.csv)，单位秒；按案例及 all / prefill / standalone_decode 分开。'
+                '每行分项沿关键依赖路径可加和为该指标总时延；all 与 prefill 的 TTFT 是同一数据的不同视图，不能重复相加。'
+                '独立 decode 不提供 TTFT，也不证明端到端可行。CSV 保留原始 cases/*.json 的来源路径与记录指纹；'
+                '完整方法说明见相应 metrics.latency_breakdown。历史结果未保存分解时留空，不从流量或总时延反推，也不更改归档证据。')
+LATENCY_HTML = ('<section class="panel"><h2>TTFT / TPOT（TPOP）时延拆解</h2><p>' +
+                LATENCY_NOTE.replace('[latency_breakdown.csv](latency_breakdown.csv)',
+                                     '<a href="latency_breakdown.csv">latency_breakdown.csv</a>') + '</p></section>')
+
 
 def current_fingerprint(config_file):
     from supernode_sim.config import load_config
     config = load_config(config_file)
     digest = hashlib.sha256(json.dumps(config.model_dump(), sort_keys=True).encode())
-    for module in ('core', 'config', 'analysis', 'structured', 'components', 'topology', 'engine', 'streaming', 'calibration', 'cache'):
+    for module in ('core', 'config', 'analysis', 'structured', 'components', 'topology', 'engine', 'streaming', 'latency_breakdown', 'calibration', 'cache'):
         digest.update((ROOT / 'supernode_sim' / f'{module}.py').read_bytes())
     return digest.hexdigest()
 
@@ -47,6 +56,50 @@ def write_csv(path, rows):
         writer = csv.DictWriter(handle, fields)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def case_latency_rows(case, payload):
+    """Export saved attribution only; never reconstruct old timings from traffic."""
+    from supernode_sim.report import LATENCY_COMPONENT_LABELS, _latency_rows
+
+    payload = payload or {}
+    full = payload.get('all') or {}
+    full_metrics = full.get('metrics') or {}
+    full_breakdown = full_metrics.get('latency_breakdown') or {}
+    prefill_status = full.get('phase_metrics', {}).get('prefill', {}).get('status', 'not_run')
+    # A completed full-run TTFT is exactly the prefill window. Copy the saved
+    # attribution, not phase duration or a percentage of full-run components.
+    prefill = {'status': prefill_status, 'metrics': {'latency_breakdown': {
+        'method': full_breakdown.get('method'),
+        'ttft': full_breakdown.get('ttft') if prefill_status == 'feasible' else None,
+        'tpot': None,
+        'ttft_unavailable_reason': (full_breakdown.get('ttft_unavailable_reason') or
+                                    full_breakdown.get('unavailable_reason') or
+                                    'No saved prefill TTFT attribution in this artifact.'),
+        'tpot_unavailable_reason': 'Prefill excludes decode intervals.',
+    }}}
+    records = []
+    for phase, source, result, json_path in (
+        ('all', 'end_to_end', full, 'all.metrics.latency_breakdown'),
+        ('prefill', 'end_to_end', prefill, 'all.metrics.latency_breakdown.ttft'),
+        ('standalone_decode', 'standalone_cache_resident', payload.get('standalone_decode') or {},
+         'standalone_decode.metrics.latency_breakdown'),
+    ):
+        for row in _latency_rows(result):
+            if not row['available'] and (not row.get('unavailable_reason') or row['unavailable_reason'] == 'latency_breakdown_unavailable'):
+                row['unavailable_reason'] = ('No saved latency attribution in this artifact.'
+                                             if result else 'Phase not executed or artifact unavailable.')
+            records.append({
+                'case': case['name'], 'phase': phase, 'source': source,
+                'artifact': f"cases/{case['name']}.json",
+                'json_path': (None if phase == 'prefill' and row['metric'] == 'tpot' else json_path),
+                'recorded_fingerprint': payload.get('fingerprint'),
+                'recorded_config_sha256': payload.get('config_sha256'),
+                **{key: case.get(key) for key in ('top_k', 'context', 'input_length', 'batch_size', 'tp', 'sp', 'ep')},
+                **{key: None for key in ('total_s', *LATENCY_COMPONENT_LABELS, 'replica', 'sequence')},
+                **row, 'candidate_id': case['name'], 'status': result.get('status', 'not_run'),
+            })
+    return records
 
 
 def fmt(value, digits=3):
@@ -175,7 +228,7 @@ def collect(directory):
     manifest = read_json(directory / "manifest.json")
     audit = read_json(directory / "audit/traffic-formulas.json")
     expected = {(row["top_k"], row["input_length"], row["batch_size"]): row for row in audit["matrix"]}
-    rows, phases, failures, components, issues, nodes = [], [], [], [], [], []
+    rows, phases, failures, components, issues, nodes, latencies = [], [], [], [], [], [], []
     capacity = read_json(directory / 'hardware.profile.json')['hardware']['npu']['hbm_bytes']
     fingerprints = Counter()
     for case in manifest["cases"]:
@@ -183,7 +236,7 @@ def collect(directory):
         row = {"case": case["name"], "top_k": case["top_k"], "context": case["context"],
                "input_length": case["input_length"], "batch_size": case["batch_size"], "case_status": "pending",
                "prefill_status": "pending", "decode_status": "pending", "decode_source": None,
-               "ttft_s": None, "tpot_s": None, "standalone_decode_step_s": None,
+               "ttft_s": None, "tpot_s": None, "tpop_s": None, "standalone_decode_step_s": None,
                "prefill_planned_payload_bytes": planned["prefill"]["total_network_payload_bytes"],
                "prefill_planned_su_payload_bytes": planned["prefill"]["same_su_payload_bytes"],
                "prefill_planned_so_payload_bytes": planned["prefill"]["cross_su_payload_bytes"],
@@ -191,15 +244,18 @@ def collect(directory):
                "decode_planned_so_payload_bytes": planned["one_decode_step"]["cross_su_payload_bytes"]}
         file = directory / "cases" / (case["name"] + ".json")
         if not file.exists():
+            latencies.extend(case_latency_rows(case, None))
             rows.append(row)
             continue
         try:
             payload = read_json(file)
         except (OSError, ValueError) as exc:
+            latencies.extend(case_latency_rows(case, None))
             issues.append(f"{case['name']}: {exc}")
             row["case_status"] = "unreadable"
             rows.append(row)
             continue
+        latencies.extend(case_latency_rows(case, payload))
         fingerprints[payload.get("fingerprint", "unknown")] += 1
         row['fingerprint_current'] = payload.get('fingerprint') == current_fingerprint(directory / case['config'])
         if not row['fingerprint_current']:
@@ -256,9 +312,10 @@ def collect(directory):
                              "component": failed_chunk.get('component'), 'failure_required_hbm_bytes': required,
                              'failure_component_admitted_peak_hbm_bytes': failed_chunk.get('peak_hbm_bytes'),
                              "peak_hbm_bytes": peak, "diagnostics": diagnostics})
+        row['tpop_s'] = row['tpot_s']
         rows.append(row)
     complete = sum(case_finished(row) for row in rows) == len(manifest["cases"]) and not issues
-    return manifest, audit, rows, phases, failures, components, issues, fingerprints, complete, nodes
+    return manifest, audit, rows, phases, failures, components, issues, fingerprints, complete, nodes, latencies
 
 
 def planned_phases(manifest, audit):
@@ -331,6 +388,7 @@ def make_report(manifest, audit, rows, phases, failures, components, issues, fin
               "本次主任务验证记录：269项测试与7项子测试通过。报告生成器另外核对实际通信与独立公式、节点注入计数，以及离线HTML脚本语法/筛选/SVG生成；脚本检查不等同于浏览器视觉检查。", "",
               "生成报告：`python scripts/summarize_kimi_10t_inference.py outputs/kimi-k3-10t-1024`。", "",
               f"逐案例配置+数值模块指纹已核对当前源码，共{sum(fingerprints.values())}份；详见report_status.json。不同负载配置的指纹自然不同。" ]
+    lines += ['', LATENCY_NOTE, '']
     if issues:
         lines += ["", "读取问题：", ""] + ["- " + issue for issue in issues]
     return "\n".join(lines) + "\n"
@@ -355,8 +413,9 @@ def main():
     parser.add_argument("directory", nargs="?", type=Path, default=Path("outputs/kimi-k3-10t-1024"))
     args = parser.parse_args()
     directory = args.directory.resolve()
-    manifest, audit, rows, phases, failures, components, issues, fingerprints, complete, nodes = collect(directory)
+    manifest, audit, rows, phases, failures, components, issues, fingerprints, complete, nodes, latencies = collect(directory)
     write_csv(directory / "summary.csv", rows)
+    write_csv(directory / 'latency_breakdown.csv', latencies)
     write_csv(directory / "phase_traffic.csv", phases)
     write_csv(directory / "planned_phase_traffic.csv", planned_phases(manifest, audit))
     write_csv(directory / 'node_traffic.csv', nodes)
@@ -378,6 +437,7 @@ def main():
     document = document.replace('${f(r.prefill_planned_payload_bytes/1e12)}</td>', '${f(r.failure_required_hbm_bytes==null?null:r.failure_required_hbm_bytes/1e9)}</td><td>${f(r.prefill_planned_payload_bytes/1e12)}</td>')
     document = document.replace('未完成prefill的TTFT为空。', '已准入峰值不含被拒绝的申请；失败申请所需取144GB+shortage_bytes，低于144GB的已准入峰值仍可能OOM。未完成prefill的TTFT为空。')
     document = document.replace('详见同目录report.md、summary.csv、phase_traffic.csv、peak_components.csv、cases/、configs/和audit/。', '下载：<a href="report.md">报告</a> · <a href="summary.csv">汇总CSV</a> · <a href="phase_traffic.csv">实际阶段流量</a> · <a href="planned_phase_traffic.csv">完整计划流量</a> · <a href="node_traffic.csv">节点流量</a> · <a href="rack_traffic.csv">机柜流量</a> · <a href="peak_components.csv">峰值组件</a>。原始结果与配置见cases/、configs/和audit/。')
+    document = document.replace('</main>', LATENCY_HTML + '</main>')
     (directory / "report.html").write_text(document, encoding="utf-8")
     (directory / "report_status.json").write_text(json.dumps({"complete": complete, "case_count": len(rows), "finished_cases": finished,
         "fingerprints": dict(fingerprints), "read_issues": issues, "traffic_checks_passed": True}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

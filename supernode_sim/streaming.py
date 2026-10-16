@@ -21,6 +21,7 @@ from .cache import BoundedCache
 from .config import Config
 from .core import Allocation, Event, Graph
 from .engine import simulate
+from .latency_breakdown import latency_breakdown_metadata, window_breakdown
 from .structured import Builder
 from .topology import Topology
 
@@ -34,6 +35,18 @@ _PERMANENT = {
 }
 _STEP = re.compile(r'^infer\.d\d+\.(?:s(\d+)\.|token(\d+)$)')
 _PREFIX = re.compile(r'^infer\.d\d+\.s\d+\.l\d+')
+
+
+def _sum_latency(records, divisor=1):
+    """Combine consecutive, non-overlapping critical-path windows."""
+    components = defaultdict(float)
+    total = 0.0
+    for record in records:
+        total += record['total_s']
+        for name, value in record['components_s'].items():
+            components[name] += value
+    return {'total_s': total / divisor,
+            'components_s': {name: value / divisor for name, value in components.items()}}
 
 
 class _Stop(Exception):
@@ -126,6 +139,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
     initialized = False
     completed_barriers = set()
     marker_trace = []
+    token_latency = {}
     chunks = []
     timing_cache = BoundedCache() if cache is None else cache
     initial_cache_enabled = not data['execution']['features']['engram']['enabled']
@@ -233,7 +247,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
                 raise ValueError(f'Chunk has a dependency outside its completed barrier: {event.id}')
             event.deps = tuple(dep for dep in event.deps if dep in local_ids)
         chunk = Graph(resources=graph.resources, memory_caps=graph.memory_caps,
-                      events=list(sink), initial_allocations=initial_allocations())
+                      events=list(sink), initial_allocations=initial_allocations(),
+                      metadata={'topology': graph.metadata.get('topology', {})})
         apply_kernel_profiles(chunk, data)
         used_resources = {key for event in chunk.events for key in event.work}
         chunk.resources = {key: chunk.resources[key] for key in used_resources}
@@ -250,13 +265,24 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         cache_key = None
         if not replay and (terminal.id.endswith('.layer_done') or terminal.metadata.get('_stream_component')):
             digest = hashlib.sha256()
+            # Attribution changes are part of cache identity even when event
+            # timings happen to match. The version prevents old compact cache
+            # entries without a latency ledger from being replayed.
+            digest.update(b'stream_timing_latency_v1\n')
+            digest.update(json.dumps(chunk.metadata, sort_keys=True).encode('utf-8'))
             for event in chunk.events:
                 normalized = lambda value: _PREFIX.sub('infer.layer', value)
+                attribution = {key: event.metadata[key] for key in (
+                    'type', 'kernel', 'phase', 'operation', 'category', 'kind',
+                    'resource_domains', 'startup_s_by_domain', 'domains', 'src', 'dst', 'path')
+                    if key in event.metadata}
                 signature = (normalized(event.id), tuple(normalized(d) for d in event.deps),
-                    tuple((k, v, graph.resources[k].capacity) for k, v in sorted(event.work.items())),
+                    tuple((k, v, graph.resources[k].capacity, graph.resources[k].kind,
+                           graph.resources[k].unit) for k, v in sorted(event.work.items())),
                     event.startup_s, event.slots,
                     tuple((normalized(a.id), a.pool, a.size_bytes, a.category, a.dtype) for a in event.allocs),
-                    tuple(normalized(aid) for aid in event.releases))
+                    tuple(normalized(aid) for aid in event.releases),
+                    json.dumps(attribution, sort_keys=True))
                 digest.update(repr(signature).encode('utf-8'))
                 digest.update(b'\n')
             cache_key = digest.hexdigest()
@@ -268,13 +294,15 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
             # otherwise the normal admission scheduler determines feasibility.
             unconstrained = Graph(resources=chunk.resources,
                 memory_caps={pool: 1e300 for pool in chunk.memory_caps},
-                events=chunk.events, initial_allocations=chunk.initial_allocations)
+                events=chunk.events, initial_allocations=chunk.initial_allocations,
+                metadata=chunk.metadata)
             template = simulate(unconstrained, retain_event_payload=False)
             if template['status'] == 'feasible':
                 cached = {key: template[key] for key in (
                     'status', 'duration_s', 'diagnostics', 'completed_events', 'total_events')}
                 cached['resource_work'] = {key: value for key, value in template['resource_work'].items() if value}
                 cached['resource_busy_s'] = {key: value for key, value in template['resource_busy_s'].items() if value}
+                cached['_latency_breakdown'] = window_breakdown(chunk, template, terminal.id)
                 cached['_peak_delta'] = {pool: value - initial_bytes[pool] for pool, value in template['memory_peaks_bytes'].items()}
                 cached['_final_delta'] = {pool: value - initial_bytes[pool] for pool, value in template['memory_final_bytes'].items()}
                 cached['_category_delta'] = {pool: {category: value - initial_categories[pool].get(category, 0)
@@ -285,6 +313,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
             for pool, capacity in chunk.memory_caps.items())
         if fits:
             result = {key: value for key, value in cached.items() if not key.startswith('_')}
+            result['_latency_breakdown'] = cached['_latency_breakdown']
             result['memory_peaks_bytes'] = {pool: initial_bytes[pool] + cached['_peak_delta'].get(pool, 0) for pool in chunk.memory_caps}
             result['memory_final_bytes'] = {pool: initial_bytes[pool] + cached['_final_delta'].get(pool, 0) for pool in chunk.memory_caps}
             result['memory_categories_at_peak_bytes'] = {pool: {
@@ -294,6 +323,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         else:
             cache_hit = False
             result = simulate(chunk, retain_event_payload=False)
+            if result['status'] == 'feasible':
+                result['_latency_breakdown'] = window_breakdown(chunk, result, terminal.id)
         total_events += result['total_events']
         completed_events += result['completed_events']
         before = duration
@@ -325,6 +356,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
             diagnostics.extend(result['diagnostics'])
             sink.clear()
             raise _Stop
+        record = result['_latency_breakdown']
+        token_latency[step] = _sum_latency([token_latency[step], record]) if step in token_latency else record
         traffic = replay['communication'] if replay else _communication()
         if not replay:
             for event in sink:
@@ -428,17 +461,53 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         sink = None
 
     metrics = {'duration_s': duration, 'ttft_s': None, 'tpot_s': None}
+    latency = latency_breakdown_metadata()
     token_times = [row['end_s'] for row in marker_trace]
     if status == 'feasible' and token_times:
         if phase == 'all':
             metrics = execution_metrics(spec, graph, {'status': status, 'duration_s': duration, 'trace': marker_trace})
+            # DP1/PP1 fixed-batch requests share token barriers. Select the
+            # same request as the latency metric, then average that request's
+            # intervals; categorywise maxima would not describe any request.
+            for request in metrics['requests']:
+                request['ttft_breakdown'] = _sum_latency([token_latency[0]])
+                interval_count = len(request['itl_s'])
+                request['tpot_breakdown'] = ({**_sum_latency(
+                    (token_latency[index] for index in range(1, interval_count + 1)), interval_count),
+                    'interval_count': interval_count} if interval_count else None)
+            selected = max(metrics['requests'], key=lambda row: row['ttft_s'])
+            latency['ttft'] = {**selected['ttft_breakdown'],
+                               'replica': selected['replica'], 'sequence': selected['sequence']}
+            with_decode = [request for request in metrics['requests'] if request['tpot_s'] is not None]
+            if with_decode:
+                selected = max(with_decode, key=lambda row: row['tpot_s'])
+                latency['tpot'] = {**selected['tpot_breakdown'],
+                                   'replica': selected['replica'], 'sequence': selected['sequence']}
         elif phase == 'prefill':
             metrics.update(ttft_s=token_times[0])
+            latency['ttft'] = {**_sum_latency([token_latency[0]]), 'replica': '0', 'sequence': '0'}
         else:
             intervals = [b - a for a, b in zip([0.0] + token_times, token_times)]
-            sequence_means = [sum(intervals[:length - 1]) / (length - 1)
-                              for length in spec.workload.output_lengths if length > 1]
-            metrics.update(tpot_s=max(sequence_means), decode_intervals_s=intervals)
+            sequence_means = [(index, sum(intervals[:length - 1]) / (length - 1))
+                              for index, length in enumerate(spec.workload.output_lengths) if length > 1]
+            selected_index, selected_mean = max(sequence_means, key=lambda item: item[1])
+            metrics.update(tpot_s=selected_mean, decode_intervals_s=intervals)
+            interval_count = spec.workload.output_lengths[selected_index] - 1
+            latency['tpot'] = {**_sum_latency(
+                (token_latency[index] for index in range(1, interval_count + 1)), interval_count),
+                'interval_count': interval_count, 'replica': '0', 'sequence': str(selected_index)}
+    else:
+        latency['unavailable_reason'] = ('execution_incomplete' if status != 'feasible'
+                                       else 'no_token_completions')
+    metrics['tpop_s'] = metrics['tpot_s']
+    if status == 'feasible':
+        if phase == 'decode':
+            latency['ttft_unavailable_reason'] = 'Standalone decode excludes prefill and TTFT.'
+        elif latency['tpot'] is None:
+            latency['tpot_unavailable_reason'] = ('Prefill-only execution excludes decode intervals.'
+                                                 if phase == 'prefill' else
+                                                 'At least two output tokens per request are required for TPOT.')
+    metrics['latency_breakdown'] = latency
     for phase_result in phases.values():
         phase_result['peak_hbm_bytes'] = max((v for k, v in phase_result['memory_peaks_bytes'].items() if k.endswith('.hbm')), default=0)
         phase_result['communication']['classification_note'] = 'Semantic and collective payloads are two views; physical bytes count link hops.'

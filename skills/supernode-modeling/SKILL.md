@@ -1,6 +1,6 @@
 ---
 name: supernode-modeling
-description: Model supernode training and inference memory, compute, and communication with supernode_sim, automatically preparing and opening its editable local web dashboard. Use for component-level memory and Adam/Muon state breakdowns; Kimi K3 and Ascend 950 scenarios; offload, KV/KDA state, SU/SO topology generation and minimum-SU searches; or feedback searches for TP/SP/EP, prefill length and decode batch that maximize decode throughput under TTFT/TPOT targets on fixed hardware and topology.
+description: Model supernode training and inference memory, compute, communication, and TTFT/TPOT (TPOP) latency breakdowns with supernode_sim, automatically preparing and opening its editable local web dashboard. Use for component-level memory and Adam/Muon states; Kimi K3 and Ascend 950 scenarios; offload, KV/KDA state, SU/SO topology generation and minimum-SU searches; or feedback searches for TP/SP/EP, prefill length and decode batch that maximize decode throughput under latency targets on fixed hardware and topology.
 ---
 
 # 超节点资源与通信建模
@@ -39,6 +39,7 @@ python -m supernode_sim schema
 - Kimi K3 / Ascend 950 样例和真实性边界：读 [ascend950-kimi-k3.md](references/ascend950-kimi-k3.md)。
 - 训练/FSDP2/optimizer offload/10T 容量：读 [training.md](references/training.md)。
 - 推理/KV 压缩与 offload/Engram：读 [inference.md](references/inference.md)。
+- TTFT、TPOT（TPOP）的计算、node 内 / scale-up / scale-out 通信与等待拆解：读 [latency-breakdown.md](references/latency-breakdown.md)。
 - 固定模型、拓扑和硬件，输入 TTFT、TPOT（用户也可能写 TPOP），反求 TP/SP/EP、Prefill 长度及 Decode batch：读 [feedback.md](references/feedback.md)，运行 `feedback`，在满足目标的有限候选内优先最大化 Decode 吞吐量。
 - 接收 SU/SO 拓扑、scale-out 域、分析链路瓶颈/最小域搜索：读 [topology.md](references/topology.md)。
 - 用户用自然语言生成或修改 scale-up / scale-out 拓扑：按子 skill [supernode-topology](subskills/supernode-topology/SKILL.md) 生成拓扑规范、原生配置和拓扑图，再回到本 skill 做流量仿真。仅生成拓扑时在子 skill 内完成，不要求模型或负载。
@@ -70,6 +71,7 @@ python -m supernode_sim schema
 - 将 weight、gradient、master、Adam m/v、Muon momentum、activation、KV、KDA recurrent/conv state、量化元数据、通信/计算 workspace 分列；Muon 的正交化暂存和辅助 Adam 参数组单列。
 - 表明每张表的加和规则：逻辑静态容量可加；不同组件在不同时刻取得的峰值不能相加当作同一时刻设备峰值。应同时查看设备池峰值时刻的组件构成。
 - 区分 transport payload 与逐跳物理字节量；dispatch/combine 是 all-to-all-v 的语义视图，不能再相加。
+- 保留原有输出，并给出 TTFT、TPOT（TPOP）总时延及计算、node 内 / scale-up / scale-out / 其他通信、显式同步、调度槽位、内存准入等待和资源争用拆解。引用 `metrics.latency_breakdown` 与 `latency_breakdown.csv`；分项沿关键依赖路径可加和，不累加并发 rank 或重复计入上游同步依赖。搜索结果保留逐候选 CSV，并展示推荐候选拆解。仅估算、训练、执行失败或指标未定义时标注不可用，不补零；口径和请求选择见 [latency-breakdown.md](references/latency-breakdown.md)。
 - 给出配置、版本/来源、命令、结果文件，以及结论成立的约束。执行失败、不可行和缺参分别处理。
 - 缓存/MTE 的工作集、访问量和搬运需求不能直接换算成 L1/L2/L3 容量或通道数；需要硬件与 kernel 校准。
 - 固定 batch 仿真不提供生产请求排队或 P99 保证；SU “最小”限定为已检查候选集合与调度策略。

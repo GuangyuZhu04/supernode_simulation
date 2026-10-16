@@ -149,6 +149,10 @@ def test_real_simulation_metrics_trace_and_downloads_match_engine(client, scenar
         assert pool["peak_bytes"] == expected["simulation"]["memory_peaks_bytes"].get(pool["pool"], 0)
 
     artifacts = {entry["name"]: entry["url"] for entry in job["artifacts"]}
+    if scenario == 'inference':
+        assert result['metrics']['latency_breakdown'] == expected['metrics']['latency_breakdown']
+        assert result['metrics']['tpop_s'] == result['metrics']['tpot_s']
+        assert 'latency_breakdown.csv' in artifacts
     assert {"report.md", "result.json", "config.resolved.json", "resources.csv", "events.csv", "timeline.json"} <= artifacts.keys()
     saved_result = client.json("GET", artifacts["result.json"])
     assert saved_result["metrics"] == expected["metrics"]
@@ -173,7 +177,9 @@ def test_estimate_remains_a_lower_bound_without_simulated_slo_or_timeline(client
     job = finish(client, submit(client, config, "estimate"))
     result = client.json("GET", f"/api/jobs/{job['id']}/result")
     assert job["result_status"] == result["status"] == "estimated"
-    assert result["metrics"] == {}
+    assert result['metrics']['ttft_s'] is None
+    assert result['metrics']['tpop_s'] is None
+    assert result['metrics']['latency_breakdown']['unavailable_reason'] == 'estimate_only'
     assert result["slo"]["satisfied"] is None
     assert result["trace"]["events"] == []
     assert result["trace"]["total_events"] == 0
@@ -188,7 +194,9 @@ def test_infeasible_capacity_is_a_completed_result_with_diagnostics(client):
     job = finish(client, submit(client, config))
     result = client.json("GET", f"/api/jobs/{job['id']}/result")
     assert result["status"] == job["result_status"] == "infeasible"
-    assert result["metrics"] == {}
+    assert result['metrics']['ttft_s'] is None
+    assert result['metrics']['tpop_s'] is None
+    assert result['metrics']['latency_breakdown']['unavailable_reason'] == 'execution_incomplete'
     assert result["config"]["hardware"]["npu"]["hbm_bytes"] == 1024
     assert any(row["code"] == "initial_memory_exceeded" for row in result["diagnostics"])
 

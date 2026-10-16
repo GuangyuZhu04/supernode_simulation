@@ -129,6 +129,7 @@
               <div id="result-context" class="result-context"></div>
               <div id="result-alert" class="notice" hidden role="status"></div>
               <div id="kpi-grid" class="kpi-grid"></div>
+              <section class="card chart-card"><div class="panel-heading"><h3>TTFT / TPOT（TPOP）时延拆解</h3><span class="mini-badge">ms · 关键依赖路径</span></div><div id="latency-breakdown" class="matrix-wrap"></div><p id="latency-note" class="chart-caption"></p></section>
               <div class="result-card-grid">
                 <section class="card chart-card"><div class="panel-heading"><h3>通信流量</h3><span class="mini-badge">GB · 十进制</span></div><div class="chart-tabs" role="group" aria-label="通信统计视图"><button type="button" data-comm-view="physical_bytes_by_domain" class="selected" aria-pressed="true">物理链路域</button><button type="button" data-comm-view="payload_by_semantic_bytes" aria-pressed="false">应用语义</button><button type="button" data-comm-view="payload_by_collective_bytes" aria-pressed="false">Collective</button></div><div id="communication-chart" class="bar-chart"></div><p id="communication-note" class="chart-caption"></p></section>
                 <section class="card chart-card"><div class="panel-heading"><h3>内存容量与峰值</h3><select id="memory-filter" aria-label="内存池类型"><option value="all">所有内存池</option></select></div><div id="memory-chart" class="memory-chart"></div><p id="memory-note" class="chart-caption"></p></section>

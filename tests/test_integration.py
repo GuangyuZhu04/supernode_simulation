@@ -104,7 +104,12 @@ class APIIntegrationTests(unittest.TestCase):
                 self.assertEqual(estimate["config_sha256"], simulated["config_sha256"])
                 self.assertLessEqual(estimate["estimate"]["duration_lower_bound_s"],
                                      simulated["metrics"]["duration_s"] * (1 + 1e-9))
-                self.assertEqual(estimate["metrics"], {})
+                if scenario == 'inference':
+                    self.assertIsNone(estimate['metrics']['ttft_s'])
+                    self.assertIsNone(estimate['metrics']['tpop_s'])
+                    self.assertEqual(estimate['metrics']['latency_breakdown']['unavailable_reason'], 'estimate_only')
+                else:
+                    self.assertEqual(estimate["metrics"], {})
                 self.assertIsNone(estimate["slo"]["satisfied"])
 
     def test_training_steps_and_inference_request_metrics(self):
@@ -135,7 +140,9 @@ class APIIntegrationTests(unittest.TestCase):
     def test_capacity_and_slo_failure_are_distinct(self):
         impossible_memory = run(specification(patch={"hardware": {"npu": {"hbm_bytes": 100}}}))
         self.assertEqual(impossible_memory["status"], "infeasible")
-        self.assertEqual(impossible_memory["metrics"], {})
+        self.assertIsNone(impossible_memory['metrics']['ttft_s'])
+        self.assertIsNone(impossible_memory['metrics']['tpop_s'])
+        self.assertEqual(impossible_memory['metrics']['latency_breakdown']['unavailable_reason'], 'execution_incomplete')
         impossible_slo = run(specification(patch={"targets": {"ttft_s": 1e-30}}))
         self.assertEqual(impossible_slo["status"], "slo_failed")
         self.assertEqual(impossible_slo["simulation"]["status"], "feasible")

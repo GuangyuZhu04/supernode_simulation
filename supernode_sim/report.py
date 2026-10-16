@@ -12,6 +12,96 @@ from typing import Iterable
 AUTO_DETAIL_THRESHOLD = 50_000
 COMPRESS_TABLE_THRESHOLD = 50_000
 
+LATENCY_COMPONENT_LABELS = {
+    'compute_s': '计算',
+    'communication_node_s': '通信 · node 内',
+    'communication_scaleup_s': '通信 · scale-up',
+    'communication_scaleout_s': '通信 · scale-out',
+    'communication_other_s': '通信 · 其他路径',
+    'synchronization_wait_s': '显式同步等待',
+    'scheduling_wait_s': '调度槽位等待',
+    'memory_wait_s': '内存准入等待',
+    'resource_contention_s': '资源争用',
+    'other_s': '其他',
+}
+
+
+def _latency_candidates(result: dict):
+    """Visit numerical results without copying their potentially large traces."""
+    if result.get('mode') in ('sweep', 'feedback'):
+        for index, candidate in enumerate(result.get('candidates', [])):
+            yield str(candidate.get('id', index)), candidate.get('result', candidate)
+    elif result.get('mode') == 'size-su':
+        for name, search in result.get('searches', {}).items():
+            for index, candidate in enumerate(search.get('candidates', [])):
+                yield f'{name}/{index}', candidate['result']
+    else:
+        yield 'run', result
+
+
+def _latency_rows(result: dict):
+    for candidate_id, candidate in _latency_candidates(result):
+        metrics = candidate.get('metrics', {})
+        breakdown = metrics.get('latency_breakdown') or {}
+        fallback_reason = ('not_applicable_to_training' if
+                           candidate.get('config', {}).get('workload', {}).get('scenario') == 'training'
+                           else 'latency_breakdown_unavailable')
+        for metric in ('ttft', 'tpot'):
+            record = breakdown.get(metric)
+            row = {'candidate_id': candidate_id, 'status': candidate.get('status'),
+                   'metric': metric, 'alias': 'tpop' if metric == 'tpot' else '',
+                   'available': record is not None, 'method': breakdown.get('method'),
+                   'unavailable_reason': (breakdown.get(metric + '_unavailable_reason') or
+                                          breakdown.get('unavailable_reason') or fallback_reason) if record is None else None}
+            if record is not None:
+                row.update(total_s=record.get('total_s'), replica=record.get('replica'), sequence=record.get('sequence'))
+                row.update({key: record.get('components_s', {}).get(key) for key in LATENCY_COMPONENT_LABELS})
+            yield row
+
+
+def write_latency_csv(result: dict, directory: Path):
+    """One additive latency record per metric and candidate; unavailable cells stay empty."""
+    _csv(directory / 'latency_breakdown.csv', [
+        'candidate_id', 'status', 'metric', 'alias', 'available', 'total_s',
+        *LATENCY_COMPONENT_LABELS, 'replica', 'sequence', 'method', 'unavailable_reason',
+    ], _latency_rows(result))
+
+
+def latency_markdown(metrics: dict, *, heading: str = '## TTFT / TPOT（TPOP）时延拆解') -> list[str]:
+    breakdown = metrics.get('latency_breakdown') or {}
+    records = [breakdown.get(key) for key in ('ttft', 'tpot')]
+    lines = ['', heading, '', '单位：毫秒（ms）；JSON / latency_breakdown.csv 使用秒（s）。', '',
+             '| 分项 | TTFT / ms | TPOT（TPOP）/ ms |', '|---|---:|---:|']
+    for key, label in [('total_s', '**总时延**'), *LATENCY_COMPONENT_LABELS.items()]:
+        values = [None if record is None else
+                  record.get('total_s') if key == 'total_s' else record.get('components_s', {}).get(key)
+                  for record in records]
+        lines.append('| ' + label + ' | ' + ' | '.join(_number(value * 1000 if value is not None else None) for value in values) + ' |')
+    if any(record is not None for record in records):
+        lines += ['', '各分项沿决定该指标的请求关键依赖路径归因，可相加得到总时延；不累加所有 rank 或并发事件的耗时。TTFT 与最大平均 TPOT 可能来自不同请求。',
+                  '计算项包含 kernel 的计算/访存服务时间；通信服务时间按实际路径的限制资源归因，启动延迟按各跳链路域归因。node 内表示同主机 SU 或 host 搬运，scale-up 表示跨主机 SU 资源，scale-out 表示 SO 资源；其他项保留内存带宽或未分类路径，不按流量比例摊分时延。',
+                  '依赖同步造成的延迟已沿上游关键路径归因，不再重复记作等待；显式同步等待、调度槽位等待、内存准入等待与共享资源争用分别列出。',
+                  '跨 token 边界的事件按时间窗覆盖比例分配服务、争用或准入等待，未采样更细的事件内进度。']
+        selected = [f"{label}：DP {_number(record.get('replica'))} / sequence {_number(record.get('sequence'))}"
+                    for label, record in zip(('TTFT', 'TPOT（TPOP）'), records) if record is not None]
+        lines += ['', '对应请求：' + '；'.join(selected) + '。']
+    if any(record is None for record in records):
+        reason = breakdown.get('unavailable_reason')
+        lines += ['', '“—”表示指标未定义或没有可用拆解（例如仅估算、训练、执行未完成、未执行 Prefill 或不足两个输出 token），不表示零时延。' + (f' 引擎说明：{_safe_cell(reason)}。' if reason else '')]
+    return lines
+
+
+def _candidate_latency_markdown(result: dict) -> list[str]:
+    lines = ['', '## 候选 TTFT / TPOT（TPOP）', '',
+             '| 候选 | TTFT / ms | TPOT（TPOP）/ ms |', '|---|---:|---:|']
+    for candidate_id, candidate in _latency_candidates(result):
+        metrics = candidate.get('metrics', {})
+        values = [metrics.get(key) for key in ('ttft_s', 'tpot_s')]
+        lines.append(f'| {_safe_cell(candidate_id)} | ' + ' | '.join(_number(value * 1000 if value is not None else None) for value in values) + ' |')
+    lines += ['', '每个候选的计算、node 内 / scale-up / scale-out 通信、显式同步、调度槽位等待、内存准入等待与资源争用拆解见 latency_breakdown.csv 和 result.json。CSV 每行对应一个候选的一项聚合指标，单位为秒；空值表示不可用。',
+              '分项沿关键依赖路径归因，可加和为对应总时延；并发工作不重复累加，依赖同步的上游时间不再重复记入等待。']
+    return lines
+
 
 def _number(value):
     if value is None:
@@ -180,6 +270,7 @@ def markdown_report(result: dict) -> str:
         for name, row in rows:
             hardware = row.get('config', {}).get('hardware', {})
             lines.append(f"| {name} | {row['status']} | {_number(hardware.get('su_size'))} | {_number(hardware.get('npu_count'))} | {_number(row.get('metrics', {}).get('duration_s'))} |")
+        lines += _candidate_latency_markdown(result)
     else:
         config = result['config']
         lines += [f"模型：`{config['model']['name']}`；场景：`{config['workload']['scenario']}`；权重：`{config['execution']['precision']['weight']}`。"]
@@ -194,7 +285,7 @@ def markdown_report(result: dict) -> str:
         if config['workload']['scenario'] == 'training' and fidelity.get('distributed_muon') == 'not_implemented':
             lines += ['', '**Muon 训练限制：尚未实现分布式 Muon 正交化。当前训练步时间是本地更新与通信的代理模型，不能作为已验证的生产训练性能。**']
         lines += ['', '## 性能与约束', '', '| 指标 | 数值 |', '|---|---:|']
-        labels = {'duration_s': '总执行时间 / s', 'step_time_s': '平均训练步时间 / s', 'ttft_s': '执行 TTFT / s', 'tpot_s': '批内最大平均 TPOT / s', 'throughput_tokens_s': '聚合吞吐 / tokens/s', 'input_throughput_tokens_s': '输入吞吐 / tokens/s', 'throughput_per_replica_tokens_s': '每副本吞吐 / tokens/s'}
+        labels = {'duration_s': '总执行时间 / s', 'step_time_s': '平均训练步时间 / s', 'ttft_s': '执行 TTFT / s', 'tpot_s': '批内最大平均 TPOT（TPOP）/ s', 'throughput_tokens_s': '聚合吞吐 / tokens/s', 'input_throughput_tokens_s': '输入吞吐 / tokens/s', 'throughput_per_replica_tokens_s': '每副本吞吐 / tokens/s'}
         for key, label in labels.items():
             if key in result.get('metrics', {}):
                 lines.append(f"| {label} | {_number(result['metrics'][key])} |")
@@ -203,6 +294,7 @@ def markdown_report(result: dict) -> str:
             lines.append(f"| SLO {check['metric']} | {'满足' if check['passed'] else '不满足'}；目标 {_number(check['target'])} |")
         if result['mode'] == 'estimate':
             lines += ['', '解析结果提供必要下界，尚未证明资源争用下的 SLO 可行性。']
+        lines += latency_markdown(result.get('metrics', {}))
         logical = result.get('model_metadata', {}).get('logical_memory_bytes', {})
         if logical:
             lines += ['', '## 全局逻辑容量', '', '单位为十进制 TB；实际分片、复制和生命周期见设备明细。', '', '| 组成 | TB |', '|---|---:|']
@@ -484,6 +576,7 @@ def write_report(result: dict, directory: str | Path, *, full_detail: bool = Fal
             _csv(directory / 'model_parameters.csv', fields, (
                 {key: json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list, tuple)) else value
                  for key, value in row.items()} for row in inventory_tensors))
+    write_latency_csv(result, directory)
     _write_result_json(directory / 'result.json', exported)
     (directory / 'report.md').write_text(markdown_report(exported), encoding='utf-8')
     return directory.resolve()

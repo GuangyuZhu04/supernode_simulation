@@ -21,7 +21,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from summarize_kimi_10t_inference import (
-    case_finished, compact_diagnostics, failure_required_bytes, fmt, md_table,
+    LATENCY_HTML, LATENCY_NOTE, case_finished, case_latency_rows, compact_diagnostics, failure_required_bytes, fmt, md_table,
     network_nodes, network_racks, peak_info, read_json, write_csv,
 )
 
@@ -143,13 +143,13 @@ def collect(directory):
     expected = {(row['tp'], row['top_k'], row['input_length'], row['batch_size']): row for row in audit['matrix']}
     provenance = runtime_provenance(directory)
     capacity = read_json(directory / 'hardware.profile.json')['hardware']['npu']['hbm_bytes']
-    rows, phases, nodes, peaks, failures, issues = [], [], [], [], [], []
+    rows, phases, nodes, peaks, failures, issues, latencies = [], [], [], [], [], [], []
     fingerprints = Counter()
     for case in manifest['cases']:
         planned = expected[case['tp'], case['top_k'], case['input_length'], case['batch_size']]
         row = {'case': case['name'], **metadata(case), 'case_status': 'pending',
                'prefill_status': 'pending', 'decode_status': 'pending', 'decode_source': None,
-               'ttft_s': None, 'tpot_s': None, 'standalone_decode_step_s': None,
+               'ttft_s': None, 'tpot_s': None, 'tpop_s': None, 'standalone_decode_step_s': None,
                'decode_step_s': None, 'runtime_provenance_verified': None,
                'prefill_planned_payload_bytes': planned['prefill']['total_network_payload_bytes'],
                'prefill_planned_su_payload_bytes': planned['prefill']['same_su_payload_bytes'],
@@ -160,15 +160,18 @@ def collect(directory):
                'decode_planned_rs_payload_bytes': planned['one_decode_step']['tp_reduce_scatter_payload_bytes']}
         path = directory / 'cases' / f"{case['name']}.json"
         if not path.exists():
+            latencies.extend(case_latency_rows(case, None))
             rows.append(row)
             continue
         try:
             artifact = read_json(path)
         except (OSError, ValueError) as exc:
+            latencies.extend(case_latency_rows(case, None))
             row['case_status'] = 'unreadable'
             issues.append(f"{case['name']}: {exc}")
             rows.append(row)
             continue
+        latencies.extend(case_latency_rows(case, artifact))
         stored = artifact.get('fingerprint', 'unknown')
         fingerprints[stored] += 1
         runtime = provenance['cases'].get(case['name'])
@@ -234,6 +237,7 @@ def collect(directory):
             failures.append({'case': case['name'], **metadata(case), 'layer_1based': layer,
                              'event': failed.get('id'), 'component': failed.get('component'),
                              'failure_required_hbm_bytes': required, 'diagnostics': diagnostics})
+        row['tpop_s'] = row['tpot_s']
         rows.append(row)
     finished = sum(case_finished(row) for row in rows)
     replays = []
@@ -249,7 +253,7 @@ def collect(directory):
         replays.append({'case': name, **record, 'evidence_file': str(path.relative_to(directory))})
     replays_passed = all(row.get('passed') is True for row in replays)
     return {'manifest': manifest, 'audit': audit, 'rows': rows, 'phases': phases, 'nodes': nodes,
-            'peaks': peaks, 'failures': failures, 'issues': issues, 'fingerprints': dict(fingerprints),
+            'peaks': peaks, 'failures': failures, 'issues': issues, 'fingerprints': dict(fingerprints), 'latencies': latencies,
             'complete': finished == len(rows) and not issues and replays_passed, 'finished': finished,
             'runtime_provenance': provenance, 'reference_replays': replays,
             'planned': planned_rows(manifest, expected)}
@@ -354,6 +358,7 @@ def md_report(data, comparison):
               '文件：report.html（离线筛选/图表）、summary.csv（96组）、comparison.csv（与旧48组匹配）、phase_traffic.csv（实际）、planned_phase_traffic.csv（计划）、node_traffic.csv、rack_traffic.csv、peak_components.csv、failure_diagnostics.json、report_status.json；原始配置与结果在configs/、cases/。', '',
               '独立公式：`python outputs/kimi-k3-10t-sp/audit/derive_traffic.py`。报告：`python scripts/summarize_kimi_sp_inference.py`。', '',
               f"冻结runtime与配置/producer证据校验{data['runtime_provenance']['verified_case_count']}份。两组隔离完整重放状态：" + '；'.join('[' + row['case'] + '](' + row['evidence_file'].replace('\\', '/') + ')' + ('=passed，核对' + str(row['numeric_values_checked']) + '个数值' if row.get('passed') is True else '=pending/failed') for row in data['reference_replays']) + '。完整性和读取问题见report_status.json；完整性未通过时报告只表示中间结果。']
+    lines += ['', LATENCY_NOTE, '']
     if data['issues']:
         lines += ['', '读取/一致性问题：', ''] + ['- ' + issue for issue in data['issues']]
     return '\n'.join(lines) + '\n'
@@ -391,6 +396,7 @@ def main():
     for rack in racks:
         rack.update({key: by_name[rack['case']][key] for key in ('sp', 'tp', 'ep')})
     for name, values in [('summary', data['rows']), ('comparison', comparison), ('phase_traffic', data['phases']),
+                         ('latency_breakdown', data['latencies']),
                          ('planned_phase_traffic', data['planned']), ('node_traffic', data['nodes']),
                          ('rack_traffic', racks), ('peak_components', data['peaks'])]:
         write_csv(directory / (name + '.csv'), values)
@@ -407,6 +413,7 @@ def main():
                         '<a href="audit/frozen-reference-replays/sp16-top32-1M-b1.json">SP16完整重放</a> · '
                         '<a href="audit/frozen-reference-replays/sp32-top64-1M-b32.json">SP32完整重放</a></p></section>')
     document = document.replace('<section class="panel">', provenance_panel + '<section class="panel">', 1)
+    document = document.replace('</main>', LATENCY_HTML + '</main>')
     (directory / 'report.html').write_text(document, encoding='utf-8')
     status_data = {'complete': data['complete'], 'finished_cases': data['finished'], 'case_count': len(data['rows']),
                    'actual_phase_rows': len(data['phases']), 'planned_phase_rows': len(data['planned']),

@@ -260,27 +260,58 @@ class Topology:
         domains = sorted({self.links[eid]["domain"] for eid in route})
         latency = 0.0
         physical: dict[str, float] = defaultdict(float)
+        # Latency attribution uses physical paths and endpoint placement, not
+        # transport-byte proportions. Keep the existing SU/SO byte ledger intact.
+        def endpoint_host(endpoint: str) -> str | None:
+            if endpoint.startswith('npu') and endpoint[3:].isdigit():
+                return self.host_for(int(endpoint[3:]))
+            if endpoint.startswith('cpu') and endpoint[3:].isdigit():
+                return endpoint
+            return None
+
+        src_host, dst_host = endpoint_host(src), endpoint_host(dst)
+        route_hosts = {host for eid in route for endpoint in (self.links[eid]['src'], self.links[eid]['dst'])
+                       if (host := endpoint_host(endpoint)) is not None}
+        within_host = (src_host is not None and src_host == dst_host and 'SO' not in domains
+                       and route_hosts <= {src_host})
+        resource_domains: dict[str, str] = {key: 'other' for key in work}
+        startup_by_domain: dict[str, float] = defaultdict(float)
+        su_scopes = set()
         for eid in route:
             edge = self.links[eid]
+            domain = edge['domain']
+            edge_src_host, edge_dst_host = endpoint_host(edge['src']), endpoint_host(edge['dst'])
+            edge_within_host = (edge_src_host is not None and edge_src_host == edge_dst_host)
+            attribution = ('node' if domain in ('H2D', 'D2H', 'host') or (domain == 'SU' and (within_host or edge_within_host))
+                           else domain if domain in ('SU', 'SO') else 'other')
+            if domain == 'SU':
+                su_scopes.add(attribution)
             work[edge["resource"]] += size_bytes
+            resource_domains[edge['resource']] = attribution
             physical[edge["domain"]] += size_bytes
             if edge["shared_resource"]:
                 work[edge["shared_resource"]] += size_bytes
+                previous = resource_domains.get(edge['shared_resource'], attribution)
+                resource_domains[edge['shared_resource']] = attribution if previous == attribution else 'other'
             latency += edge["latency_s"]
+            startup_by_domain[attribution] += edge['latency_s']
         for node, direction in ((src, "tx"), (dst, "rx")):
             for domain in ("SU", "SO"):
                 resource = f"{node}.{domain}.{direction}"
                 if domain in domains and resource in self.resources:
                     work[resource] += size_bytes
+                    resource_domains[resource] = 'node' if domain == 'SU' and su_scopes == {'node'} else domain
             if "SO" in domains:
                 host = self.host_for(int(node[3:])) if node.startswith("npu") else node
                 resource = f"{host}.nic.{direction}"
                 if resource in self.resources:
                     work[resource] += size_bytes
+                    resource_domains[resource] = 'SO'
             if "H2D" in domains or "D2H" in domains:
                 resource = f"{node}.host.{direction}"
                 if resource in self.resources:
                     work[resource] += size_bytes
+                    resource_domains[resource] = 'node'
         # Transfers to remote memory traverse a CPU memory-controller/host
         # bridge. Charge that shared host fabric even though CPU is not an
         # application endpoint.
@@ -288,10 +319,13 @@ class Topology:
         for bridge in bridges.difference({src, dst}):
             if f"{bridge}.dram" in self.resources:
                 work[f"{bridge}.dram"] += size_bytes
+                resource_domains[f'{bridge}.dram'] = 'other'
                 direction = "tx" if dst.startswith("npu") else "rx"
                 work[f"{bridge}.host.{direction}"] += size_bytes
+                resource_domains[f'{bridge}.host.{direction}'] = 'node'
         event_metadata = {**(metadata or {}), "type": "transfer", "src": src, "dst": dst,
                           "payload_bytes": size_bytes, "path": list(route), "domains": domains,
+                          "resource_domains": resource_domains, "startup_s_by_domain": dict(startup_by_domain),
                           "physical_bytes": sum(physical.values()), "physical_bytes_by_domain": dict(physical)}
         return Event(id, deps=tuple(deps), work=dict(work), startup_s=latency, metadata=event_metadata)
 

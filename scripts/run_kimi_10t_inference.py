@@ -105,7 +105,8 @@ def prepare(directory):
 
 def fingerprint(config):
     digest = hashlib.sha256(json.dumps(config.model_dump(), sort_keys=True).encode())
-    for module in ('core', 'config', 'analysis', 'structured', 'components', 'topology', 'engine', 'streaming', 'calibration', 'cache'):
+    for module in ('core', 'config', 'analysis', 'structured', 'components', 'topology', 'engine',
+                   'streaming', 'latency_breakdown', 'calibration', 'cache'):
         digest.update((ROOT / 'supernode_sim' / f'{module}.py').read_bytes())
     return digest.hexdigest()
 

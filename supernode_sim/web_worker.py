@@ -53,7 +53,8 @@ def compact_result(result: dict) -> dict:
                        'metadata': _bounded({k: v for k, v in row.get('metadata', {}).items() if k in metadata_keys})})
     return {
         **{k: result.get(k) for k in ('status', 'mode', 'config', 'config_sha256', 'units', 'slo', 'engine_version')},
-        'metrics': {k: v for k, v in result.get('metrics', {}).items() if not isinstance(v, (list, dict))},
+        'metrics': {k: v for k, v in result.get('metrics', {}).items()
+                    if k == 'latency_breakdown' or not isinstance(v, (list, dict))},
         'estimate': {k: estimate.get(k) for k in ('duration_lower_bound_s', 'event_count', 'communication', 'memory_note')},
         'communication': estimate.get('communication', {}),
         'memory': {'mode': memory.get('mode'), 'pools': [{k: p.get(k) for k in pool_keys} for p in selected_pools],

@@ -1,6 +1,6 @@
 # Feedback：按延迟目标搜索推理布局与负载
 
-用户给出目标 TTFT、TPOT，要求在现有模型、拓扑和硬件上选择 TP/SP/EP、Prefill 长度及 Decode batch 时，使用 `feedback`。TPOP 是这里接受的 TPOT 输入别名；结果使用规范名称 TPOT。优化目标是：在资源可行且满足全部 SLO 的候选中，**优先最大化 Decode 吞吐量**。
+用户给出目标 TTFT、TPOT，要求在现有模型、拓扑和硬件上选择 TP/SP/EP、Prefill 长度及 Decode batch 时，使用 `feedback`。TPOP 是这里接受的 TPOT 别名；结果以 TPOT（TPOP）展示，并保留同值 `tpop_s` 输出字段。优化目标是：在资源可行且满足全部 SLO 的候选中，**优先最大化 Decode 吞吐量**。
 
 ## 运行与输入
 
@@ -64,7 +64,7 @@ Decode 吞吐完全相同时，依次优先更长 Prefill、更大 batch、更�
 
 ## 结果与复核
 
-输出目录包含 `result.json`、`report.md`、`candidates.csv`、`config.resolved.json`；存在可行推荐时另有 `best.config.json`。结果保留实际搜索范围、每个候选的状态和失败原因，以及可行候选的 Pareto 权衡和各并行布局已验证的长度/batch 边界。基础场景在 `config.resolved.json`，最优方案在 `best.config.json`；不要混用。
+输出目录包含 `result.json`、`report.md`、`candidates.csv`、`latency_breakdown.csv`、`config.resolved.json`；存在可行推荐时另有 `best.config.json`。结果保留实际搜索范围、每个候选的状态和失败原因，以及可行候选的 Pareto 权衡和各并行布局已验证的长度/batch 边界。报告展示最佳候选 TTFT / TPOT（TPOP）的计算、分域通信和等待分项，CSV 保存所有候选的拆解；可加和规则见 [latency-breakdown.md](latency-breakdown.md)。基础场景在 `config.resolved.json`，最优方案在 `best.config.json`；不要混用。
 
 复核最优配置：
 

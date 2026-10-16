@@ -166,6 +166,10 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
 
     waiting_dependencies = {eid: len(set(event.deps)) for eid, event in events.items()}
     ready = {eid for eid, count in waiting_dependencies.items() if count == 0}
+    # Keep admission timing only for currently ready/running events. Completed
+    # timings live in the normal trace, including its compact payload mode.
+    ready_timing = {eid: {"dependency_ready_s": 0.0, "slot_wait_s": 0.0, "memory_wait_s": 0.0}
+                    for eid in ready}
     while completed_count < len(events):
         # Complete events before admitting new ones, so same-time releases can
         # unblock allocations without introducing artificial overlap.
@@ -193,17 +197,21 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
                 waiting_dependencies[successor] -= 1
                 if waiting_dependencies[successor] == 0:
                     ready.add(successor)
+                    ready_timing[successor] = {"dependency_ready_s": now, "slot_wait_s": 0.0, "memory_wait_s": 0.0}
             row = {"id": eid, "start_s": state["start"], "end_s": now,
                           "duration_s": now - state["start"], "startup_s": event.startup_s,
                           "metadata": dict(event.metadata), "slots": list(event.slots)}
+            row.update(state["admission_timing"])
             if retain_event_payload:
                 row.update(work=dict(event.work), allocations=[asdict(a) for a in event.allocs], releases=list(event.releases))
             trace.append(row)
         admitted = False
         blocked = []
+        wait_reasons = {}
         for eid in sorted(ready):
             event = events[eid]
             if held_slots.intersection(event.slots):
+                wait_reasons[eid] = "slot_wait_s"
                 continue
             requested: dict[str, float] = defaultdict(float)
             for alloc in event.allocs:
@@ -213,13 +221,15 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
                         if used[pool] + amount > graph.memory_caps[pool] * (1 + 1e-12)}
             if shortage:
                 blocked.append({"event": eid, "shortage_bytes": shortage})
+                wait_reasons[eid] = "memory_wait_s"
                 continue
             for alloc in event.allocs:
                 allocate(alloc)
             ready.remove(eid)
             del waiting_dependencies[eid]
             held_slots.update(event.slots)
-            active[eid] = {"start": now, "ready": now + event.startup_s, "remaining": 1.0}
+            active[eid] = {"start": now, "ready": now + event.startup_s, "remaining": 1.0,
+                           "admission_timing": ready_timing.pop(eid)}
             admitted = True
         if admitted or finished:
             continue
@@ -248,6 +258,10 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
                     busy_resources.add(key)
         for key in busy_resources:
             busy[key] += delta
+        # Slot blocking takes precedence when both admission constraints apply;
+        # these disjoint elapsed intervals sum to start - dependency-ready.
+        for eid, reason in wait_reasons.items():
+            ready_timing[eid][reason] += delta
         now += delta
     trace.sort(key=lambda item: (item["start_s"], item["id"]))
     return result("feasible")

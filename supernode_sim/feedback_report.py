@@ -23,6 +23,7 @@ def _json(value) -> str:
 
 
 def feedback_markdown(result: dict) -> str:
+    from .report import latency_markdown
     targets = result['targets']
     search = result['search_space']
     counts = result['counts']
@@ -66,13 +67,14 @@ def feedback_markdown(result: dict) -> str:
                                    ('tp', 'sp', 'ep', 'sequence_parallel', 'prefill_length', 'decode_batch_size')) + ' |', '',
                   '| 指标 | 实际值 |', '|---|---:|']
         for label, key in (
-            ('TTFT / s', 'ttft_s'), ('TPOT / s', 'tpot_s'),
+            ('TTFT / s', 'ttft_s'), ('TPOT（TPOP）/ s', 'tpot_s'),
             ('Decode 吞吐量 / token/s', 'decode_throughput_tokens_s'),
             ('Decode 时间窗口 / s', 'decode_window_s'),
             ('全程吞吐量 / token/s', 'throughput_tokens_s'),
         ):
             lines.append(f'| {label} | {_number(metrics.get(key))} |')
         lines += ['', '最佳完整配置已导出为 best.config.json，可使用 simulate 命令复现该候选。']
+        lines += latency_markdown(metrics, heading='### 最佳候选 TTFT / TPOT（TPOP）时延拆解')
     else:
         lines += ['', '## 未找到可行候选', '',
                   '当前候选中没有同时满足约束的配置；具体时延、SLO 判断和失败诊断见 candidates.csv 与 result.json。']
@@ -94,6 +96,7 @@ def feedback_markdown(result: dict) -> str:
               '', '## 产物与复现', '',
               '- result.json：完整搜索参数、候选指标、SLO、失败诊断、可行边界与最佳配置。',
               '- candidates.csv：逐候选参数、指标、状态、SLO 与失败诊断，可筛选比较。',
+              '- latency_breakdown.csv：所有候选的 TTFT / TPOT（TPOP）及计算、通信、同步、调度、内存准入与资源争用分项；单位秒，空值表示不可用。',
               '- config.resolved.json：应用校准后的基线快照，避免重复加载校准。']
     if best:
         lines += ['- best.config.json：最佳候选的完整可复现配置。']
@@ -104,6 +107,7 @@ def feedback_markdown(result: dict) -> str:
 
 
 def write_feedback_report(result: dict, directory: str | Path) -> Path:
+    from .report import write_latency_csv
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     snapshot = dict(result['config'])
@@ -122,7 +126,7 @@ def write_feedback_report(result: dict, directory: str | Path) -> Path:
             json.dump(payload, handle, ensure_ascii=False, indent=2, allow_nan=False)
     fields = [
         'id', 'tp', 'sp', 'ep', 'sequence_parallel', 'prefill_length', 'decode_batch_size',
-        'status', 'ttft_s', 'tpot_s', 'decode_throughput_tokens_s', 'decode_window_s',
+        'status', 'ttft_s', 'tpot_s', 'tpop_s', 'decode_throughput_tokens_s', 'decode_window_s',
         'throughput_tokens_s', 'engine', 'pareto_optimal', 'slo', 'diagnostics', 'memory_peaks_bytes',
     ]
     frontier = set(result.get('pareto_frontier', []))
@@ -137,5 +141,6 @@ def write_feedback_report(result: dict, directory: str | Path) -> Path:
                    'diagnostics': _json(candidate.get('diagnostics', [])),
                    'memory_peaks_bytes': _json(candidate.get('memory_peaks_bytes', {}))}
             writer.writerow(row)
+    write_latency_csv(result, directory)
     (directory / 'report.md').write_text(feedback_markdown(result), encoding='utf-8')
     return directory.resolve()
