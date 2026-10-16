@@ -1,11 +1,11 @@
 ---
 name: supernode-modeling
-description: Model supernode training and inference memory, compute, and communication with supernode_sim. Use for component-level memory and Adam/Muon state breakdowns; Kimi K3 and Ascend 950 scenarios; offload, KV/KDA state, SU/SO topology generation and minimum-SU searches; or feedback searches for TP/SP/EP, prefill length and decode batch that maximize decode throughput under TTFT/TPOT targets on fixed hardware and topology.
+description: Model supernode training and inference memory, compute, and communication with supernode_sim, automatically preparing and opening its editable local web dashboard. Use for component-level memory and Adam/Muon state breakdowns; Kimi K3 and Ascend 950 scenarios; offload, KV/KDA state, SU/SO topology generation and minimum-SU searches; or feedback searches for TP/SP/EP, prefill length and decode batch that maximize decode throughput under TTFT/TPOT targets on fixed hardware and topology.
 ---
 
 # 超节点资源与通信建模
 
-把问题转为可复现配置，调用 Python 引擎计算，解释资源需求、瓶颈和适用条件。此 skill 是引擎的调用与分析说明；**不包含独立的 Python 引擎**，需要 `supernode_simulation` 仓库或已安装的 `supernode_sim` 包。
+默认先准备并打开可编辑的流量仿真网页，再把问题转为可复现配置，调用 Python 引擎计算，解释资源需求、瓶颈和适用条件。前端与引擎由 `supernode_sim` 统一提供；此 skill 包含调用说明和自动启动脚本，**不包含独立的 Python 引擎**，需要 `supernode_simulation` 仓库或已安装的 `supernode_sim` 包。
 
 ## 找到可运行环境
 
@@ -19,6 +19,17 @@ python -m supernode_sim schema
 ```
 
 包已安装时也可使用 `python -m supernode_sim`；示例文件仍位于原仓库。若找不到仓库或模块，报告具体缺少的路径/依赖，不伪造执行结果。引用配置文件路径、输出目录时遵循所在 shell 的引号规则。
+
+## 调用时自动准备前端
+
+每次启用本 skill，默认先执行 [前端启动流程](references/frontend.md)，无需等用户另行请求网页。用户明确指定只用 CLI、不要网页或运行环境不能启动服务时，按其要求或实际能力继续数值工作，并说明网页状态。
+
+1. 运行本 skill 自带的 `scripts/launch_frontend.py`，已定位仓库时传入 `--project-root <项目目录>`；仅使用安装包时省略该参数。脚本检查现有页面资源、选择 Python 环境并启动或复用本地服务，输出机器可读 JSON。当前前端无需 npm / Node 构建，复用项目 `supernode_sim/web_static/`，保持输入编辑、实验运行与结果展示使用同一引擎配置。
+2. 只有返回 `started` 或 `reused` 且资源检查成功，才报告网页就绪。用可用浏览器工具打开返回的 `inputs_url`；没有浏览器工具时提供实际 URL 和能力限制，不声称已打开。保护已有标签页中的未提交输入，优先使用新任务标签页或本任务已创建的标签页。
+3. 将用户给定或本次整理的完整配置载入网页，按请求开展仿真。页面启动本身不自动提交数值任务。`estimate` / `simulate` 可用网页现有 API，保存输入快照并在历史运行中展示结果；其他分析命令继续使用其原入口，明确网页支持范围。
+4. 重复调用复用匹配服务；保留交付的服务供用户继续编辑和运行。失败时读取脚本返回的原因和日志，按具体原因修复后再试，不能循环重启、停止其他服务或用未验证 URL 代替真实页面。
+
+网页包含模型、拓扑、硬件、并行度和 Workload 的输入展示与编辑、完整字段 JSON 编辑、schema 校验、运行日志、取消、历史快照以及流量/内存/利用率/时间线图表。编辑当前配置会同步下一次仿真；历史快照先复制再编辑。操作、输入同步及回退细节见 [frontend.md](references/frontend.md)。
 
 ## 按问题选择资料和命令
 

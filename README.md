@@ -139,6 +139,14 @@ Feedback 输出候选 CSV、失败诊断、Pareto 与布局可行边界，并在
 
 可复用 skill 源码在 `skills/supernode-modeling/`。使用该 skill 的运行环境必须能访问本项目或已安装的 `supernode_sim` 包；安装 skill 时复制完整目录到个人 skills 目录，包括 `subskills/`。项目不会自动修改全局 Codex 配置。
 
+调用 skill 默认先自动准备并打开现有仿真网页：检查页面与 Python 环境，启动或复用匹配的本地服务，然后进入可编辑的“输入”页。启动脚本位于 `skills/supernode-modeling/scripts/launch_frontend.py`，复制 skill 时一并保留 `scripts/`。前端使用项目内同一份静态资源，无需 npm 构建；自动启动过程不会自行提交仿真。用户明确要求只用 CLI 时继续使用原命令。详细流程见 [Skill 前端自动启动说明](skills/supernode-modeling/references/frontend.md)。
+
+```powershell
+python skills/supernode-modeling/scripts/launch_frontend.py --project-root .
+```
+
+命令输出经过检查的实际页面 URL、输出目录与日志位置；端口占用时在有限范围内避让，默认使用独立的 `outputs/skill-web/<端口>/` 保存任务。
+
 可以直接在任务中引用 `skills/supernode-modeling/SKILL.md`，请求分析、调整场景或运行参数扫描。Skill 接受模型、负载、并行策略、scale-out 域划分与 SU/SO 网络拓扑，数值分析调用现有引擎。自然语言生成拓扑由内置子 skill [supernode-topology](skills/supernode-modeling/subskills/supernode-topology/SKILL.md) 处理：先生成独立 topology spec，再编译为原生硬件片段或完整场景，并按生成链路给出拓扑图。
 
 例如：“4 个超节点，每个 2 张卡，前两个在 SO 域 A、后两个在域 B；SU 用 full-mesh，SO 用 Clos，两域双向 400 Gbit/s 连接。”子 skill 会区分 4 个 SU 域与 2 个 SO 域，补齐会影响计算的链路参数及其来源，不从型号推测拓扑。完整输入契约见 [拓扑输入说明](skills/supernode-modeling/references/topology.md)。

@@ -2,6 +2,8 @@
 
 网页复用 `supernode-modeling` skill 对应的 `supernode_sim` 数值引擎。表单负责组织配置，后端执行与命令行相同的 `analysis.run` 和 `write_report`，不会在浏览器中生成模拟指标。
 
+调用 `supernode-modeling` skill 时，默认自动准备并打开此网页。可复用启动器负责检查依赖、复用匹配服务及避让占用端口；详细调用约定见 [Skill 前端流程](../skills/supernode-modeling/references/frontend.md)。以下手动启动方式继续可用。
+
 ## 启动
 
 要求 Python 3.11+，项目依赖与命令行一致。已有 `.venv` 的工作区直接运行：
@@ -72,6 +74,7 @@ python -m supernode_sim web --port 8766 --output outputs/web
 
 | 请求 | 用途 |
 |---|---|
+| `GET /api/health` | 服务身份、项目/输出目录与静态资源就绪状态，供启动器核对和复用 |
 | `GET /api/presets` | 可用完整场景 |
 | `GET /api/presets/<id>` | 解析后的场景配置 |
 | `POST /api/validate` | 校验 `{ "config": {...} }` |

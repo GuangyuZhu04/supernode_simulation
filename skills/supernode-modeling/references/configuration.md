@@ -1,5 +1,7 @@
 # 配置与可复现运行
 
+调用 skill 时默认先按 [前端启动流程](frontend.md) 自动准备并打开可编辑网页。网页编辑与以下 CLI/API 使用同一 `Config` 契约；启动网页不等于提交仿真，数值任务仍按用户请求执行。
+
 ## 配置来源
 
 版本为 `schema_version: '1.0'`；完整、严格的字段定义以项目 `supernode_sim/config.py` 和 `python -m supernode_sim schema` 为准。未知字段会报错。JSON 与 YAML 使用同一配置契约，不把本文表格当作完整 schema。

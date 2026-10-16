@@ -426,6 +426,15 @@ class WebHandler(BaseHTTPRequestHandler):
                                     'description': next((s.get('description', '') for s in config.get('sources', {}).values()), '')}
                                    for key, config in sorted(self.server.presets.items(), key=lambda pair: (priority.get(pair[0], 2), pair[0]))]})
             return
+        if path == '/api/health':
+            from . import __version__
+            self._json({'app': 'supernode_sim.web', 'version': __version__,
+                        'root': str(Path(__file__).resolve().parent.parent), 'python': sys.executable,
+                        'output': str(manager.output), 'pid': os.getpid(),
+                        'launch_token': os.environ.get('SUPERNODE_WEB_LAUNCH_TOKEN'),
+                        'static_ready': all((self.server.static_dir / name).is_file() and (self.server.static_dir / name).stat().st_size > 0
+                                            for name in ('index.html', 'app.js', 'styles.css'))})
+            return
         if len(parts) == 3 and parts[:2] == ['api', 'presets']:
             if parts[2] not in self.server.presets:
                 raise APIError(404, '预设不存在')
