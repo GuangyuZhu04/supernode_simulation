@@ -152,6 +152,9 @@ def _memory_markdown(breakdown: dict, tensor_artifact: str = 'tensors.csv') -> l
 
 
 def markdown_report(result: dict) -> str:
+    if result.get('mode') == 'feedback':
+        from .feedback_report import feedback_markdown
+        return feedback_markdown(result)
     lines = ['# 超节点资源建模报告', '', f"状态：**{result['status']}**；模式：`{result['mode']}`。", '']
     export = result.get('artifact_export', {})
     tensor_artifact = export.get('tensors', {}).get('artifact') or 'tensors.csv'
@@ -417,6 +420,9 @@ def write_report(result: dict, directory: str | Path, *, full_detail: bool = Fal
     restores raw arrays and all CSV/timeline rows; the in-memory API result is
     never modified by either export mode.
     """
+    if result.get('mode') == 'feedback':
+        from .feedback_report import write_feedback_report
+        return write_feedback_report(result, directory)
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     exported, trace, tensors, keep_event, keep_tensor = _prepare_export(result, full_detail)

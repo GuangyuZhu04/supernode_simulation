@@ -1,0 +1,10 @@
+# Search specification for examples/demo_inference.yaml; all times are seconds.
+# Model, hardware, physical topology, precision and features stay unchanged.
+ttft_s: 1.0
+tpot_s: 0.05
+prefill_lengths: [32, 64, 128]
+decode_batch_sizes: [1, 2, 4, 8]
+# The base demo has ragged output_lengths [4, 2]; choose a uniform horizon.
+output_length: 4
+max_candidates: 128
+engine: auto

@@ -18,6 +18,9 @@ snmodel = "supernode_sim.cli:main"
 [tool.setuptools.packages.find]
 include = ["supernode_sim*"]
 
+[tool.setuptools.package-data]
+supernode_sim = ["web_static/*.html", "web_static/*.css", "web_static/*.js"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

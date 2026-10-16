@@ -9,7 +9,7 @@
 | `model` | `name`, `total_params`, `active_params`, `layers`, `hidden_dim`, `intermediate_dim`, `num_heads`, `kv_heads`, `head_dim`, `attention_kind`；MoE 另设 `num_experts`, `top_k`, `moe_layer_fraction`, `expert_parameter_fraction` |
 | `hardware` | `npu_count`, `su_size`, `npus_per_host`, `topology`, `routing_policy`, `npu`, `cpu`, `scale_up`, `scale_out`, `host_link`, `remote`, `ssd` |
 | `workload` | `scenario: training/inference`, `batch_size`；场景专用字段见训练/推理参考 |
-| `execution` | `tp`, `pp`, `ep`, `dp`, `fsdp`, `rank_order`, `precision`, `features` |
+| `execution` | `tp`, `sequence_parallel`, `pp`, `ep`, `dp`, `fsdp`, `rank_order`, `precision`, `features` |
 | `targets` | `throughput_tokens_s`, `ttft_s`, `tpot_s`, `step_time_s`，及搜索候选字段 |
 | `sources` | 以字段路径或对象名称为 key，记录 `status`, `description`, `uri`, `revision` |
 | `assumptions` | 记录用户提供或分析所需的假设，随输出保存 |
@@ -38,6 +38,7 @@ python -m supernode_sim estimate examples/training_10t_fp8.yaml --output outputs
 python -m supernode_sim simulate examples/demo_inference.yaml --output outputs/demo-inference
 python -m supernode_sim sweep examples/demo_training.yaml --axes examples/sweep_precision.yaml --mode simulate --output outputs/precision-sweep
 python -m supernode_sim size-su examples/demo_training.yaml --mode both --output outputs/su-search
+python -m supernode_sim feedback examples/demo_inference.yaml --search examples/feedback_inference.yaml --output outputs/demo-feedback
 ```
 
 `sweep` 的 axes 文件是“点分字段路径 → 非空候选列表”的映射，例如：
@@ -49,7 +50,11 @@ execution.precision.weight_transfer: [fp8, fp16]
 
 这会形成四种组合；若只想比较“驻留与回传同时变化”的两种预设，分别运行两份完整配置，避免误读笛卡尔积。扫描 `active_params` 时记录结构不变的假设，不据此自动推断专家数或 top-k。
 
+`feedback` 固定模型、硬件和拓扑，联合遍历 TP/SP/EP、输入长度与固定 batch，在满足 TTFT/TPOT 后最大化 Decode 吞吐。`--search` 接受独立的 YAML/JSON 搜索规范，不能把其字段写入原生场景顶层；可用 `--ttft-s`、`--tpot-s`（别名 `--tpop-s`）、`--prefill-lengths`、`--decode-batch-sizes`、`--output-length`、`--max-candidates`、`--engine auto/simulate/streaming` 覆盖相应设置。两个时延目标以秒输入，省略时可沿用场景中的目标。详细搜索字段、默认候选范围、吞吐口径和复跑方式见 [feedback.md](feedback.md)。
+
 输出包括 `report.md`, `result.json`, `config.resolved.json`；估算/仿真包含资源与内存 CSV，仿真另有事件 CSV 与 Chrome/Perfetto `timeline.json`。实际文件以命令结果为准。`status=estimated` 不是可行性证明；`infeasible` 表示资源/执行约束失败，`slo_failed` 表示完成执行但不满足 SLO。搜索根状态可为 `completed`，仍须检查每个子搜索和候选的状态。
+
+Feedback 另输出 `candidates.csv`；存在可行最优候选时输出 `best.config.json`，可直接交给 `simulate` 复核。`config.resolved.json` 保存解析后的基础场景，不能当作最优候选配置；搜索范围与所有候选的结果保存在 `result.json` 中。
 
 大型默认导出的张量表可能是无损压缩的 `tensors.csv.gz`，以 `artifact_export` 为准；`--full-detail` 保留全部明细和普通 CSV。主机内存紧张、批量实验或检查点压缩选项见 [resource-usage.md](resource-usage.md)。
 

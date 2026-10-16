@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>超节点 · 流量仿真实验室</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#workspace">跳至实验工作区</a>
+  <aside class="rail" aria-label="主导航">
+    <a class="brand-mark" href="#" aria-label="超节点仿真实验室"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M16 2 29 9.5v13L16 30 3 22.5v-13Z" stroke="currentColor" stroke-width="2"/><path d="m3 9.5 13 8 13-8M16 18v12M16 2v8m0 0-7 4m7-4 7 4" stroke="currentColor" stroke-width="2"/></svg></a>
+    <a class="rail-link" href="#inputs" title="输入总览"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 3h14v18H5zM8 7h8M8 11h8M8 15h3m3 0h2"/></svg><span>输入</span></a>
+    <a class="rail-link active" href="#workspace" title="实验工作区"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>实验</span></a>
+    <a class="rail-link" href="#results" title="仿真结果"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20V10m8 10V4m8 16v-7M2 22h20"/></svg><span>分析</span></a>
+    <a class="rail-link" href="#history-panel" title="最近运行"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2 7M3 4v7h7m2-5v6l4 2"/></svg><span>历史</span></a>
+    <div class="rail-bottom"><span class="local-dot"></span><span>LOCAL</span></div>
+  </aside>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="product"><strong>超节点</strong><span class="topbar-divider"></span><span>流量仿真实验室</span><span class="version-badge">SIM LAB</span></div>
+      <div id="connection" class="connection"><span class="status-dot"></span><span>连接本地引擎…</span></div>
+    </header>
+    <main id="workspace">
+      <div class="page-heading">
+        <div><div class="eyebrow">SUPERNODE / EXPERIMENT WORKSPACE</div><h1>把计算、存储与通信放在同一张图里</h1><p>配置模型与集群，执行真实仿真，追踪资源需求与性能约束。</p></div>
+        <span class="engine-tag"><span></span>supernode_sim</span>
+      </div>
+
+      <div class="workspace-grid">
+        <aside class="config-panel card" aria-labelledby="config-heading">
+          <div class="panel-heading"><div><span class="section-index">01</span><h2 id="config-heading">实验配置</h2></div><span id="config-state" class="mini-badge">载入中</span></div>
+          <form id="config-form" novalidate>
+            <div class="config-scroll" role="region" aria-label="实验参数（可滚动）" tabindex="0">
+            <fieldset id="config-fields" disabled>
+              <div class="form-section">
+                <span id="scenario-label" class="form-label">任务场景</span>
+                <div class="segmented" id="scenario-control" role="group" aria-labelledby="scenario-label"><button type="button" data-scenario="inference" class="selected" aria-pressed="true">推理 Inference</button><button type="button" data-scenario="training" aria-pressed="false">训练 Training</button></div>
+                <label for="preset">模型与场景预设</label><select id="preset"><option>正在读取预设…</option></select>
+                <p id="preset-description" class="field-note"></p>
+                <div class="model-summary"><span id="model-name">—</span><div><span id="model-params">— 参数</span><span id="model-layers">— 层</span></div></div>
+              </div>
+              <div class="form-section">
+                <h3><span class="form-icon">▦</span>硬件与并行</h3>
+                <div class="field-grid"><div><label for="npu-count">NPU 总数</label><input id="npu-count" type="number" min="1" step="1" data-path="hardware.npu_count"></div><div><label for="su-size">每 SU 卡数</label><input id="su-size" type="number" min="1" step="1" data-path="hardware.su_size"></div></div>
+
+                <label for="topology-select">拓扑模板</label><select id="topology-select" data-path="hardware.topology"><option value="full_mesh">Full mesh · 全连接</option><option value="mesh">Mesh · 网格</option><option value="clos">Clos</option><option value="fat_tree">Fat tree · 胖树</option><option value="explicit">Explicit · 显式有向图</option></select>
+                <p id="explicit-topology-note" class="field-note" hidden>显式链路与设备成员固定。请在完整 JSON 中修改并重新校验拓扑；修改 NPU / SU 不会自动重建链路。</p>
+                <div class="field-grid"><div><label for="hbm-capacity">每卡 HBM <span class="label-unit">GB</span></label><input id="hbm-capacity" type="number" min="0.001" step="any" data-path="hardware.npu.hbm_bytes" data-scale="1000000000"></div><div><label for="npus-per-host">每主机卡数</label><input id="npus-per-host" type="number" min="1" step="1" data-path="hardware.npus_per_host"></div></div>
+                <div class="field-grid"><div><label for="su-bandwidth">SU 带宽 <span class="label-unit">GB/s</span></label><input id="su-bandwidth" type="number" min="0.001" step="any" data-path="hardware.scale_up.bandwidth_Bps" data-scale="1000000000"></div><div><label for="so-bandwidth">SO 带宽 <span class="label-unit">GB/s</span></label><input id="so-bandwidth" type="number" min="0.001" step="any" data-path="hardware.scale_out.bandwidth_Bps" data-scale="1000000000"></div></div>
+                <p class="field-note">1 GB = 10⁹ byte。带宽为模板链路配置；端点注入与共享上联独立保留，可在 JSON 中调整。</p>
+                <div class="parallel-grid">
+                  <div><label for="tp">TP</label><input id="tp" type="number" min="1" step="1" data-path="execution.tp"></div>
+                  <div><label for="pp">PP</label><input id="pp" type="number" min="1" step="1" data-path="execution.pp"></div>
+                  <div><label for="ep">EP</label><input id="ep" type="number" min="1" step="1" data-path="execution.ep"></div>
+                  <div><label for="dp">DP</label><input id="dp" type="number" min="1" step="1" data-path="execution.dp"></div>
+                  <div><label for="fsdp">FSDP</label><input id="fsdp" type="number" min="1" step="1" data-path="execution.fsdp"></div>
+                </div>
+                <p id="parallel-note" class="field-note">TP × PP × EP × DP = NPU 总数；FSDP 是 DP 子组。</p>
+                <div class="field-grid"><div><label for="weight-dtype">权重驻留精度</label><select id="weight-dtype" data-path="execution.precision.weight"><option>fp4</option><option>fp8</option><option>fp16</option><option>bf16</option><option>fp32</option><option>int8</option></select></div><div><label for="kv-dtype">KV 精度</label><select id="kv-dtype" data-path="execution.precision.kv"><option>fp8</option><option>fp16</option><option>bf16</option><option>fp32</option><option>int8</option></select></div></div>
+                <p class="field-note">计算、通信、梯度与回传精度独立保留，可在完整配置中编辑。</p>
+              </div>
+              <div class="form-section">
+                <h3><span class="form-icon">≋</span>负载与执行策略</h3>
+                <label for="batch">Batch size</label><input id="batch" type="number" min="1" step="1" data-path="workload.batch_size">
+                <div data-for-scenario="inference">
+                  <label for="input-lengths">输入长度 <span class="label-unit">tokens / 请求</span></label><input id="input-lengths" type="text" data-path="workload.input_lengths" data-type="array" spellcheck="false" placeholder="128, 64">
+                  <label for="output-lengths">输出长度 <span class="label-unit">tokens / 请求</span></label><input id="output-lengths" type="text" data-path="workload.output_lengths" data-type="array" spellcheck="false" placeholder="4, 2">
+                  <div class="length-helper"><span id="length-note" class="field-note">支持每个请求不同长度。</span><button type="button" id="uniform-lengths" class="text-button" title="取当前首项长度，按 Batch size 生成等长请求">统一长度</button></div>
+                  <label for="kv-offload">KV 卸载位置</label><select id="kv-offload" data-path="execution.features.kv_offload"><option value="none">不卸载 · NPU HBM</option><option value="host">主机内存 · Host</option><option value="remote">远程内存 · Remote</option></select>
+                </div>
+                <div data-for-scenario="training" hidden>
+                  <div class="field-grid"><div><label for="sequence-length">序列长度</label><input id="sequence-length" type="number" min="1" data-path="workload.sequence_length"></div><div><label for="training-steps">训练步数</label><input id="training-steps" type="number" min="1" data-path="workload.training_steps"></div></div>
+                  <label for="gradient-accumulation">梯度累积次数</label><input id="gradient-accumulation" type="number" min="1" data-path="workload.gradient_accumulation">
+                  <label class="checkbox-field"><input type="checkbox" data-path="execution.features.optimizer_offload"><span>优化器卸载至主机</span></label>
+                  <label class="checkbox-field"><input type="checkbox" data-path="execution.features.activation_checkpointing"><span>激活重计算</span></label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h3><span class="form-icon">◎</span>性能目标 <span class="optional-label">可选</span></h3>
+                <div class="field-grid" data-for-scenario="inference"><div><label for="ttft-target">TTFT 上限 <span class="label-unit">ms</span></label><input id="ttft-target" type="number" min="0.001" step="any" data-path="targets.ttft_s" data-scale="0.001" placeholder="未设置"></div><div><label for="tpot-target">TPOT 上限 <span class="label-unit">ms</span></label><input id="tpot-target" type="number" min="0.001" step="any" data-path="targets.tpot_s" data-scale="0.001" placeholder="未设置"></div></div>
+                <div data-for-scenario="training" hidden><label for="step-target">训练步时间上限 <span class="label-unit">s</span></label><input id="step-target" type="number" min="0.000001" step="any" data-path="targets.step_time_s" placeholder="未设置"></div>
+                <label for="throughput-target">聚合吞吐下限 <span class="label-unit">tokens/s</span></label><input id="throughput-target" type="number" min="0.001" step="any" data-path="targets.throughput_tokens_s" placeholder="未设置">
+              </div>
+              <details id="advanced" class="form-section advanced-section">
+                <summary>完整配置 <span>JSON</span></summary>
+                <p class="field-note">保留预设全部字段。可编辑模型结构、链路、SLO、来源及其他选项；校验或运行会应用这里的修改。</p>
+                <label for="config-json" class="sr-only">完整 JSON 配置</label><textarea id="config-json" spellcheck="false" rows="14"></textarea>
+                <div class="inline-actions"><button id="apply-json" class="button small" type="button">应用并校验</button><button id="import-json" class="text-button" type="button">导入 JSON</button><button id="export-config" class="text-button" type="button">导出</button></div>
+                <input type="file" id="config-file" accept=".json,application/json" hidden>
+              </details>
+            </fieldset>
+            </div>
+            <div class="run-actions">
+              <div class="form-section run-mode-control">
+                <label for="run-mode">执行模式</label><select id="run-mode"><option value="simulate">离散事件仿真</option><option value="estimate">解析估算 · 必要下界</option></select>
+                <p id="mode-note" class="field-note">模拟依赖、资源争用与内存生命周期。</p>
+              </div>
+              <div id="validation-message" class="validation-message" role="status"></div>
+              <div class="run-button-row"><button class="button secondary" type="button" id="validate-button" disabled>校验配置</button><button class="button primary" type="submit" id="run-button" disabled><span aria-hidden="true">▷</span> 开始模拟</button></div>
+              <p>所有结果来自本地 Python 引擎</p>
+            </div>
+          </form>
+        </aside>
+
+        <section class="main-column" aria-label="仿真工作区">
+          <section class="card topology-panel">
+            <div class="panel-heading"><div><span class="section-index">02</span><h2>集群拓扑</h2><span class="mini-badge" id="topology-type">输入预览</span></div><span class="subtle">当前配置</span></div>
+            <div class="topology-layout"><div id="topology-visual" class="topology-visual" role="img" aria-label="等待载入集群配置"></div><div class="topology-facts"><div><span>集群规模</span><strong id="topology-npu">—</strong></div><div><span>Scale-up 域</span><strong id="topology-su">—</strong></div><div><span>每卡 HBM</span><strong id="topology-hbm">—</strong></div><div><span>SU / SO 链路</span><strong id="topology-bandwidth">—</strong></div></div></div>
+            <p id="topology-note" class="chart-caption">拓扑随输入更新；运行结果对应提交时的配置快照。</p>
+          </section>
+
+          <section class="card progress-panel" aria-labelledby="progress-heading">
+            <div class="panel-heading"><div><span class="section-index">03</span><h2 id="progress-heading">执行过程</h2><span id="job-status" class="mini-badge">就绪</span></div><div class="progress-actions"><span id="elapsed" class="mono">—</span><button id="cancel-button" type="button" class="text-button danger" hidden>取消运行</button></div></div>
+            <div class="phase-track" id="phase-track"><div data-phase="validating"><span>1</span><strong>配置校验</strong></div><i></i><div data-phase="simulating"><span>2</span><strong id="engine-phase-label">引擎计算</strong></div><i></i><div data-phase="exporting"><span>3</span><strong>导出报告</strong></div><i></i><div data-phase="completed"><span>4</span><strong>结果就绪</strong></div></div>
+            <div id="process-message" class="process-message" role="status">选择输入配置后开始运行。这里展示实际执行阶段与日志。</div>
+            <div id="process-artifact-links" class="artifact-links process-artifacts"></div>
+            <details id="logs-details"><summary>运行日志 <span id="log-count">0 条</span></summary><pre id="job-logs" tabindex="0">尚无运行记录。</pre></details>
+          </section>
+
+          <section id="results" class="results-section" aria-labelledby="results-heading">
+            <div class="results-heading"><div><span class="section-index">04</span><h2 id="results-heading">仿真结果</h2><span id="result-status" class="mini-badge" hidden></span></div><span id="result-mode" class="subtle">等待运行</span></div>
+            <div id="empty-results" class="card empty-state"><div class="empty-graphic" aria-hidden="true"><span></span><span></span><span></span><span></span><i></i></div><h3>下一次架构决策，从这次仿真开始</h3><p>运行后查看性能指标、通信流量、内存峰值与事件时间线。</p><div class="empty-pills"><span>性能与 SLO</span><span>SU / SO 流量</span><span>资源争用</span></div></div>
+            <div id="result-content" hidden>
+              <div id="result-context" class="result-context"></div>
+              <div id="result-alert" class="notice" hidden role="status"></div>
+              <div id="kpi-grid" class="kpi-grid"></div>
+              <div class="result-card-grid">
+                <section class="card chart-card"><div class="panel-heading"><h3>通信流量</h3><span class="mini-badge">GB · 十进制</span></div><div class="chart-tabs" role="group" aria-label="通信统计视图"><button type="button" data-comm-view="physical_bytes_by_domain" class="selected" aria-pressed="true">物理链路域</button><button type="button" data-comm-view="payload_by_semantic_bytes" aria-pressed="false">应用语义</button><button type="button" data-comm-view="payload_by_collective_bytes" aria-pressed="false">Collective</button></div><div id="communication-chart" class="bar-chart"></div><p id="communication-note" class="chart-caption"></p></section>
+                <section class="card chart-card"><div class="panel-heading"><h3>内存容量与峰值</h3><select id="memory-filter" aria-label="内存池类型"><option value="all">所有内存池</option></select></div><div id="memory-chart" class="memory-chart"></div><p id="memory-note" class="chart-caption"></p></section>
+              </div>
+              <section class="card chart-card resource-card"><div class="panel-heading"><h3>资源利用率</h3><span id="resource-meta" class="subtle"></span></div><div id="resource-chart" class="resource-chart"></div><p class="chart-caption">使用引擎资源统计；解析估算不产生仿真利用率。</p></section>
+              <section class="card chart-card trace-card"><div class="panel-heading"><h3>事件时间线</h3><div class="trace-legend"><span><i class="compute-color"></i>计算</span><span><i class="comm-color"></i>通信</span><span><i class="other-color"></i>其他</span></div></div><p id="trace-note" class="chart-caption"></p><div id="trace-chart" class="trace-chart"></div></section>
+              <section class="card insight-card"><details id="diagnostic-details"><summary>约束、假设与数据来源 <span id="diagnostic-count"></span></summary><div id="diagnostic-content"></div></details></section>
+              <section class="card downloads-card"><div><h3>可复现的完整结果</h3><p>下载报告、配置与原始统计文件，继续分析或复现。</p></div><div id="artifact-links" class="artifact-links"></div></section>
+            </div>
+          </section>
+
+          <section id="history-panel" class="card history-panel"><div class="panel-heading"><h2>最近运行</h2><button id="refresh-history" class="text-button" type="button">刷新列表 ↻</button></div><div id="history-list"><p class="muted-empty">正在读取运行记录…</p></div></section>
+          <footer class="workspace-footer"><span>SUPERNODE SIMULATION</span><span>固定负载架构模型 · 未校准配置用于架构比较</span></footer>
+        </section>
+      </div>
+    </main>
+
+    <main id="inputs" class="inputs-page" hidden aria-labelledby="inputs-heading">
+      <div class="page-heading inputs-heading">
+        <div><div class="eyebrow">SUPERNODE / INPUT SPECIFICATION</div><h1 id="inputs-heading" tabindex="-1">仿真输入总览</h1><p>从模型结构到请求长度，逐项查看交给仿真引擎的完整输入。</p></div>
+        <div class="input-header-actions"><a class="button secondary" href="#workspace">返回实验编辑</a><button class="button primary" id="download-viewed-input" type="button" disabled>↓ 下载所看配置</button></div>
+      </div>
+      <section class="card input-source-panel" aria-label="输入数据来源">
+        <div class="input-source-controls"><div><label for="input-source">查看来源</label><select id="input-source"><option value="draft">当前编辑配置</option><option value="job">运行配置快照</option></select></div><div id="input-job-control" hidden><label for="input-job-select">选择运行</label><select id="input-job-select"></select></div><button id="retry-input-snapshot" class="text-button" type="button" hidden>重新读取快照</button><span id="input-state-badge" class="mini-badge">等待配置</span></div>
+        <p id="input-source-description" class="input-source-description" role="status">正在读取输入配置。</p>
+      </section>
+
+      <section class="card input-edit-toolbar" aria-label="输入编辑操作">
+        <div class="input-edit-actions"><button id="edit-inputs-toggle" class="button secondary" type="button">编辑参数</button><button id="validate-inputs" class="button secondary" type="button">校验当前配置</button><button id="copy-input-snapshot" class="button primary" type="button" hidden>复制为当前配置并编辑</button><button id="discard-input-pending" class="text-button danger" type="button" hidden>放弃未应用内容</button></div>
+        <p id="input-edit-message" role="status">进入编辑后，修改会同步到实验页，并用于下一次仿真。</p>
+      </section>
+      <section id="input-json-edit-panel" class="card input-json-edit-panel" hidden aria-labelledby="input-json-edit-heading">
+        <div class="panel-heading"><div><h2 id="input-json-edit-heading">编辑完整字段</h2><code id="input-json-edit-path"></code></div></div>
+        <p id="input-json-edit-note" class="input-section-note">修改 JSON 后点击“应用字段修改”。未应用的内容保留在这里，并阻止提交仿真。</p>
+        <label class="sr-only" for="input-json-editor">字段 JSON 草稿</label><textarea id="input-json-editor" spellcheck="false" rows="10"></textarea>
+        <div class="input-edit-actions"><button id="apply-input-json" class="button primary" type="button">应用字段修改</button><button id="discard-input-json" class="button secondary" type="button">放弃本字段草稿</button><button id="close-input-json" class="text-button" type="button">保留并收起</button></div>
+        <p id="input-json-error" class="input-edit-error" role="status"></p>
+      </section>
+      <div id="input-view-notice" class="notice" role="status" hidden></div>
+      <div id="input-view-empty" class="card input-view-empty" hidden><h2>尚无可展示的输入</h2><p>返回实验页选择预设，或导入完整 JSON 配置。</p></div>
+      <div id="input-view-content" hidden>
+        <nav class="input-section-nav" aria-label="输入分类"><a href="#inputs-model"><span>01</span>模型参数</a><a href="#inputs-topology"><span>02</span>拓扑结构</a><a href="#inputs-hardware"><span>03</span>硬件规格</a><a href="#inputs-parallel"><span>04</span>并行与执行</a><a href="#inputs-workload"><span>05</span>工作负载</a></nav>
+        <div class="input-overview-grid">
+          <section id="inputs-model" class="card input-detail-card" tabindex="-1" aria-labelledby="input-model-heading"><div class="panel-heading"><div><span class="section-index">01</span><h2 id="input-model-heading">模型参数</h2></div><span class="mini-badge">MODEL</span></div><div id="input-model-body" class="input-card-body"></div></section>
+          <section id="inputs-topology" class="card input-detail-card" tabindex="-1" aria-labelledby="input-topology-heading"><div class="panel-heading"><div><span class="section-index">02</span><h2 id="input-topology-heading">拓扑结构</h2></div><span class="mini-badge">TOPOLOGY</span></div><div id="input-topology-body" class="input-card-body"></div></section>
+          <section id="inputs-hardware" class="card input-detail-card input-card-wide" tabindex="-1" aria-labelledby="input-hardware-heading"><div class="panel-heading"><div><span class="section-index">03</span><h2 id="input-hardware-heading">硬件规格</h2></div><span class="mini-badge">HARDWARE</span></div><div id="input-hardware-body" class="input-card-body"></div></section>
+          <section id="inputs-parallel" class="card input-detail-card" tabindex="-1" aria-labelledby="input-parallel-heading"><div class="panel-heading"><div><span class="section-index">04</span><h2 id="input-parallel-heading">并行与执行</h2></div><span class="mini-badge">EXECUTION</span></div><div id="input-parallel-body" class="input-card-body"></div></section>
+          <section id="inputs-workload" class="card input-detail-card" tabindex="-1" aria-labelledby="input-workload-heading"><div class="panel-heading"><div><span class="section-index">05</span><h2 id="input-workload-heading">工作负载</h2></div><span class="mini-badge">WORKLOAD</span></div><div id="input-workload-body" class="input-card-body"></div></section>
+        </div>
+        <section class="card input-meta-card"><h2>配置来源与其他字段</h2><p>保留版本、随机种子、参数来源、假设和所有高级字段；展开后查看原始值。</p><div id="input-meta-body"></div></section>
+        <footer class="workspace-footer"><span>INPUTS / CONFIGURATION</span><span>展示输入配置，不代表实测规格或仿真结果</span></footer>
+      </div>
+    </main>
+  </div>
+  <div id="toast" role="status" class="toast" hidden></div>
+</body>
+</html>

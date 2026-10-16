@@ -1,6 +1,6 @@
 ---
 name: supernode-modeling
-description: Model supernode training and inference memory, compute, and communication with supernode_sim. Use for component-level weights, activations, gradients and Adam/Muon state breakdowns; Kimi K3 and Ascend 950 scenarios; FP8/FP16 capacity, offload, KV/KDA state, scale-out domains, SU/SO topology inputs, natural-language topology generation and minimum-SU searches.
+description: Model supernode training and inference memory, compute, and communication with supernode_sim. Use for component-level memory and Adam/Muon state breakdowns; Kimi K3 and Ascend 950 scenarios; offload, KV/KDA state, SU/SO topology generation and minimum-SU searches; or feedback searches for TP/SP/EP, prefill length and decode batch that maximize decode throughput under TTFT/TPOT targets on fixed hardware and topology.
 ---
 
 # 超节点资源与通信建模
@@ -28,12 +28,13 @@ python -m supernode_sim schema
 - Kimi K3 / Ascend 950 样例和真实性边界：读 [ascend950-kimi-k3.md](references/ascend950-kimi-k3.md)。
 - 训练/FSDP2/optimizer offload/10T 容量：读 [training.md](references/training.md)。
 - 推理/KV 压缩与 offload/Engram：读 [inference.md](references/inference.md)。
+- 固定模型、拓扑和硬件，输入 TTFT、TPOT（用户也可能写 TPOP），反求 TP/SP/EP、Prefill 长度及 Decode batch：读 [feedback.md](references/feedback.md)，运行 `feedback`，在满足目标的有限候选内优先最大化 Decode 吞吐量。
 - 接收 SU/SO 拓扑、scale-out 域、分析链路瓶颈/最小域搜索：读 [topology.md](references/topology.md)。
 - 用户用自然语言生成或修改 scale-up / scale-out 拓扑：按子 skill [supernode-topology](subskills/supernode-topology/SKILL.md) 生成拓扑规范、原生配置和拓扑图，再回到本 skill 做流量仿真。仅生成拓扑时在子 skill 内完成，不要求模型或负载。
 
 先检查用户提供的配置与可核实资料，再补齐问题所需的参数。只询问会改变结论且无法从现有资料获得的缺失项，使用明确字段名。模型名称不是结构证据；对未公开结构采用用户认可或明确标注的 synthetic 假设，不把假设写成某模型的公开规格。
 
-保留用户场景，在工作目录创建可重跑配置。先 `validate`，再按任务运行 `estimate`、`simulate`、`sweep` 或 `size-su`；`estimate` 提供必要下界，不能证明 SLO 可行。硬件显然无法容纳的配置也有分析价值，保留失败原因而不自动放大硬件。
+保留用户场景，在工作目录创建可重跑配置。先 `validate`，再按任务运行 `estimate`、`simulate`、`sweep`、`size-su` 或 `feedback`；`estimate` 提供必要下界，不能证明 SLO 可行。硬件显然无法容纳的配置也有分析价值，保留失败原因而不自动放大硬件。
 
 ## 拓扑作为输入
 
@@ -61,6 +62,7 @@ python -m supernode_sim schema
 - 给出配置、版本/来源、命令、结果文件，以及结论成立的约束。执行失败、不可行和缺参分别处理。
 - 缓存/MTE 的工作集、访问量和搬运需求不能直接换算成 L1/L2/L3 容量或通道数；需要硬件与 kernel 校准。
 - 固定 batch 仿真不提供生产请求排队或 P99 保证；SU “最小”限定为已检查候选集合与调度策略。
+- Feedback 的“最优”限定为所声明候选集内满足 TTFT/TPOT 与资源约束的最高 Decode 吞吐。Prefill 与 Decode 用同一候选完整执行；SP 共用 TP rank。报告所选长度和 batch，不把不同候选的长度/batch 极值拼成一个推荐。
 
 正式数值引用引擎生成的 JSON/CSV/报告；容量锚点可用于交叉检查。报告没有的数据应标注缺失或扩展需求，不补写成仿真输出。
 

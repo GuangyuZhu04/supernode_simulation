@@ -6,6 +6,20 @@
 
 支持训练与固定负载推理、FP8/FP16 权重、FSDP2/CPU optimizer offload、MoE、标准与 latent KV、KV offload、Engram 查询、SU/SO 拓扑和有限候选搜索。Demo 与 10T 容量锚点是明确标注的合成配置；Kimi K3 / Ascend 950DT 案例使用公开结构和硬件资料，并分别标明运行时、拓扑及效率假设，不将型号名称当作实测校准。
 
+## 网页仿真工作台
+
+在项目根目录启动本地网页，无需安装 Node.js 或前端依赖：
+
+```powershell
+.\.venv\Scripts\python.exe -m supernode_sim web
+```
+
+浏览器打开 **http://127.0.0.1:8765**。选择训练或推理预设，调整负载、并行布局、硬件、精度及 offload 选项，校验后点击开始运行。网页调用现有 Python 引擎，展示真实运行阶段、通信流量、容量、资源使用和事件时间线，并提供历史任务及报告下载。完整配置可通过高级 JSON 编辑器修改或导入。
+
+左侧“输入”页提供模型、拓扑、硬件、并行度和 Workload 的完整总览与编辑。修改同步到当前实验配置，统一校验后可直接运行；历史输入可以复制为新的可编辑配置，原任务快照保留。
+
+也可运行 `snmodel web` 或 `python -m supernode_sim.web`；`--port 8766` 修改端口，`--output outputs/web` 指定任务保存目录。详细操作和指标口径见 [网页工作台使用说明](docs/web-interface.md)。
+
 ## 安装与快速运行
 
 要求 Python 3.11+，依赖 Pydantic 2、PyYAML。当前实现也在 Python 3.14 上验证。
@@ -16,6 +30,7 @@ snmodel validate examples/demo_training.yaml
 snmodel simulate examples/demo_training.yaml -o outputs/demo-training
 snmodel simulate examples/demo_inference.yaml -o outputs/demo-inference
 snmodel size-su examples/demo_inference.yaml --mode both -o outputs/su-search
+snmodel feedback examples/demo_inference.yaml --search examples/feedback_inference.yaml -o outputs/demo-feedback
 ```
 
 未安装 CLI 时，在项目根目录把 `snmodel` 替换为 `python -m supernode_sim`，其余参数不变。
@@ -55,7 +70,7 @@ python -u scripts/run_reference_experiment.py examples/kimi_k3_ascend950_trainin
 
 单位是 byte、second、FLOP；报告容量 TB 使用十进制。`unit` 是资源速率单位，`work_unit` 是累计工作量单位。
 
-推理不模拟请求到达队列：TTFT 从开始执行计时；每请求 TPOT 为首 token 后的平均间隔；批量 SLO 使用请求中最大的 TTFT 和 TPOT。输出长度为 1 时 TPOT 为 null。吞吐为本次完整执行期间产生的输出 token 数/耗时，输入吞吐另列。训练报告首次、后续平均以及逐步耗时。
+推理不模拟请求到达队列：TTFT 从开始执行计时；每请求 TPOT 为首 token 后的平均间隔；批量 SLO 使用请求中最大的 TTFT 和 TPOT。输出长度为 1 时 TPOT 为 null。`throughput_tokens_s` 为本次完整执行期间产生的输出 token 数/耗时，输入吞吐另列；Feedback 另以首 token 后的输出数和对应执行时间窗计算 Decode 吞吐。训练报告首次、后续平均以及逐步耗时。
 
 `estimate` 给出必要下界，不声明 SLO 已满足。其乐观内存时间线忽略争用，不能作为通用容量下界；搜索只用固定驻留内存和严格性能下界剪枝，再仿真候选。
 
@@ -99,6 +114,18 @@ python -m supernode_sim import-hf path/to/config.json --overrides path/to/model-
 ## 设计搜索与建模边界
 
 `targets.candidate_npu_counts`、`candidate_su_sizes`、`parallel_candidates` 定义有限候选集。多域搜索必须给定 `total_npus` 或 `max_total_npus`。未指定并行候选时固定 TP/PP/EP/FSDP，并按总卡数推导 DP。候选数量上限由 `max_candidates` 控制，结果只声称该集合及指定调度下的最小值。
+
+`feedback` 在固定模型、硬件和物理拓扑上输入 TTFT/TPOT 上限，联合搜索 TP、SP、EP、Prefill 长度及 Decode batch，优先最大化满足目标的 **Decode 吞吐量**：
+
+```powershell
+python -m supernode_sim feedback examples/demo_inference.yaml --ttft-s 1 --tpop-s 0.05 --prefill-lengths 32 64 128 --decode-batch-sizes 1 2 4 8 --output-length 4 -o outputs/demo-feedback
+```
+
+`--tpop-s` 是 `--tpot-s` 的别名，单位均为秒。也可用 `--search examples/feedback_inference.yaml` 传入搜索规范。默认固定原 PP/DP 并枚举用满设备的合法 TP/EP；SP 共用 TP rank，开启时 degree=TP，只在当前引擎支持时枚举。精度、offload、rank 放置、硬件链路与容量保持不变。Prefill 和 Decode 共享候选的固定 batch，完整运行后同时检查 TTFT、TPOT、内存和原有完整执行吞吐 SLO。
+
+Decode 吞吐为所有请求首 token 后的输出 token 数，除以最早首 token 到最晚末 token 的时间窗；DP=PP=1 时为 Decode 阶段时间，其他并行布局可能包含与未完成 Prefill 的重叠。吞吐最优候选的输入长度和 batch 不一定是各自最大值。未显式给出长度/batch 时，取 1、2、4 等至原输入长度最大值/原 batch 并包含端点；原配置输出长度不一致时，必须显式给出至少为 2 的 `--output-length`。最优只在声明的有限候选集内成立，超过 `max_candidates` 会在仿真前拒绝，不截断或假定单调。
+
+Feedback 输出候选 CSV、失败诊断、Pareto 与布局可行边界，并在有解时生成可复跑的 `best.config.json`；`--engine auto` 为结构化 DP=PP=1 场景选择流式完整运行。字段、Python API 与报告口径见 [Feedback 使用说明](skills/supernode-modeling/references/feedback.md)。
 
 - 参数总量/活跃量是声明的预算；层级算子是架构近似，并非某个框架的精确执行 trace。
 - Dense 参数在 EP 间复制，expert 参数按 EP 划分；专家默认均匀路由。稀疏 decode 的权重读取按预期触达专家量估算。
