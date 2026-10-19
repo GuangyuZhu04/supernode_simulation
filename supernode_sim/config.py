@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator, model_serializer
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, model_validator, model_serializer
 
 DType = Literal['fp4', 'fp8', 'fp16', 'bf16', 'fp32', 'int8']
 Positive = float
@@ -417,6 +417,67 @@ class SpeculativeDecodeSpec(Spec):
         return self
 
 
+class MegakernelGroupSpec(Spec):
+    name: str = Field(min_length=1)
+    kernels: list[str] = Field(min_length=2,
+        description='Ordered exact metadata.kernel pattern; repeated names are allowed.')
+    phases: list[str] = Field(default_factory=list)
+    layers: list[int] = Field(default_factory=list)
+    ranks: list[str] = Field(default_factory=list)
+    fused_startup_s: float = Field(ge=0,
+        description='Explicit fused launch startup; no automatic free-launch assumption.')
+    saved_hbm_bytes: float = Field(default=0, ge=0)
+    workspace_bytes: float = Field(default=0, ge=0)
+    duration_s: float | None = Field(default=None, gt=0,
+        description='Optional fused solo service time excluding fused_startup_s; physical work is retained.')
+    source: Source = Field(default_factory=Source)
+
+    @model_validator(mode='after')
+    def selectors(self):
+        import re
+        if not self.name.strip() or any(not item.strip() for item in self.kernels + self.phases):
+            raise ValueError('megakernel group names, kernel names and phases must be nonempty')
+        if any(layer < 0 for layer in self.layers):
+            raise ValueError('megakernel layer selectors must be nonnegative')
+        if any(re.fullmatch(r'npu[0-9]+', rank) is None for rank in self.ranks):
+            raise ValueError('megakernel rank selectors must match npu[0-9]+')
+        return self
+
+
+class MegakernelSpec(Spec):
+    enabled: StrictBool = False
+    groups: list[MegakernelGroupSpec] = Field(default_factory=list)
+
+    @model_validator(mode='after')
+    def explicit_groups(self):
+        if self.enabled and not self.groups:
+            raise ValueError('enabled megakernel requires explicit groups and fused startup costs')
+        names = [group.name for group in self.groups]
+        if len(names) != len(set(names)):
+            raise ValueError('megakernel group names must be unique')
+        return self
+
+
+class PrefillDecodeDisaggregationSpec(Spec):
+    enabled: StrictBool = False
+    prefill_ranks: list[StrictInt] = Field(default_factory=list,
+        description='Physical NPU indices for the prefill pool; empty with decode_ranks derives consecutive disjoint pools.')
+    decode_ranks: list[StrictInt] = Field(default_factory=list)
+    token_id_bytes: Literal[4, 8] = Field(default=8,
+        description='Bytes per transferred first-token ID; no implicit RPC service time is added.')
+
+    @model_validator(mode='after')
+    def rank_lists(self):
+        ranks = self.prefill_ranks + self.decode_ranks
+        if any(rank < 0 for rank in ranks):
+            raise ValueError('prefill/decode rank indices must be nonnegative')
+        if len(set(ranks)) != len(ranks):
+            raise ValueError('prefill/decode rank lists must be unique and disjoint')
+        if self.enabled and bool(self.prefill_ranks) != bool(self.decode_ranks):
+            raise ValueError('provide both prefill_ranks and decode_ranks or leave both empty for automatic placement')
+        return self
+
+
 class FeatureSpec(Spec):
     optimizer_offload: bool = False
     activation_checkpointing: bool = False
@@ -430,6 +491,8 @@ class FeatureSpec(Spec):
     extra_weight_copy_dtype: DType | None = None
     engram: EngramSpec = Field(default_factory=EngramSpec)
     speculative_decode: SpeculativeDecodeSpec = Field(default_factory=SpeculativeDecodeSpec)
+    megakernel: MegakernelSpec = Field(default_factory=MegakernelSpec)
+    prefill_decode_disaggregation: PrefillDecodeDisaggregationSpec = Field(default_factory=PrefillDecodeDisaggregationSpec)
 
 
 class ExecutionSpec(Spec):
@@ -507,6 +570,8 @@ class FeatureSelectionSpec(Spec):
     quantization: QuantizationSelection | None = None
     attention: AttentionSelection | None = None
     speculative_decode: SpeculativeDecodeSpec | None = None
+    megakernel: MegakernelSpec | None = None
+    prefill_decode_disaggregation: PrefillDecodeDisaggregationSpec | None = None
     kernel_profiles: dict[str, list[KernelProfile]] | None = None
 
 
@@ -554,7 +619,29 @@ class Config(Spec):
     @model_validator(mode='after')
     def consistency(self):
         e, h, m = self.execution, self.hardware, self.model
-        if e.tp * e.pp * e.ep * e.dp != h.npu_count:
+        pd = e.features.prefill_decode_disaggregation
+        if pd.enabled:
+            if self.workload.scenario != 'inference' or m.architecture is None:
+                raise ValueError('prefill_decode_disaggregation requires structured inference')
+            if e.dp != 1 or e.pp != 1:
+                raise ValueError('prefill_decode_disaggregation currently requires DP=PP=1 and identical TP/EP per stage')
+            pool_size = e.tp * e.ep
+            if h.npu_count != 2 * pool_size:
+                raise ValueError('prefill_decode_disaggregation requires hardware.npu_count = 2 * TP * EP; TP/EP describe each stage pool')
+            if e.rank_order:
+                raise ValueError('prefill_decode_disaggregation uses prefill_ranks/decode_ranks; execution.rank_order must be empty')
+            if not pd.prefill_ranks and not pd.decode_ranks:
+                pd.prefill_ranks = list(range(pool_size))
+                pd.decode_ranks = list(range(pool_size, h.npu_count))
+            if len(pd.prefill_ranks) != pool_size or len(pd.decode_ranks) != pool_size:
+                raise ValueError('each prefill/decode rank pool must contain exactly TP * EP physical NPUs')
+            if sorted(pd.prefill_ranks + pd.decode_ranks) != list(range(h.npu_count)):
+                raise ValueError('prefill/decode rank pools must cover every physical NPU exactly once')
+            if e.features.speculative_decode.enabled:
+                raise ValueError('prefill_decode_disaggregation with speculative_decode is not implemented')
+            if e.features.kv_offload != 'none' or e.features.engram.enabled:
+                raise ValueError('prefill_decode_disaggregation currently requires kv_offload=none and Engram disabled')
+        elif e.tp * e.pp * e.ep * e.dp != h.npu_count:
             raise ValueError('tp * pp * ep * dp must equal hardware.npu_count; fsdp is a DP subgroup')
         if e.sequence_parallel:
             if e.tp == 1:
@@ -604,6 +691,12 @@ class Config(Spec):
         if e.precision.compute not in h.npu.flops:
             raise ValueError('NPU profile must specify FLOPs for the selected compute dtype')
         f = e.features
+        if f.megakernel.enabled:
+            for group in f.megakernel.groups:
+                if any(layer >= m.layers for layer in group.layers):
+                    raise ValueError('megakernel layer selectors must be valid model layer indices')
+                if any(int(rank[3:]) >= h.npu_count for rank in group.ranks):
+                    raise ValueError('megakernel rank selectors must reference existing physical NPUs')
         if m.architecture and any(kind in ('CSA', 'HCA') for kind in m.architecture.attention_by_layer):
             if e.precision.kv != e.precision.compute:
                 raise ValueError('CSA/HCA currently require KV dtype equal to compute dtype; mixed-precision sparse cache conversion is not modeled')

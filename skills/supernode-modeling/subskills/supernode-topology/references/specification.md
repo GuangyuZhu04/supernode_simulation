@@ -88,7 +88,7 @@ SU 图的终端是同一 SU 的 NPU。SO 域内图的终端按 SU 索引排序�
 
 `--base` 必须指向真实完整场景。编译器先解析原场景及 calibration，再替换卡数、拓扑、主机映射、SU/SO/host 链路字段，清除旧 `explicit_links/routes`，保留 model/workload/execution、NPU/CPU profile、remote/SSD 和 kernel profile。已启用 remote/SSD 时生成主机 bridge 路径；输出解除 calibration 引用，避免重载时以旧校准覆盖新拓扑。
 
-`--base` 不自动更改并行策略。完整配置仍须满足 `tp * pp * ep * dp == npu_count`、`dp % fsdp == 0` 及 rank 放置要求。卡数冲突应明确调整用户接受的执行策略再编译，不能为了通过校验偷偷改变全局 batch 或 DP。
+`--base` 不自动更改并行策略。普通完整配置须满足 `tp * pp * ep * dp == npu_count`、`dp % fsdp == 0` 及 rank 放置要求；启用父 skill 的 PD 分离时按引擎双池规则 `npu_count == 2 * tp * ep`、DP=PP=1，并验证 P/D 物理映射。卡数冲突应明确调整用户接受的执行策略再编译，不能为了通过校验偷偷改变全局 batch 或 DP。
 
 `--max-links` 默认 200000，可显式设置正整数上限；编译器在展开前估计链接数并限制大小。大 full-mesh 会产生平方级有向边；不要将提高上限当作保证仿真可执行。编译器错误应修正输入后再运行，不手工删边绕过校验。
 

@@ -11,13 +11,19 @@ flowchart TD
     SUB -->|sweep / size-su| SEARCH["sweep() / size_su()<br/>见图 10"]
     SUB -->|estimate / simulate| RUN["analysis.run(config, mode, full_detail)"]
     RUN --> COMPILE["compile_graph()<br/>规范化 Config → Topology.__init__()"]
-    COMPILE --> ARCH{"内部：model.architecture 存在？"}
+    COMPILE --> SPECIAL{"内部：PD / 投机特性？"}
+    SPECIAL -->|PD| PD["build_disaggregated()<br/>P/D 阶段 + 状态交接"]
+    SPECIAL -->|投机| SPEC["build_speculative()<br/>draft / verify / commit"]
+    SPECIAL -->|普通| ARCH{"内部：model.architecture 存在？"}
     ARCH -->|是| STRUCT["build_structured()<br/>Builder.training_graph() / inference()"]
     ARCH -->|否，training| TRAIN["build_training() → _TrainingBuilder.build()"]
     ARCH -->|否，inference| INFER["build_inference()"]
-    STRUCT --> CAL["apply_kernel_profiles()<br/>内部：补充 assumptions / fidelity"]
-    TRAIN --> CAL
-    INFER --> CAL
+    STRUCT --> FUSE["可选 apply_megakernel()<br/>安全局部链融合"]
+    TRAIN --> FUSE
+    INFER --> FUSE
+    PD --> FUSE
+    SPEC --> FUSE
+    FUSE --> CAL["apply_kernel_profiles()<br/>内部：assumptions / fidelity / feature_plan"]
     CAL --> EST["graph_estimate(graph)<br/>DAG 与资源下界、驻留容量、通信总量"]
     EST --> REQ["device_requirements()<br/>内部：快照、SHA-256、目标窗口、requirements"]
     REQ --> MODE{"内部：mode == simulate？"}

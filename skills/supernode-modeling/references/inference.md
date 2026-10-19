@@ -10,6 +10,8 @@
 
 默认逐 token autoregressive decode；可通过 [features](features.md) 选择 `speculative_decode` 的 draft/verify/commit 轮次模型。该模式要求同步等长 batch、DP=PP=1、显式草稿成本/状态与接受数，不预测接受概率或输出正确性。普通图支持，streaming 显式拒绝。
 
+`prefill_decode_disaggregation` 支持独立 P/D 物理池与同 TP/EP 布局的状态交接（DP=PP=1、总卡数为两池之和）。TTFT 截止 P 池首 token，传输 KV、KDA/CSA/HCA 状态、元数据和首 token ID 后 D 才开始；交接计入首个 decode 间隔。它不模拟在线到达队列，暂不与投机、KV offload、Engram 组合。`megakernel` 可在普通图中融合安全的局部 kernel 链；两者均须读 [feature 说明](features.md) 并使用普通 `simulate`。
+
 需要与真机 TTFT/TPOT 对齐时先读 [runtime-calibration.md](runtime-calibration.md)，统一客户端/引擎边界、batch/并发、统计窗口与软件路径。用户写 TPOP 时明确按 TPOT 理解。Kimi K3 的 DSpark 公开性能点见 [kimi-k3-runtime-evidence.md](kimi-k3-runtime-evidence.md)，不将投机吞吐折算值当作本引擎普通 decode 的实测。
 
 - TTFT：执行开始到首个输出 token 完成；报告中聚合 TTFT 取批内序列的最大值。
@@ -77,7 +79,7 @@ python scripts/summarize_kimi_10t_inference.py
 
 ## Megatron 式 sequence parallel
 
-结构化推理可以设置 `execution.sequence_parallel: true`，要求 TP>1、PP=1；暂不支持预算模型或训练。SP 与 TP 共用 rank，设备关系仍是 `TP × EP × PP × DP`，不能再乘一次 SP。它分片 Norm、AttnRes 工作区和持久残差，在 Attention/FFN 前 all-gather、后 reduce-scatter；attention heads/矩阵仍由 TP 分片。MLA compressed KV 仍在 TP 间复制，KDA recurrent heads 按 TP 分片，不能套用 context-parallel KV 或 KDA prefix-scan 流量。
+结构化推理可以设置 `execution.sequence_parallel: true`，要求 TP>1、PP=1；暂不支持预算模型或训练。SP 与 TP 共用 rank，普通模式设备关系为 `TP × EP × PP × DP`，不能再乘一次 SP；PD 使用两份相同 TP/EP 池。它分片 Norm、AttnRes 工作区和持久残差，在 Attention/FFN 前 all-gather、后 reduce-scatter；attention heads/矩阵仍由 TP 分片。MLA compressed KV 仍在 TP 间复制，KDA recurrent heads 按 TP 分片，不能套用 context-parallel KV 或 KDA prefix-scan 流量。
 
 Embedding 使用 reduce-scatter；Output 只 gather 每条序列最后一个隐藏向量用于首 token logits。为使用等长 collective，SP 行数采用 `ceil(valid_source_tokens/TP)`；decode 只有一行时会补到 TP 行。Attention/FFN 计算和 KV/state 只计有效 token。新增 gather 输入缓冲保留至相应组件完成；现有 MoE 仍在每条 TP lane 分派完整 latent，未表达 DeepEP 融合或 decode 关闭 SP 的策略。
 

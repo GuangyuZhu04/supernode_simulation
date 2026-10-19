@@ -111,6 +111,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
     if phase not in ('all', 'prefill', 'decode'):
         raise ValueError("phase must be 'all', 'prefill', or 'decode'")
     spec = config if isinstance(config, Config) else Config.model_validate(config)
+    if spec.execution.features.megakernel.enabled or spec.execution.features.prefill_decode_disaggregation.enabled:
+        raise ValueError('Megakernel fusion and prefill/decode disaggregation require ordinary simulate; streaming graph boundaries do not implement these features')
     if spec.execution.features.speculative_decode.enabled:
         raise ValueError('Speculative decoding currently requires ordinary simulate; streaming round state is not implemented')
     if spec.workload.scenario != 'inference' or spec.model.architecture is None:

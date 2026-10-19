@@ -1,0 +1,56 @@
+# Small synthetic fusion exercise; neither measured kernel timings nor a product claim.
+schema_version: '1.0'
+model:
+  name: synthetic-megakernel-GQA
+  layers: 1
+  hidden_dim: 16
+  num_heads: 4
+  kv_heads: 2
+  head_dim: 4
+  architecture:
+    vocab_size: 32
+    attention_by_layer: [GQA]
+    ffn_by_layer: [Dense]
+    dense_intermediate_dim: 32
+hardware:
+  name: synthetic-small-device-not-a-product
+  npu_count: 1
+  su_size: 1
+  npus_per_host: 1
+  npu:
+    hbm_bytes: 67108864
+    hbm_Bps: 1000000000
+    flops: {fp16: 1000000000, bf16: 1000000000, fp32: 100000000}
+    efficiency: 1
+    runtime_bytes: 65536
+    workspace_bytes: 4096
+workload:
+  scenario: inference
+  batch_size: 1
+  input_length: 8
+  output_length: 4
+features:
+  megakernel:
+    enabled: true
+    groups:
+      - name: synthetic-prenorm-gqa
+        kernels: [prenorm, gqa]
+        phases: [prefill, decode]
+        layers: [0]
+        ranks: [npu0]
+        # Explicit assumed launch cost; the default unfused model has zero startup.
+        # This example may therefore be slower. It demonstrates actual group fusion.
+        fused_startup_s: 0.000001
+        saved_hbm_bytes: 32
+        workspace_bytes: 64
+        source:
+          status: assumed
+          description: Synthetic two-component group, 32 bytes of bounded HBM savings and 1 microsecond startup; not measured SuperKernel behavior.
+sources:
+  '*':
+    status: assumed
+    description: Synthetic one-layer GQA and synthetic device; not K3, V4 or 950DT performance.
+assumptions:
+  - Compare matched group counts and preserved FLOPs; no speedup is promised by enabling fusion.
+  - Explicit HBM savings are illustrative; graph capture alone does not establish removed memory traffic.
+  - Fused allocation lifetimes use conservative_union and may overestimate peak memory.

@@ -40,7 +40,10 @@ def compile_graph(config: Config | dict) -> Graph:
     spec = config if isinstance(config, Config) else Config.model_validate(config)
     data = spec.model_dump()
     topology = Topology(data['hardware'], data['execution']['precision'])
-    if spec.execution.features.speculative_decode.enabled:
+    if spec.execution.features.prefill_decode_disaggregation.enabled:
+        from .disaggregated import build_disaggregated
+        graph = build_disaggregated(data, topology)
+    elif spec.execution.features.speculative_decode.enabled:
         from .speculative import build_speculative
         graph = build_speculative(data, topology)
     elif spec.model.architecture is not None:
@@ -65,6 +68,9 @@ def compile_graph(config: Config | dict) -> Graph:
             else:
                 initial.append(allocation)
         graph.initial_allocations = initial
+    if spec.execution.features.megakernel.enabled:
+        from .megakernel import apply_megakernel
+        apply_megakernel(graph, data)
     apply_kernel_profiles(graph, data)
     assumptions = graph.metadata.setdefault('assumptions', [])
     assumptions.extend(graph.metadata.get('approximations', []))
@@ -243,6 +249,19 @@ def execution_metrics(config: Config, graph: Graph, simulation: dict) -> dict:
             metrics['latency_breakdown'] = simulation['latency_breakdown']
         elif graph.events:
             metrics['latency_breakdown'] = build_latency_breakdown(graph, simulation, requests)
+        pd = meta.get('prefill_decode_disaggregation')
+        if pd:
+            stage_ids = {pd.get(key) for key in ('prefill_completion_event', 'handoff_completion_event',
+                                                'first_decode_completion_event')} - {None}
+            stage_times = {row['id']: row['end_s'] for row in simulation['trace'] if row['id'] in stage_ids}
+            prefill_end = stage_times.get(pd.get('prefill_completion_event'))
+            handoff_end = stage_times.get(pd.get('handoff_completion_event'))
+            decode_first = stage_times.get(pd.get('first_decode_completion_event'))
+            metrics.update(pd_prefill_time_s=prefill_end,
+                pd_handoff_time_s=handoff_end - prefill_end if handoff_end is not None and prefill_end is not None else None,
+                pd_first_decode_gap_s=decode_first - prefill_end if decode_first is not None and prefill_end is not None else None,
+                pd_decode_time_s=duration - handoff_end if handoff_end is not None else None,
+                pd_timing_scope='First token is completed by P; cache/token handoff follows it. Client forwarding/RPC/arrival queues are excluded.')
     return metrics
 
 

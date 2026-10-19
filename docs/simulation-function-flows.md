@@ -4,6 +4,8 @@
 
 阅读约定：带 `()` 的节点标注源码中的真实函数/方法；标注“内部”的节点表示函数体内逻辑块，不是新函数。实线箭头表示调用顺序或控制流。完整图路径中的循环在 Python 中编译事件图，运行依赖由 `Event.deps` 表达；图 13 的 streaming 在结构屏障处交替构图与数值执行，均不执行真实模型算子。源码链接定位文件，函数/方法名用于检索，以免代码迭代使行号链接失效。
 
+2026-10-19 补充主链中的可选 PD/投机构图与 megakernel 变换；特性输入和具体支持边界见 [features.md](../skills/supernode-modeling/references/features.md)。
+
 Mermaid 代码块可在支持 Mermaid 的 Markdown 预览器中显示；每张图另存为 [`diagrams/`](diagrams/) 下的 `.mmd` 源文件。总体分层图位于架构文档，并提供 [`00-architecture.mmd`](diagrams/00-architecture.mmd)。
 
 ## 1. CLI 与单次仿真主链
@@ -24,13 +26,19 @@ flowchart TD
     SUB -->|sweep / size-su| SEARCH["sweep() / size_su()<br/>见图 10"]
     SUB -->|estimate / simulate| RUN["analysis.run(config, mode, full_detail)"]
     RUN --> COMPILE["compile_graph()<br/>规范化 Config → Topology.__init__()"]
-    COMPILE --> ARCH{"内部：model.architecture 存在？"}
+    COMPILE --> SPECIAL{"内部：PD / 投机特性？"}
+    SPECIAL -->|PD| PD["build_disaggregated()<br/>P/D 阶段 + 状态交接"]
+    SPECIAL -->|投机| SPEC["build_speculative()<br/>draft / verify / commit"]
+    SPECIAL -->|普通| ARCH{"内部：model.architecture 存在？"}
     ARCH -->|是| STRUCT["build_structured()<br/>Builder.training_graph() / inference()"]
     ARCH -->|否，training| TRAIN["build_training() → _TrainingBuilder.build()"]
     ARCH -->|否，inference| INFER["build_inference()"]
-    STRUCT --> CAL["apply_kernel_profiles()<br/>内部：补充 assumptions / fidelity"]
-    TRAIN --> CAL
-    INFER --> CAL
+    STRUCT --> FUSE["可选 apply_megakernel()<br/>安全局部链融合"]
+    TRAIN --> FUSE
+    INFER --> FUSE
+    PD --> FUSE
+    SPEC --> FUSE
+    FUSE --> CAL["apply_kernel_profiles()<br/>内部：assumptions / fidelity / feature_plan"]
     CAL --> EST["graph_estimate(graph)<br/>DAG 与资源下界、驻留容量、通信总量"]
     EST --> REQ["device_requirements()<br/>内部：快照、SHA-256、目标窗口、requirements"]
     REQ --> MODE{"内部：mode == simulate？"}
@@ -370,6 +378,8 @@ flowchart TD
 ```
 
 图中合并了 single/multi 两个子搜索的外层循环。无并行候选时保留 TP/PP/EP/FSDP 并推导 DP。只使用必要下界剪枝；忽略争用的乐观内存峰值和全图 TTFT/TPOT deadline 不用于这种剪枝。`run(estimate)` 与 `run(simulate)` 各自构图，当前未共享候选 Graph。
+
+启用 PD 时搜索按双池总卡数校验，保持 DP=PP=1；显式 P/D 映射随候选重新验证，不自动派生新的 DP 或物理放置。
 
 ## 11. 大型参考实验检查点与恢复
 

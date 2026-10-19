@@ -1,0 +1,16 @@
+# Feature overlay for the tiny GQA examples, including both pools of synthetic-pd.yaml.
+# All costs below are illustrative assumptions, not measured acceleration.
+megakernel:
+  enabled: true
+  groups:
+    - name: synthetic-prenorm-gqa
+      kernels: [prenorm, gqa]
+      phases: [prefill, decode]
+      layers: [0]
+      ranks: []  # Match both P and D physical ranks; [] is not an extra pool.
+      fused_startup_s: 0.000001
+      saved_hbm_bytes: 32
+      workspace_bytes: 64
+      source:
+        status: assumed
+        description: Synthetic local-chain cost used to demonstrate PD plus megakernel composition.
