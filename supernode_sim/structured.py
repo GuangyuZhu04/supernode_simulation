@@ -530,15 +530,33 @@ class Builder:
                 previous = terminals
         return previous, retained
 
-    def inference(self):
+    def inference(self, *, phase='all', initial_dependencies=()):
+        if phase not in ('all', 'prefill', 'decode'):
+            raise ValueError('Inference phase must be all, prefill or decode')
+        requested_phase = phase
         self.initial()
         self.g.metadata.update(token_completion_events={}, sequence_token_completion_events={})
         plan = getattr(self, '_inference_plan', None)
+        if plan is not None and requested_phase != 'all':
+            raise ValueError('Speculative round plans cannot be split into inference phases')
+        if requested_phase == 'decode':
+            seeded = []
+            for rank, (d, stage, e, t) in self.coords.items():
+                owned = [i for i in range(self.w['batch_size']) if i % self.ep == e]
+                lengths = [self.w['input_lengths'][i] for i in owned]
+                for layer in self.stage_layers[stage]:
+                    allocations = self.inference_state_allocations(f'infer.seed.l{layer}', rank, layer, lengths, 0)
+                    self.g.initial_allocations.extend(allocations)
+                    seeded.extend(a.id for a in allocations)
+            self.g.metadata['seeded_inference_state_allocations'] = seeded
         for d in range(self.dp):
-            previous = []
+            previous = list(initial_dependencies)
             token_ends = []
             sequence_ends = {str(i): [] for i in range(self.w['batch_size'])}
-            for step in range(len(plan) if plan is not None else max(self.w['output_lengths'])):
+            steps = (range(1, max(self.w['output_lengths'])) if requested_phase == 'decode' else
+                     range(1) if requested_phase == 'prefill' else
+                     range(len(plan) if plan is not None else max(self.w['output_lengths'])))
+            for step in steps:
                 plan_item = plan[step] if plan is not None else None
                 phase = plan_item['phase'] if plan_item else ('prefill' if step == 0 else 'decode')
                 active = (list(range(self.w['batch_size'])) if plan_item else

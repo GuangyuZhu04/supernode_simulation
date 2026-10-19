@@ -72,10 +72,13 @@ def size_su(config: Config, mode: str = 'both') -> dict:
     if mode not in ('single', 'multi', 'both'):
         raise ValueError('SU mode must be single, multi or both')
     target = config.targets
+    pd_enabled = config.execution.features.prefill_decode_disaggregation.enabled
+    deployment_copies = 2 if pd_enabled else 1
     modes = ['single', 'multi'] if mode == 'both' else [mode]
     result = {'schema_version': '1.0', 'mode': 'size-su', 'status': 'completed', 'searches': {},
               'assumptions': ['Minimum is over the complete declared candidate set and fixed scheduler only.',
-                              'Without parallel_candidates, TP/PP/EP/FSDP are retained and DP is derived from candidate device count.',
+                              ('PD search retains DP=PP=1 and equal TP/EP layouts in both pools; supply parallel_candidates to vary the per-pool layout. Physical pool mappings remain explicit and are revalidated.' if pd_enabled else
+                               'Without parallel_candidates, TP/PP/EP/FSDP are retained and DP is derived from candidate device count.'),
                               'batch_size is per DP replica; changing DP changes aggregate workload.']}
     total_evaluated = 0
     for current_mode in modes:
@@ -94,11 +97,11 @@ def size_su(config: Config, mode: str = 'both') -> dict:
                 layouts = [p.model_dump() for p in target.parallel_candidates]
                 if not layouts:
                     e = config.execution
-                    base = e.tp * e.pp * e.ep
-                    layouts = [{'tp': e.tp, 'pp': e.pp, 'ep': e.ep, 'dp': npu_count // base,
+                    base = deployment_copies * e.tp * e.pp * e.ep
+                    layouts = [{'tp': e.tp, 'pp': e.pp, 'ep': e.ep, 'dp': 1 if pd_enabled else npu_count // base,
                                 'fsdp': e.fsdp, 'rank_order': e.rank_order if npu_count == config.hardware.npu_count else []}] if npu_count % base == 0 else []
                 for layout in layouts:
-                    if layout['tp'] * layout['pp'] * layout['ep'] * layout['dp'] == npu_count:
+                    if deployment_copies * layout['tp'] * layout['pp'] * layout['ep'] * layout['dp'] == npu_count:
                         candidates.append((npu_count, su_size, layout))
         if total_evaluated + len(candidates) > target.max_candidates:
             raise ValueError('SU candidate set exceeds max_candidates; narrow candidates or raise the explicit limit')

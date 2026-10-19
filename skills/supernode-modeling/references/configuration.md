@@ -17,6 +17,8 @@
 
 内部单位是 byte、second、FLOP。容量示例用十进制 TB/GB；吞吐用 byte/s。配置中的 `80e9` 表示 80 GB，不是 80 GiB。`tp * pp * ep * dp == npu_count`；FSDP 是 DP 子组，`dp % fsdp == 0`。更换卡数后要同时校验并行分解与 rank 放置。
 
+开启 `prefill_decode_disaggregation` 时使用双池契约替代上述总卡数等式：`npu_count == 2 * tp * ep`、DP=PP=1；P/D 各有 TP×EP 张卡，两列表互斥并完整覆盖物理卡数。默认派生连续两池，resolved config 保存实际映射；细节见 [features.md](features.md)。
+
 `sources` 的状态为 `assumed/public/user/measured`。实测校准配置应保留测量来源。引擎默认值是合成假设，不表示某厂商的硬件或某命名模型的已验证规格。用户只有总参数和活跃参数时，可先做条件容量分析；时间、KV、拓扑可行性需要额外结构和执行信息。
 
 `execution.precision` 包含 `weight`, `compute`, `gradient`, `master`, `optimizer`, `kv`, `weight_transfer`, `activation`, `communication`, `recurrent`，以及可选的 `routed_expert_weight`。通常先锁定独立梯度/优化器精度，再比较权重 FP8/FP16，避免把两种权重形态变成两种不同训练算法。

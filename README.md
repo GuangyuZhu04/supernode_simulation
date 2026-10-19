@@ -80,6 +80,8 @@ print(result["metrics"])
 
 并行关系为 `TP × PP × EP × DP = NPU 数`；`fsdp` 是 DP 的子组且必须整除 DP，不能再次乘进总卡数。默认 rank 顺序为 `[dp, pp, ep, tp]`，`rank_order` 可覆盖物理放置。`batch_size` 是每个 DP 副本的 microbatch/推理 batch；改变 DP 会改变聚合负载。
 
+PD 分离是总卡数规则的显式例外：两个相同 TP/EP 的池，DP=PP=1，物理卡数 `2 × TP × EP`；使用 `prefill_ranks` / `decode_ranks` 指定互斥且覆盖全设备的物理映射，不使用 `execution.rank_order`。
+
 精度分别配置：`weight`、`compute`、`gradient`、`master`、`optimizer`、`kv`、`weight_transfer`、`activation`、`communication`。只有明确修改才改变其他张量精度。FP8 activation 通信当前采用共享静态 scale 假设；FP8 权重/KV 的 scale 与 offload 元数据另计。
 
 10T 基准：FP8/FP16 权重分别为 10/20 TB；FP16 梯度 20 TB、FP32 主权重 40 TB、FP32 Adam m/v 80 TB，基础状态共 150/160 TB。CPU optimizer offload 的主权重与 m/v 共 120 TB。若全参数每步更新，梯度下传 20 TB，FP8/FP16 权重回传 10/20 TB；metadata、复制、暂存与实际路径另计。
@@ -108,7 +110,7 @@ decode 的 KV 问题需要分开分析前缀复用、设备页驻留与硬件缓
 
 ## 设计搜索与建模边界
 
-`targets.candidate_npu_counts`、`candidate_su_sizes`、`parallel_candidates` 定义有限候选集。多域搜索必须给定 `total_npus` 或 `max_total_npus`。未指定并行候选时固定 TP/PP/EP/FSDP，并按总卡数推导 DP。候选数量上限由 `max_candidates` 控制，结果只声称该集合及指定调度下的最小值。
+`targets.candidate_npu_counts`、`candidate_su_sizes`、`parallel_candidates` 定义有限候选集。多域搜索必须给定 `total_npus` 或 `max_total_npus`。普通模式未指定并行候选时固定 TP/PP/EP/FSDP，并按总卡数推导 DP；PD 保持 DP=PP=1，按双池总量校验，物理池映射不会随候选被偷偷改写。候选数量上限由 `max_candidates` 控制，结果只声称该集合及指定调度下的最小值。
 
 - 参数总量/活跃量是声明的预算；层级算子是架构近似，并非某个框架的精确执行 trace。
 - Dense 参数在 EP 间复制，expert 参数按 EP 划分；专家默认均匀路由。稀疏 decode 的权重读取按预期触达专家量估算。
@@ -116,7 +118,7 @@ decode 的 KV 问题需要分开分析前缀复用、设备页驻留与硬件缓
 - 推理为固定变长 batch，完成的序列不再 decode；latent KV 按明确配置的 latent/RoPE 张量计算，TP 复制假设记录在报告。
 - Clos/Fat-tree 模板是单 spine 抽象；支持显式有向链路、共享容量与路由覆盖，无报文拥塞控制或 ECMP 包级仿真。
 - 事件采用 roofline 和归一化 max-min 资源共享。缓存报告是算子工作集及访问量；不据此声称 L1/L2/L3 最优容量或精确 MTE 通道数。
-- 投机推理支持显式 draft/profile 与接受数驱动的同步 batch 轮次模型，不模拟接受率算法或具体 DSpark 内核；当前没有 PD 分离、expert offload、生产排队尾延迟和周期级仿真。
+- 投机推理支持显式 draft/profile 与接受数驱动的同步 batch 轮次模型，不模拟接受率算法或具体 DSpark 内核。PD 支持两个独立池、同布局状态交接；当前没有异构池重分片、expert offload、生产排队尾延迟和周期级仿真。
 
 ## 可选加速特性
 
@@ -132,6 +134,15 @@ python -m supernode_sim simulate examples/features/synthetic-dspark.yaml -o outp
 这些小示例全部是 synthetic，不代表真实硬件 benchmark。报告和 JSON 的 `model_metadata.feature_plan` 列出实际选择与限制。CSA/HCA 计入压缩池、滑窗、索引/选择、评分暂存及索引 TP 通信；训练保留/重算相关状态，但不包含完整 DeepSeek V4 的 mHC 或 indexer 辅助训练目标。投机模式计入 draft prompt 准备、draft 成本、完整 verify query、接受/回滚与临时状态，并按实际输出 token 计指标；同步等长 batch、DP=PP=1，目前只支持普通 `simulate`。
 
 开启特性不保证更快：offload 可能增加传输，checkpoint 增加重算，投机有 draft/验证成本。融合与图执行通过具体 kernel profile 表达，不能用通用倍数。参数、可用组合、示例与证据边界见 [feature 输入说明](skills/supernode-modeling/references/features.md)。
+
+`features.megakernel` 将合法的同 rank/层/阶段串行 kernel 链合成事件，显式建模融合启动、受限 HBM 访问节省和可选 fused profile；保留所有分配，按保守生命周期计算峰值。`features.prefill_decode_disaggregation` 将 prefill 与 decode 放置到不同 NPU 池，计入双份驻留及实际状态/首 token ID 交接。两者可组合，普通 `simulate` 支持，streaming 会明确拒绝。
+
+```powershell
+python -m supernode_sim simulate examples/features/synthetic-megakernel.yaml -o outputs/features/megakernel
+python -m supernode_sim simulate examples/features/synthetic-pd.yaml -o outputs/features/pd
+```
+
+新增示例仍为 synthetic。报告列出融合匹配覆盖率，以及 PD prefill、交接、首个 decode 间隔和交接后 decode 时间；固定 batch 并不模拟 P/D 池的在线队列或调度收益。
 
 ## 使用 Skill
 

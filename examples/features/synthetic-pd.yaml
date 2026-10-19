@@ -1,0 +1,53 @@
+# Synthetic fixed-batch P/D transfer exercise; not a serving throughput benchmark.
+schema_version: '1.0'
+model:
+  name: synthetic-prefill-decode-GQA
+  layers: 1
+  hidden_dim: 16
+  num_heads: 4
+  kv_heads: 2
+  head_dim: 4
+  architecture:
+    vocab_size: 32
+    attention_by_layer: [GQA]
+    ffn_by_layer: [Dense]
+    dense_intermediate_dim: 32
+hardware:
+  name: synthetic-two-pool-device-not-a-product
+  # Total physical cards: 2 * TP * EP = 2. Each pool uses one card.
+  npu_count: 2
+  su_size: 1
+  npus_per_host: 1
+  npu:
+    hbm_bytes: 67108864
+    hbm_Bps: 1000000000
+    flops: {fp16: 1000000000, bf16: 1000000000, fp32: 100000000}
+    efficiency: 1
+    runtime_bytes: 65536
+    workspace_bytes: 4096
+  scale_out:
+    # Intentionally slow synthetic link to make handoff cost visible.
+    bandwidth_Bps: 10000000
+    latency_s: 0.000005
+    efficiency: 1
+workload:
+  scenario: inference
+  batch_size: 1
+  input_length: 8
+  output_length: 4
+features:
+  parallelism: {tp: 1, ep: 1, pp: 1, dp: 1}
+  prefill_decode_disaggregation:
+    enabled: true
+    prefill_ranks: [0]
+    decode_ranks: [1]
+    token_id_bytes: 8
+sources:
+  '*':
+    status: assumed
+    description: Synthetic model, two preloaded model copies and synthetic SO link; no K3/V4/950DT or production P/D claim.
+assumptions:
+  - P and D use identical per-stage TP/EP and storage layouts; no state resharding is assumed.
+  - TTFT ends at the P-pool first token; handoff delays the first decode interval.
+  - State and first-token ID move on the configured topology with endpoint and shared-link work.
+  - Dynamic request queues, RPC framing, page-table remapping and multi-batch pipeline throughput are outside this example.

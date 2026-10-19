@@ -1,4 +1,4 @@
 interface:
   display_name: "超节点资源与通信建模"
-  short_description: "选择训练推理加速特性，建模SU/SO资源、DSpark及稀疏attention"
+  short_description: "选择megakernel、PD分离等特性，建模超节点资源与TTFT/TPOT"
   default_prompt: "使用 $supernode-modeling 按我的模型、硬件、拓扑和负载选择可选features，比较资源与TTFT/TPOT，并说明实测校准和支持边界。"

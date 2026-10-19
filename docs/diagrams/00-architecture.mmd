@@ -7,11 +7,12 @@ flowchart TB
     C --> V["config.load_config() + Config.model_validate()"]
     V --> A["analysis.run() / search.sweep() / search.size_su()"]
     A --> G["analysis.compile_graph()"]
-    G --> B["构图器：structured.Builder / training._TrainingBuilder / inference.build_inference()"]
+    G --> B["构图器：structured / training / inference<br/>可选 speculative / disaggregated"]
     B --> D["core.Graph：Event + Resource + Allocation + metadata"]
     T["Topology：设备、链路、路径与通信映射"] --> B
     P["components：形状、参数与状态公式"] --> B
-    D --> K["apply_kernel_profiles()：匹配实测 kernel"]
+    D --> F["可选 apply_megakernel()：安全局部链融合"]
+    F --> K["apply_kernel_profiles()：匹配实测 kernel"]
     K --> E["graph_estimate()：必要性能下界"]
     E -->|simulate 模式| X["engine.simulate()：依赖、内存准入、slot、资源争用"]
     E -->|estimate 模式| R["需求 / 指标 / SLO / 组件内存账本"]

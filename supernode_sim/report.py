@@ -202,8 +202,27 @@ def markdown_report(result: dict) -> str:
             lines += ['', f"投机解码轮次：{speculative['round_count']}；每序列实际输出 token：{speculative['committed_tokens_per_sequence']}；"
                       f"验证 token：{speculative['verified_tokens_per_sequence']}。接受数来自 `{speculative['acceptance_mode']}`。",
                       '', '同一轮提交的 token 共用模型完成时间，零轮内间隔不代表客户端观测的逐 token 延迟；该路径并非 DSpark 的算法/质量复现。']
+        fusion = result.get('model_metadata', {}).get('megakernel')
+        if fusion and fusion.get('enabled'):
+            lines += ['', f"Megakernel 图变换：融合 {fusion['matched_groups']} 组、{fusion['matched_events']} 个原 kernel 事件；"
+                      f"匹配覆盖率 {_number(fusion['coverage_fraction'] * 100)}%；计划减少 HBM 访问 {_number(fusion['saved_hbm_bytes'])} byte。",
+                      '', '融合只作用于安全的局部串行链。原分配统一提前、释放延后，属于保守内存生命周期，可能高估峰值；不代表自动消除了中间张量容量。']
+            if not fusion['matched_groups']:
+                lines += ['', '**没有合法融合匹配，未应用 megakernel 提速。**']
+            if fusion.get('skip_reasons'):
+                lines += ['', '跳过原因：`' + _safe_cell(json.dumps(fusion['skip_reasons'], ensure_ascii=False)) + '`。']
+            if fusion.get('member_profiles_not_applied'):
+                lines += ['', '成员 kernel profile 未继承到融合事件；需核对融合组 profile：`' +
+                          _safe_cell(', '.join(fusion['member_profiles_not_applied'])) + '`。']
+        pd = result.get('model_metadata', {}).get('prefill_decode_disaggregation')
+        if pd:
+            lines += ['', f"PD 分离：P 池 `{pd['prefill_ranks']}`，D 池 `{pd['decode_ranks']}`；部署 {pd['model_copies']} 份模型。"
+                      f"状态交接计划 payload 为 {_number(pd['state_payload_bytes'])} byte，首 token ID 为 {_number(pd['token_id_payload_bytes'])} byte。",
+                      '', 'TTFT 截止 P 池完成首 token；交接计入第一个 decode 间隔。两池相同 TP/EP，完整状态通过实际拓扑传输；不包含异构池重分片、在线排队或客户端转发。逻辑参数表仍描述单模型，两池实际驻留见物理内存明细。']
         lines += ['', '## 性能与约束', '', '| 指标 | 数值 |', '|---|---:|']
         labels = {'duration_s': '总执行时间 / s', 'step_time_s': '平均训练步时间 / s', 'ttft_s': '执行 TTFT / s', 'tpot_s': '批内最大平均 TPOT / s', 'throughput_tokens_s': '聚合吞吐 / tokens/s', 'input_throughput_tokens_s': '输入吞吐 / tokens/s', 'throughput_per_replica_tokens_s': '每副本吞吐 / tokens/s'}
+        labels.update(pd_prefill_time_s='PD prefill 执行时间 / s', pd_handoff_time_s='PD 状态交接时间 / s',
+                      pd_first_decode_gap_s='PD 首个 decode 间隔（含交接）/ s', pd_decode_time_s='PD 交接后 decode 时间 / s')
         for key, label in labels.items():
             if key in result.get('metrics', {}):
                 lines.append(f"| {label} | {_number(result['metrics'][key])} |")

@@ -300,3 +300,188 @@ def test_catalog_has_explicit_unsupported_options_and_no_nominal_speedups():
     unsupported = {row['name'] for row in catalog['features'] if row['support_status'] == 'unsupported'}
     assert {'continuous_batching', 'prefix_cache', 'chunked_prefill', 'mhc'} <= unsupported
     assert 'speedup_factor' not in json.dumps(catalog)
+
+
+def megakernel_selection():
+    return {'enabled': True, 'groups': [
+        {'name': 'synthetic-local-chain', 'kernels': ['first_kernel', 'second_kernel'],
+         'phases': ['decode'], 'layers': [0], 'ranks': ['npu0'],
+         'fused_startup_s': 0.000001, 'saved_hbm_bytes': 16, 'workspace_bytes': 32},
+    ]}
+
+
+def pd_scenario():
+    data = structured()
+    data['hardware'].update(npu_count=2, su_size=2)
+    data['features'] = {'prefill_decode_disaggregation': {'enabled': True}}
+    return data
+
+
+def test_megakernel_selection_expands_and_survives_canonical_replay():
+    data = structured()
+    data['features'] = {'megakernel': megakernel_selection()}
+    config = Config.model_validate(data)
+    group = config.execution.features.megakernel.groups[0]
+    assert group.kernels == ['first_kernel', 'second_kernel']
+    assert group.fused_startup_s == 0.000001
+    assert group.source.status == 'assumed'
+    resolved = config.model_dump()
+    assert 'features' not in resolved
+    assert Config.model_validate(resolved).model_dump() == resolved
+    rows = build_feature_plan(config)['features']
+    fused = next(row for row in rows if row['name'] == 'megakernel')
+    assert fused['selected'] and fused['modeling'] == 'analytical'
+    assert fused['coverage_reference'] == 'model_metadata.megakernel'
+
+
+def test_megakernel_explicit_duration_is_profile_driven_without_claiming_measured():
+    data = structured('training')
+    selection = megakernel_selection()
+    selection['groups'][0].update(phases=['forward'], duration_s=0.001)
+    data['features'] = {'megakernel': selection}
+    row = next(row for row in build_feature_plan(Config.model_validate(data))['features'] if row['name'] == 'megakernel')
+    assert row['modeling'] == 'profile_driven'
+    assert row['parameters']['execution.features.megakernel']['groups'][0]['source']['status'] == 'assumed'
+
+
+@pytest.mark.parametrize('change', [
+    {'kernels': ['only_one']}, {'kernels': ['a', '']}, {'name': '  '},
+    {'phases': ['']}, {'layers': [-1]}, {'layers': [1]},
+    {'ranks': ['cpu0']}, {'ranks': ['npu1']}, {'fused_startup_s': -1},
+    {'duration_s': 0}, {'saved_hbm_bytes': -1}, {'speedup_factor': 2},
+])
+def test_invalid_megakernel_groups_are_rejected(change):
+    data = structured()
+    selection = megakernel_selection()
+    selection['groups'][0].update(change)
+    data['features'] = {'megakernel': selection}
+    with pytest.raises(ValueError):
+        Config.model_validate(data)
+
+
+def test_megakernel_requires_explicit_groups_and_startup_and_unique_names():
+    data = structured()
+    for selection in (True, {'enabled': True}):
+        data['features'] = {'megakernel': selection}
+        with pytest.raises(ValueError):
+            Config.model_validate(data)
+    selection = megakernel_selection()
+    selection['groups'][0].pop('fused_startup_s')
+    data['features'] = {'megakernel': selection}
+    with pytest.raises(ValueError, match='fused_startup_s'):
+        Config.model_validate(data)
+    selection = megakernel_selection()
+    selection['groups'].append(copy.deepcopy(selection['groups'][0]))
+    data['features'] = {'megakernel': selection}
+    with pytest.raises(ValueError, match='unique'):
+        Config.model_validate(data)
+
+
+def test_megakernel_repeated_kernel_pattern_is_legal_and_conflicts_remain_strict():
+    data = structured()
+    selection = megakernel_selection()
+    selection['groups'][0]['kernels'] = ['same_kernel', 'same_kernel']
+    data['features'] = {'megakernel': selection}
+    assert Config.model_validate(data).execution.features.megakernel.enabled
+    data['execution'] = {'features': {'megakernel': {'enabled': False}}}
+    with pytest.raises(ValueError, match='execution.features.megakernel.enabled'):
+        Config.model_validate(data)
+
+
+def test_pd_default_pool_placement_uses_total_physical_count_and_replays_stably():
+    config = Config.model_validate(pd_scenario())
+    pd = config.execution.features.prefill_decode_disaggregation
+    assert pd.prefill_ranks == [0]
+    assert pd.decode_ranks == [1]
+    assert pd.token_id_bytes == 8
+    assert config.hardware.npu_count == 2 * config.execution.tp * config.execution.ep
+    resolved = config.model_dump()
+    assert Config.model_validate(resolved).model_dump() == resolved
+    row = next(row for row in build_feature_plan(config)['features'] if row['name'] == 'prefill_decode_disaggregation')
+    assert row['selected'] and row['support_status'] == 'supported'
+    assert row['physical_npu_count'] == 2
+    assert row['stage_parallelism'] == {'tp': 1, 'ep': 1, 'pp': 1, 'dp': 1}
+
+
+def test_pd_explicit_rank_order_with_sp_and_ragged_lengths_is_preserved():
+    data = pd_scenario()
+    data['hardware'].update(npu_count=4, su_size=4)
+    data['features'].update(parallelism={'tp': 2}, sequence_parallel=True)
+    data['features']['prefill_decode_disaggregation'].update(prefill_ranks=[3, 1], decode_ranks=[0, 2], token_id_bytes=4)
+    data['workload'].update(batch_size=2, input_lengths=[3, 4], output_lengths=[1, 3])
+    config = Config.model_validate(data)
+    pd = config.execution.features.prefill_decode_disaggregation
+    assert pd.prefill_ranks == [3, 1]
+    assert pd.decode_ranks == [0, 2]
+    assert config.execution.sequence_parallel
+    assert pd.token_id_bytes == 4
+
+
+@pytest.mark.parametrize('change', [
+    {'prefill_ranks': [0]}, {'decode_ranks': [1]},
+    {'prefill_ranks': [0], 'decode_ranks': [0]},
+    {'prefill_ranks': [0], 'decode_ranks': [2]},
+    {'prefill_ranks': [-1], 'decode_ranks': [1]},
+    {'prefill_ranks': [True], 'decode_ranks': [1]},
+    {'prefill_ranks': [0, 1], 'decode_ranks': [2, 3]},
+    {'token_id_bytes': 2}, {'prefill_tp': 2},
+])
+def test_pd_invalid_or_ambiguous_pool_layouts_are_rejected(change):
+    data = pd_scenario()
+    data['features']['prefill_decode_disaggregation'].update(change)
+    with pytest.raises(ValueError):
+        Config.model_validate(data)
+
+
+def test_pd_does_not_relax_ordinary_rank_count_or_attention_divisibility():
+    data = structured()
+    data['hardware'].update(npu_count=2, su_size=2)
+    with pytest.raises(ValueError, match='must equal hardware.npu_count'):
+        Config.model_validate(data)
+    data['features'] = {'prefill_decode_disaggregation': {'enabled': True}}
+    data['hardware'].update(npu_count=1, su_size=1)
+    with pytest.raises(ValueError, match=r'2 \* TP \* EP'):
+        Config.model_validate(data)
+    data['hardware'].update(npu_count=6, su_size=6)
+    data['features']['parallelism'] = {'tp': 3}
+    with pytest.raises(ValueError, match='num_heads divisible by TP'):
+        Config.model_validate(data)
+
+
+@pytest.mark.parametrize('extra', [
+    {'parallelism': {'dp': 2}}, {'parallelism': {'pp': 2}},
+    {'parallelism': {'rank_order': [0, 1]}},
+    {'kv_offload': {'location': 'host'}}, {'engram': {'enabled': True}},
+    {'speculative_decode': speculative_selection()},
+])
+def test_pd_rejects_unsupported_execution_combinations(extra):
+    data = pd_scenario()
+    data['features'].update(extra)
+    with pytest.raises(ValueError, match='prefill_decode_disaggregation'):
+        Config.model_validate(data)
+
+
+def test_pd_requires_structured_inference_and_can_combine_with_megakernel():
+    data = baseline()
+    data['hardware'].update(npu_count=2, su_size=2)
+    data['features'] = {'prefill_decode_disaggregation': {'enabled': True}}
+    with pytest.raises(ValueError, match='structured inference'):
+        Config.model_validate(data)
+    data = pd_scenario()
+    data['workload']['scenario'] = 'training'
+    with pytest.raises(ValueError, match='only supported for inference'):
+        Config.model_validate(data)
+    data = pd_scenario()
+    data['features']['megakernel'] = megakernel_selection()
+    assert Config.model_validate(data).execution.features.megakernel.enabled
+
+
+def test_new_features_are_disabled_by_default_and_pd_is_no_longer_unsupported():
+    config = Config.model_validate(baseline())
+    assert not config.execution.features.megakernel.enabled
+    assert not config.execution.features.prefill_decode_disaggregation.enabled
+    catalog = {row['name']: row for row in feature_catalog()['features']}
+    assert catalog['prefill_decode_disaggregation']['support_status'] == 'supported'
+    assert catalog['megakernel']['support_status'] == 'supported'
+    schema = Config.model_json_schema()
+    assert {'megakernel', 'prefill_decode_disaggregation'} <= schema['$defs']['FeatureSelectionSpec']['properties'].keys()

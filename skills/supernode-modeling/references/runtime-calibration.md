@@ -10,12 +10,16 @@
 | 固定 batch 模型执行 | 权重已加载，从执行开始到每个 token 完成 | 普通 `simulate`；结构化 DP=PP=1 可用 streaming |
 | 客户端在线服务 | 请求发出到 token 到达，包含排队及前后处理/传输 | 需要真实请求 trace；当前引擎未模拟完整服务调度 |
 | 投机 decode | 草稿、验证、接受/回滚及状态提交，按实际产出 token 折算 | [可选轮次模型](features.md)支持显式成本与接受数；不自动复现具体 DSpark 实现或预测接受率 |
+| PD 分离 | P 首 token、状态交接、D 后续 token | 同布局双池固定 batch，按实际拓扑传输；TTFT 未含客户端转发或在线排队 |
+| Megakernel | 安全的同 rank/层/阶段局部融合组 | 显式启动、受限 HBM 节省与可选 fused service；核对匹配与保守生命周期 |
 
 “支持某模型”“测过某场景”不等于公开了性能数值。不能把同名模型、相同卡数或相同 FLOPs 当作同一个执行路径。缺失值使用 null/未知，不从其他指标反推。
 
 每个比较保留这些条件：模型/checkpoint/tokenizer revision、文本/多模态范围，芯片 SKU 与数量、HBM/拓扑/rank 放置，框架/CANN/驱动/kernel 版本、图模式与融合，权重/activation/KV 精度，Attention/FFN/expert 各自并行布局，输入输出长度分布，实际 batch 与并发、到达率/突发性，prefix cache 冷热状态、KV 存储/卸载、调度 token budget，以及投机开关和草稿版本。未公开的条件保留未知。
 
 真实框架的 Attention DP、MoE EP 可能共用 rank。先映射 communicator 再检查本引擎 `TP × PP × EP × DP = NPU` 的独立维度契约；不能直接照抄数字相乘。无法表达的布局标为不完全可比。
+
+PD 的总物理卡数是两个池的和，当前相同布局时为 `2 × TP × EP`。不得把 P/D 当成两倍 DP batch，或遗漏第二份模型驻留。
 
 ## 指标定义
 
@@ -48,7 +52,7 @@
 1. **建立 baseline。** 固定模型范围和软件路径，保存 resolved config。先对齐权重/KV/KDA 结构与存储精度，排除遗漏或重复复制。
 2. **测量 prefill 与 decode。** 按实际 batch、上下文长度、KV layout、矩阵形状与 dtype 采样。decode 采集多个输出位置；普通 decode 和投机验证分开。
 3. **拆开成本。** 算子服务时间、启动/图调度、HBM、collective、小消息延迟、host/remote 搬运、CPU 前后处理各自测量。共享资源重叠由事件依赖与争用决定，不把所有独立峰值耗时相加。公开优化的阶段收益不能重复相乘。
-4. **应用支持的参数。** 同平台有效 HBM/链路带宽及效率可经 `calibration` 覆盖；kernel 通过下述精确匹配校准。投机模式使用显式 draft 成本和实际接受数；仍未建模的 continuous batching、chunked prefill、动态 preemption、PD 分离、融合多流及具体 DSpark 内核留在差异清单，不吸收到 NPU efficiency。
+4. **应用支持的参数。** 同平台有效 HBM/链路带宽及效率可经 `calibration` 覆盖；kernel 通过下述精确匹配校准。投机模式使用显式 draft 成本和实际接受数，PD 使用双池和拓扑交接，megakernel 使用合法融合组。仍未建模的 continuous batching、chunked prefill、动态 preemption、PD 在线队列/异构重分片、任意融合多流及具体 DSpark 内核留在差异清单，不吸收到 NPU efficiency。
 5. **留出验证。** 对未参与拟合的长度、batch/并发与负载点比较；相同 timer boundary、聚合方式、窗口、缓存状态和软件版本才计算误差。校准覆盖率是事件计数比例，不是时间比例，更不是准确率。
 
 无真机 profile 时，保留明确的假设范围做敏感性分析。不要选择一个默认“现实修正倍数”，也不要为了对齐 10 ms 修改模型规模、硬件峰值或丢弃通信。资料与场景不匹配时，输出 `not_comparable` 的文字结论及原因，不输出伪精度。

@@ -26,9 +26,11 @@
 | 支持复现与校准 | 解析后配置、来源、假设、版本和输出明细 | 数值由代码执行，Skill 解释实际输出 |
 | 支持按模块扩展 | 统一 Graph、组件公式、拓扑映射和报告接口 | 新能力进入引擎与对应验证点 |
 
-原始需求中的 Agentic Serving、PD 分离和 expert offload 尚未形成当前执行模型。投机推理现支持显式成本与接受数驱动的同步 batch 轮次模型，不复现具体 DSpark 算法。当前推理分析针对固定 batch，训练分析针对声明的训练步与执行策略。
+原始需求中的 Agentic Serving 在线调度和 expert offload 尚未形成当前执行模型。PD 分离支持固定 batch 的独立双池与同 TP/EP 布局交接；投机推理支持显式成本与接受数驱动的同步 batch 轮次模型，不复现具体 DSpark 算法。当前训练分析针对声明的训练步与执行策略。
 
 可选特性输入采用顶层 `features` 或 CLI `--features`：`features.resolve_feature_input` 在严格配置验证前展开为 canonical 字段，重复字段冲突会报错，resolved config 不保留输入简写。`feature_catalog` 给出能力清单，`build_feature_plan` 写入结果和报告。完整字段及可重跑小示例见 [features 说明](../skills/supernode-modeling/references/features.md)。
+
+`disaggregated.build_disaggregated` 复用 Builder 的 prefill/decode 阶段构图，保留全物理拓扑并增加状态/token ID 交接事件；两池各有常驻权重，源状态在传输完成后释放。`megakernel.apply_megakernel` 在 kernel 校准之前融合合法局部链，保留工作量和保守内存生命周期，另报实际匹配覆盖；无匹配不改变性能。两者当前仅用于普通图，不在 streaming 中静默降级。
 
 `sparse_attention.py` 实现 CSA/HCA 参数之外的 attention、indexer、压缩、选择及状态模型，`components.py` 提供相应参数/activation/保存状态，`structured.py` 将其映射至计算、HBM、TP collective 和生命周期。`speculative.py` 提供草稿准备、draft/verify/accept/replay/commit 计划，借助 `Builder.inference` 的轮次 hook 构图，再使用统一 `analysis`/`engine` 执行。普通图支持该投机路径；streaming 当前明确拒绝。该路径支持等长同步 batch、DP=PP=1，不含在线请求调度或完整 V4 的 mHC/indexer 辅助训练目标。
 
@@ -55,11 +57,12 @@ flowchart TB
     C --> V["config.load_config() + Config.model_validate()"]
     V --> A["analysis.run() / search.sweep() / search.size_su()"]
     A --> G["analysis.compile_graph()"]
-    G --> B["构图器：structured.Builder / training._TrainingBuilder / inference.build_inference()"]
+    G --> B["构图器：structured / training / inference<br/>可选 speculative / disaggregated"]
     B --> D["core.Graph：Event + Resource + Allocation + metadata"]
     T["Topology：设备、链路、路径与通信映射"] --> B
     P["components：形状、参数与状态公式"] --> B
-    D --> K["apply_kernel_profiles()：匹配实测 kernel"]
+    D --> F["可选 apply_megakernel()：安全局部链融合"]
+    F --> K["apply_kernel_profiles()：匹配实测 kernel"]
     K --> E["graph_estimate()：必要性能下界"]
     E -->|simulate 模式| X["engine.simulate()：依赖、内存准入、slot、资源争用"]
     E -->|estimate 模式| R["需求 / 指标 / SLO / 组件内存账本"]
@@ -129,7 +132,7 @@ CLI 退出码：输入/图相关错误通常为 `2`，顶层 `infeasible` / `slo
 | `model` | 参数预算，或逐层 architecture 与张量形状 | 有 architecture 时派生 total/active 参数；公开四舍五入值放 `reported_*` |
 | `hardware` | NPU/CPU、HBM/DRAM、SU/SO、host link、外部存储、显式链路 | `su_size` 整除总卡数；容量、速率、精度算力需有效 |
 | `workload` | training/inference、batch、长度、累积步、训练步数 | 推理长度列表必须与 batch 一致，缺省由标量长度展开 |
-| `execution` | TP/PP/EP/DP/FSDP、rank 放置、精度、offload、optimizer | `TP × PP × EP × DP = NPU 数`；FSDP 整除 DP，不再乘入总卡数 |
+| `execution` | TP/PP/EP/DP/FSDP、rank 放置、精度、offload、optimizer | 普通模式 `TP × PP × EP × DP = NPU 数`；PD 为 `2 × TP × EP`、DP=PP=1；FSDP 整除 DP，不再乘入总卡数 |
 | `targets` | 吞吐、TTFT、TPOT、step time 和候选集合 | 场景区分训练与推理指标，候选数量受 `max_candidates` 限制 |
 | `sources` / `assumptions` / `calibration` | 来源与假设、硬件校准覆盖 | 来源状态为 assumed/public/user/measured；校准仅接受 hardware 和 source |
 
@@ -304,6 +307,8 @@ slot 从事件准入起持有到完成，覆盖 startup 与工作阶段；当前
 
 `sweep()` 独立校验并运行每个组合，保留 `invalid_config` 等失败项。`size_su()` 枚举总卡数、SU size、并行布局；未给布局时保留 TP/PP/EP/FSDP，根据卡数推导 DP。
 
+PD 搜索保持 DP=PP=1，以两池总量校验候选；显式 P/D 物理映射绑定场景，不自动随卡数候选重分配。
+
 每个合法 SU 候选先跑 estimate：仅用**固定驻留内存**和**严格性能下界**剪枝。性能剪枝窗口只从训练 step-time/吞吐或推理吞吐导出，不把 TTFT/TPOT 当作全图 deadline。剩余候选重新调用 `run(..., 'simulate')`，因此当前实现会再构图一次。
 
 可行候选按 `(su_size, npu_count, duration_s)` 排序，返回集合内最小值。多域模式需要 `total_npus` 或 `max_total_npus`；结果不声明全局最优，也不保证更大 SU 的性能单调。
@@ -395,7 +400,7 @@ python -m supernode_sim simulate examples/demo_inference.yaml -o outputs/demo-in
 | 新报表视图 | memory_breakdown / report；保持并发峰值的可加性口径 |
 | 新 Skill 分析场景 | SKILL.md 与 references；数值规则仍应进入引擎和测试 |
 
-当前限制包括：无 PD 分离、expert offload、连续请求排队/P99、包级与周期级模拟；投机仅有输入接受数的同步轮次模型。原生 Clos/Fat-tree 模板使用简化单 spine；拓扑子 skill 编译器支持配置多个 spine 及上联共享约束，但仍使用确定性单路径，不模拟 ECMP。MoE 默认均匀路由，稀疏 decode 权重读取按期望触达专家估算。缓存/MTE 输出是工作集和搬运需求，不可直接解释为精确 L1/L2/L3 容量或硬件通道数。
+当前限制包括：无异构 P/D 重分片或在线池调度、expert offload、连续请求排队/P99、包级与周期级模拟；投机仅有输入接受数的同步轮次模型，megakernel 只融合合法局部链。原生 Clos/Fat-tree 模板使用简化单 spine；拓扑子 skill 编译器支持配置多个 spine 及上联共享约束，但仍使用确定性单路径，不模拟 ECMP。MoE 默认均匀路由，稀疏 decode 权重读取按期望触达专家估算。缓存/MTE 输出是工作集和搬运需求，不可直接解释为精确 L1/L2/L3 容量或硬件通道数。
 
 配置显式拒绝的组合还包括：无 architecture 的 Muon、结构化 FSDP lookahead prefetch、跨 PP 的 tied embedding 和 AttnRes、非权重状态使用 FP4。MLA compressed/expanded 改变容量和访存模型，不表示两种实际 kernel 均已校准。
 

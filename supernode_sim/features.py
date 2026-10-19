@@ -38,6 +38,10 @@ _SUPPORTED = {
         'MLA/KDA/MHA/GQA/MQA/CSA/HCA use explicit architecture dimensions; changing attention is a model-architecture hypothesis, not a drop-in quality-preserving speedup.'),
     'speculative_decode': (['inference'], ['execution.features.speculative_decode'],
         'Methods dspark/generic require explicit acceptance counts, draft cost and draft residency. This does not reproduce or validate a named serving implementation.'),
+    'megakernel': (['training', 'inference'], ['execution.features.megakernel'],
+        'Explicit ordered same-rank/layer/phase kernel groups preserve physical work and require fused startup costs; dependency barriers and actual matching coverage constrain fusion.'),
+    'prefill_decode_disaggregation': (['inference'], ['execution.features.prefill_decode_disaggregation'],
+        'Separate physical prefill/decode pools share the same per-stage TP/EP layout; total hardware NPUs equal 2*TP*EP. State handoff follows the configured topology; dynamic admission and pool replication are not modeled.'),
     'kernel_profiles': (['training', 'inference'], ['hardware.kernel_profiles'],
         'Measured or assumed solo-kernel profiles may represent fusion/graph/runtime implementations; actual matching coverage is reported separately.'),
 }
@@ -46,7 +50,6 @@ _UNSUPPORTED = {
     'continuous_batching': 'Arrival-driven scheduling and dynamic admission are not implemented.',
     'prefix_cache': 'Dynamic prefix lookup, eviction and cross-request reuse are not implemented.',
     'chunked_prefill': 'Serving-level chunk scheduling and prefill/decode interleaving are not implemented.',
-    'prefill_decode_disaggregation': 'Separate prefill/decode pools and request handoff are not implemented.',
     'mhc': 'Manifold-constrained hyper-connections are not implemented.',
     'flash_attention': 'No universal boolean speedup is modeled; select explicit kernel_profiles for a concrete kernel implementation.',
     'cuda_graphs': 'No universal graph-capture speedup is modeled; use explicit kernel_profiles and measured startup where appropriate.',
@@ -129,7 +132,7 @@ def resolve_feature_input(data: dict) -> dict:
             disabled = value.get('enabled') is False
         if name == 'kv_offload' and isinstance(value, dict):
             disabled = value.get('location') == 'none' and not (set(value) - {'location'})
-        if name == 'speculative_decode' and isinstance(value, dict):
+        if name in ('speculative_decode', 'prefill_decode_disaggregation') and isinstance(value, dict):
             disabled = value.get('enabled') is False
         if name == 'fsdp' and isinstance(value, dict):
             disabled = value == {'degree': 1}
@@ -143,6 +146,8 @@ def resolve_feature_input(data: dict) -> dict:
         'optimizer_offload': 'execution.features.optimizer_offload',
         'engram': 'execution.features.engram',
         'speculative_decode': 'execution.features.speculative_decode',
+        'megakernel': 'execution.features.megakernel',
+        'prefill_decode_disaggregation': 'execution.features.prefill_decode_disaggregation',
         'kernel_profiles': 'hardware.kernel_profiles',
         'attention': 'model.architecture',
         'parallelism': 'execution', 'quantization': 'execution.features',
@@ -187,6 +192,8 @@ def build_feature_plan(config, calibration: dict | None = None) -> dict[str, Any
         'quantization': any(value in ('fp4', 'fp8', 'int8') for value in execution['precision'].values()) or options['extra_weight_copy_dtype'] is not None,
         'attention': architecture is not None,
         'speculative_decode': options['speculative_decode']['enabled'],
+        'megakernel': options['megakernel']['enabled'],
+        'prefill_decode_disaggregation': options['prefill_decode_disaggregation']['enabled'],
         'kernel_profiles': bool(data['hardware']['kernel_profiles']),
     }
 
@@ -212,6 +219,15 @@ def build_feature_plan(config, calibration: dict | None = None) -> dict[str, Any
                      speculative.get('commit_cost'), speculative.get('replay_cost')]
             if any(cost and cost.get('duration_s') is not None for cost in costs):
                 row['modeling'] = 'profile_driven'
+        if name == 'megakernel':
+            if row['selected'] and any(group['duration_s'] is not None for group in options['megakernel']['groups']):
+                row['modeling'] = 'profile_driven'
+            row['coverage_reference'] = 'model_metadata.megakernel'
+        if name == 'prefill_decode_disaggregation':
+            row['coverage_reference'] = 'model_metadata.prefill_decode_disaggregation'
+            row['physical_npu_count'] = data['hardware']['npu_count']
+            row['stage_parallelism'] = {'tp': execution['tp'], 'ep': execution['ep'],
+                                       'pp': execution['pp'], 'dp': execution['dp']}
         rows.append(row)
     return {
         'schema_version': '1.0', 'scenario': data['workload']['scenario'], 'features': rows,

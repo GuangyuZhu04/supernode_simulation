@@ -1,6 +1,6 @@
 ---
 name: supernode-modeling
-description: Model supernode training and inference resources with optional acceleration features and calibrate TTFT/TPOT. Use for DSpark-style draft/verify simulation, CSA/HCA/KDA attention, quantization, checkpoint/offload, Adam/Muon, SU/SO topology and minimum-SU searches.
+description: Model supernode training and inference resources with optional acceleration features and calibrate TTFT/TPOT. Use for megakernel fusion, prefill/decode disaggregation, DSpark-style draft/verify, CSA/HCA/KDA attention, checkpoint/offload and SU/SO topology searches.
 ---
 
 # 超节点资源与通信建模
@@ -23,7 +23,7 @@ python -m supernode_sim schema
 ## 按问题选择资料和命令
 
 - 配置、来源、单位、CLI：读 [configuration.md](references/configuration.md)。
-- 选择训练/推理加速特性、DSpark、CSA/HCA/KDA 或对比 feature 开关：读 [features.md](references/features.md)，使用顶层 `features` 或 `--features` 文件；先运行 `list-features` 查看当前支持范围。
+- 选择训练/推理加速特性、megakernel、PD 分离、DSpark、CSA/HCA/KDA 或对比 feature 开关：读 [features.md](references/features.md)，使用顶层 `features` 或 `--features` 文件；先运行 `list-features` 查看当前支持范围。
 - 大型仿真、批量实验或本机内存/磁盘紧张：读 [resource-usage.md](references/resource-usage.md)，选择流式运行、缓存预算与导出粒度。
 - 按组件分析存储、activation、梯度、Adam/Muon：读 [memory-breakdown.md](references/memory-breakdown.md)。
 - Kimi K3 / Ascend 950 样例和真实性边界：读 [ascend950-kimi-k3.md](references/ascend950-kimi-k3.md)。
@@ -38,6 +38,8 @@ python -m supernode_sim schema
 保留用户场景，在工作目录创建可重跑配置。先 `validate`，再按任务运行 `estimate`、`simulate`、`sweep` 或 `size-su`；`estimate` 提供必要下界，不能证明 SLO 可行。硬件显然无法容纳的配置也有分析价值，保留失败原因而不自动放大硬件。
 
 Feature 是模型与执行策略输入，不是固定加速倍率。对同一路径的重复设置保留冲突检查；resolved config 使用 canonical 字段重跑。Attention 类型变化需要实际模型逐层结构和维度，不能默认质量等价；DSpark 类路径必须有显式 draft 成本、驻留及接受数。核对报告中的 `model_metadata.feature_plan`，并区分已选择、解析建模、profile 驱动和仍不支持的功能。
+
+Megakernel 要指定有序 kernel 组及融合启动成本，检查 `model_metadata.megakernel` 的实际匹配、跳过原因和未继承的成员 profile；零匹配不能声称提速。PD 使用两个独立物理池，当前相同 TP/EP、DP=PP=1，总卡数为 `2 × TP × EP`；双份权重、状态和首 token ID 传输按实际拓扑计费。TTFT 是 P 池首 token 完成，交接影响首个 decode 间隔，不是线上客户端延迟或生产 P99。
 
 ## 拓扑作为输入
 
@@ -74,7 +76,7 @@ Feature 是模型与执行策略输入，不是固定加速倍率。对同一路
 
 只需要性能、流量、容量峰值和失败诊断的大型结构化推理，DP=PP=1 时优先使用 [流式推理](references/inference.md#大规模结构化推理)。需要完整组件/张量生命周期、训练或其他并行布局时继续使用普通引擎。批量实验默认串行并复用匹配结果；每个并发进程会分别占用图和缓存内存。
 
-启用 `speculative_decode` 时使用普通 `simulate`；流式路径当前不处理投机轮次，会明确报错。不要绕过限制把投机结果退回普通 decode。
+启用 `speculative_decode`、`megakernel` 或 `prefill_decode_disaggregation` 时使用普通 `simulate`；流式路径当前不处理投机轮次、跨组件融合或跨池交接，会明确报错。不要绕过限制退回普通 decode。PD 暂不与投机、KV offload、Engram 组合；未知收益不能用一个效率系数替代缺失语义。
 
 大型 optimizer offload 场景可显式配置 `execution.optimizer.inflight_components_per_rank: 2`，限制同时在途的组件更新并保留搬运/计算重叠；这是执行策略，会影响峰值和耗时，应随结果说明。未设置时保留原有全部提交策略。
 
