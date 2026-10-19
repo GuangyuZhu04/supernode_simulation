@@ -1,1121 +1,517 @@
-# 超节点资源与通信建模技术方案 PPT 内容文档
+# 超节点资源与流量仿真 PPT 内容文档
 
-本方案面向模型、系统与网络架构团队，说明 supernode-modeling Skill 如何将模型、负载、并行策略与 SU/SO 拓扑转换为可重跑配置，并通过 supernode_sim 的统一事件图分析存储、计算、通信、执行时序与 SLO。核心判断是容量是否可承载、目标是否满足、瓶颈在哪里，以及哪些受控变量能够改善方案。
+面向模型、系统与网络架构团队，说明 supernode-modeling Skill 如何将模型、负载、并行策略和 SU/SO 拓扑转为可复跑配置，并由 supernode_sim 分析容量、流量、时延与候选方案。
 
-用途：后续 PPT 生成的内容输入与讲解底稿。汇报时长：25–30 分钟。主讲 24 页，建议讲述合计 26.25 分钟；另有 8 页技术附录与 R01 来源页供问答使用。末尾 12 份 Mermaid 图源属于绘图素材，不另算幻灯片。
+内容基线：2026 年 10 月 19 日仓库内的主 Skill、references 与拓扑子 Skill。主讲 19 页，约 20–25 分钟；附录 3 页，共 22 页。第 14–17 页加入 2026-10-15 的 A5 / Ascend 950DT 上 10T 级 Kimi K3 历史仿真案例；数值复用归档报告与 CSV，不表示已由当前引擎重新执行。附录 A01 仍为合成逻辑容量锚点。
 
-内容日期：2026 年 10 月 12 日。架构资料基线为 2026 年 10 月 9 日，函数流程说明标注日期为 2026 年 9 月 28 日；架构说明记录引擎版本 0.1.0，配置与结果 schema 1.0。版本信息用于标识本稿依据，不替代后续实际运行所用的源码修订。
+## 一 生成约定
 
-## 一 PPT 生成约定
+- 主讲严格采用 01–19，附录 A01–A03；不将目录、图源或代码另生成页面。
+- 每页 2–3 条短文案和一个主要表格或流程。解释放 speaker notes，来源放页脚；保留限定条件。
+- 16:9、白底、深蓝标题与蓝色强调；正文建议 22–26 pt，图中标签不小于 18 pt。精简文字，不以缩小字号压缩内容。
+- 概念图不使用暗示实测占比的柱长、面积或百分比。正式数值图必须来自同一场景的真实 JSON/CSV，并写明单位、配置与范围。
+- 日期采用 2026-10-19；不填写未提供的作者、机构、联系方式。第 19 页结束主讲，附录按需跳转。
 
-每页的“核心结论”确定讲述目的，“上屏文案”进入正文，“图表与布局”指导绘图，“讲解备注”进入 speaker notes，“来源”进入页脚。展示数据以本稿明确提供的值和实际引擎产物为准。细节保留在备注与附录，不能把整段备注复制到页面。
+## 二 主讲顺序
 
-建议采用 16:9、白底、微软雅黑、深蓝标题与蓝色强调。标题 24–28 pt，正文不小于 20 pt，图中标签 16–18 pt，来源 12–14 pt。每页 3 条主要文案和 1 个主要图表；采用统一页边距和左对齐。用文字和形状共同说明状态，避免只靠颜色区分。超过 15 页的主讲在顶部显示章节导航：问题与方案、系统架构、模型与执行、资源与结果、方案比较、应用与边界。
+| 页码 | 标题 | 建议分钟 |
+|---|---|---:|
+| 01 | 超节点资源与流量仿真 | 0.5 |
+| 02 | 从可编辑网页到可复跑结果 | 1 |
+| 03 | 用统一契约固定比较条件 | 1 |
+| 04 | 拓扑先编译，再验证实际路径 | 1 |
+| 05 | 事件依赖与资源准入决定执行 | 1.5 |
+| 06 | 训练同时计算状态、搬运与更新 | 1 |
+| 07 | 推理状态随结构与阶段变化 | 1.5 |
+| 08 | 用组件账本解释同一时刻的峰值 | 1 |
+| 09 | 流量按语义、路径与资源分别计量 | 1 |
+| 10 | TTFT 与 TPOT 沿关键路径拆解 | 1.5 |
+| 11 | Feedback 在延迟约束下提高 Decode 吞吐 | 1.5 |
+| 12 | 按分析目标选择普通或流式运行 | 1 |
+| 13 | 配置、结果与失败原因一起交付 | 1 |
+| 14 | A5 上的 10T Kimi K3 合成扩容场景 | 1 |
+| 15 | 柜间流量主导，Top-k 与 batch 放大通信 | 1.5 |
+| 16 | TP8 基线完成 128k，长 Prefill 触及容量边界 | 1.5 |
+| 17 | TP/SP 联合调整：容量与时延改善，流量增加 | 1.5 |
+| 18 | 结论受负载、抽象与校准范围约束 | 1 |
+| 19 | 用同一场景闭合分析与选型 | 0.5 |
 
-图源可导出为 SVG，或重绘为可编辑形状。主讲依据裁剪指引简化长图，完整函数流程保留在附录素材。函数名、关键依赖、路由与失败分支不得因简化而改变含义。图例统一如下：
+建议讲述合计约 22 分钟；讨论与转场后控制在 20–25 分钟。
 
-- 职责与数据流图表示组件交付关系，不表示运行时先后。
-- 带 () 的节点为真实函数或方法；“内部”节点为函数体逻辑块。
-- 构图循环编译 Event DAG，不能据此推断运行时完全串行。
-- 运行时依赖由 Event.deps 表达，还需通过内存与 slot 准入。
+## 三 主讲内容
 
-正式数值页应附配置、单位和来源。10T 是合成的全参数 Adam 逻辑容量锚点；Kimi K3 与 Ascend 950DT 场景区分公开结构、公开规格和运行假设。主稿没有填入未给出的仿真耗时、吞吐、误差或目标达成率。需要加入结果图时，从对应 report.md/result.json/CSV 读取同场景数据。
+### 01 超节点资源与流量仿真
 
-可直接给 PPT 生成工具的指令：
-
-```text
-请根据此文档生成中文技术方案 PPT，主讲严格采用 01–24 页顺序，适合 25–30 分钟。
-每页使用结论式标题、上屏文案和一个主要图表；讲解备注放入 speaker notes，来源放页脚。
-图表按图源编号 G00–G11 和裁剪指引绘制，完整 Mermaid 源码见文末。
-保留函数控制流、事件依赖、容量与性能下界、运行假设的区别。
-第 19 页仅使用给定的 10T 逻辑静态容量数据，不能画成实际设备峰值。
-第 20 页展示公开事实与假设的边界，不能补造实机性能。
-A01–A08 与 R01 作为备查附录，默认不进入主讲；原始图源代码不是额外幻灯片。
-作者、单位和联系方式未提供时省略，不使用虚构信息或空白占位符。
-以第 24 页结论结束主讲并停留用于问答。
-```
-
-## 二 主讲顺序与时间
-
-| 页码 | 章节 | 结论式标题 | 建议分钟 |
-|---|---|---|---:|
-| 01 | 问题与方案 | 超节点资源与通信建模技术方案 | 0.5 |
-| 02 | 问题与方案 | 系统回答给定场景能否承载以及瓶颈在哪里 | 1 |
-| 03 | 问题与方案 | 模型策略与网络共同决定资源需求和执行时间 | 1 |
-| 04 | 系统架构 | Skill 编排和数值引擎通过统一事件图衔接 | 1.5 |
-| 05 | 系统架构 | 严格输入契约保证场景比较具有明确口径 | 1.5 |
-| 06 | 系统架构 | 拓扑子 Skill 将自然语言编译为明确的链路与域成员 | 1 |
-| 07 | 系统架构 | Graph 同时表达工作量依赖和张量生命周期 | 1 |
-| 08 | 系统架构 | 下界先行筛查必要条件 仿真再检查执行与 SLO | 1 |
-| 09 | 模型与执行 | 模型结构决定采用组件构图还是参数预算构图 | 0.75 |
-| 10 | 模型与执行 | 训练构图连接流水调度通信和 activation 生命周期 | 1.5 |
-| 11 | 模型与执行 | Optimizer offload 用主机容量换取搬运与更新开销 | 1.25 |
-| 12 | 模型与执行 | 固定 batch 推理按 prefill 和活跃序列 decode 构图 | 1.5 |
-| 13 | 模型与执行 | 组件与状态账本解释容量来自哪些张量 | 1 |
-| 14 | 模型与执行 | MLA 缓存与 KDA 递归状态采用不同的容量模型 | 1.25 |
-| 15 | 资源与结果 | 通信语义展开为算法轮次和实际路径资源 | 1.25 |
-| 16 | 资源与结果 | 执行器在依赖内存和共享资源约束下推进事件 | 1.5 |
-| 17 | 资源与结果 | 仿真执行峰值必须由同一时刻的内存日志构成解释 | 1 |
-| 18 | 资源与结果 | 指标使用训练步和逐序列 token 的实际完成时间 | 1 |
-| 19 | 方案比较 | 10T 容量锚点显示精度优化需要逐状态计算 | 1 |
-| 20 | 方案比较 | Kimi K3 案例将公开结构和运行假设分别保存 | 1.25 |
-| 21 | 方案比较 | 扫描与 SU 搜索在有限候选内保留可行方案和失败原因 | 1.25 |
-| 22 | 应用与边界 | 配置来源校准命中和执行产物支持复跑与审计 | 0.75 |
-| 23 | 应用与边界 | 结论适用于声明的负载模型拓扑和执行策略 | 0.75 |
-| 24 | 应用与边界 | 统一事件图让资源约束与方案比较形成可追溯闭环 | 0.75 |
-
-时间紧张时，可将第 09 页构图差异、第 14 页 KV/KDA 细节、第 19 页容量锚点移入备查，保留问题、架构、训练/推理主链、资源争用、峰值、SLO、搜索和结论。不能通过缩小字号压缩正文。
-
-## 三 逐页内容
-
-### 01 超节点资源与通信建模技术方案
-
-**章节与时间** 问题与方案，0.5 分钟。
-
-**核心结论** 用可重跑配置连接模型、负载、并行策略和硬件拓扑，形成容量、性能与通信分析闭环。
+**核心结论** 用同一场景连接容量、通信、时延与方案选择。
 
 **上屏文案**
 
-- supernode-modeling Skill 与 supernode_sim 数值引擎
-- 训练与固定 batch 推理的存储 计算 通信分析
-- 从场景输入到瓶颈解释与有限候选选型
+- supernode-modeling Skill × supernode_sim 引擎
+- 训练与固定 batch 推理的资源和流量分析
+- 可编辑输入、可解释结果、可复跑方案
 
-**图表与布局** 使用简洁的横向链条：场景 → 事件图 → 资源与时序 → 方案判断。副标题为“架构 流程 能力与应用”。日期可用 2026 年 10 月 12 日；作者、单位和会议信息仅在提供后填写。
+**图表与布局** 一条四步流程：场景 → 资源与事件 → 容量 / 流量 / 时延 → 方案判断。副标题“能力、口径与工作流”，日期 2026-10-19。
 
-**讲解备注** 本方案把架构问题转换成严格配置，再由数值代码执行计算。今天重点说明系统如何形成事件图、怎样考虑资源竞争、如何解释结果，以及怎样用这些结果比较超节点方案。
+**讲解备注** 系统回答能否装下、能否满足目标、瓶颈在哪里。Skill 负责组织场景与解释结果，数值计算由仓库或已安装的 supernode_sim 完成，不在 Skill 中维护另一套引擎。
 
-**来源** [主 Skill](../skills/supernode-modeling/SKILL.md)；[架构说明第 1 节](simulation-architecture.md)。
+**来源** [主 Skill](../skills/supernode-modeling/SKILL.md)，开头与“解释结果时的关键口径”。
 
-### 02 系统回答给定场景能否承载以及瓶颈在哪里
+### 02 从可编辑网页到可复跑结果
 
-**章节与时间** 问题与方案，1 分钟。
-
-**核心结论** 分析目标是判断容量、性能和网络约束是否满足，并给出可追溯的原因。
+**核心结论** 本地网页与 CLI/API 使用同一配置和数值引擎。
 
 **上屏文案**
 
-- 能否装下：驻留容量与执行峰值
-- 能否达标：训练步时 吞吐 TTFT TPOT
-- 如何改进：精度 offload 并行布局与 SU 规模
+- 默认准备并打开可编辑本地网页
+- 输入校验 → 执行任务 → 查看历史快照
+- 网页支持 estimate / simulate
 
-**图表与布局** 三行问题与交付表：容量→内存账本；性能→时序与 SLO；网络→路径与资源负载。右下角加“同一场景 同一口径 可复跑”。
+**图表与布局** 五步流程：启动或复用服务 → 编辑完整配置 → 校验 → 提交任务 → 图表与产物。流程下方一行文字：“sweep / size-su / feedback / 流式推理继续使用 CLI/API”。
 
-**讲解备注** 需要先固定模型范围、负载和执行策略。系统既保留可行方案，也保留容量失败和 SLO 未达标的原因。SU 是 scale-up 域，SO 是由 SU 域组成的 scale-out 分区；后续选型建立在这些定义之上。
+**讲解备注** 网页由 supernode_sim.web 提供本地 HTTP 服务，无需 npm 构建；展示模型、拓扑、硬件、并行和 Workload，支持 JSON、日志、取消、历史快照及结果图表。启动网页本身不提交任务。只有启动器返回 started/reused 且资源检查通过，才可报告服务就绪；实际 URL 以返回值为准。历史输入先复制再编辑。本页说明现有能力，不声称本次已启动服务或运行实验。
 
-**来源** [架构说明第 1.1 节](simulation-architecture.md)；[主 Skill](../skills/supernode-modeling/SKILL.md)。
+**来源** [frontend.md](../skills/supernode-modeling/references/frontend.md)，“页面来源与运行条件”“与仿真任务衔接”。
 
-### 03 模型策略与网络共同决定资源需求和执行时间
+### 03 用统一契约固定比较条件
 
-**章节与时间** 问题与方案，1 分钟。
-
-**核心结论** 单一参数量或链路带宽无法解释完整场景，必须一起考虑工作量、数据放置和执行依赖。
+**核心结论** 模型、负载、精度、并行与拓扑共同定义一个可比较场景。
 
 **上屏文案**
 
-- 总参数 活跃参数 activation 分别建模
-- 复制 分片 与数据路径改变物理需求
-- 依赖 内存准入 与共享带宽决定实际重叠
+- 总参数、活跃参数与 activation 分开
+- TP × PP × EP × DP = NPU 数
+- SP 共用 TP rank；FSDP 属于 DP 子组
 
-**图表与布局** 画四个输入块：模型、负载、执行策略、硬件拓扑，汇合到“资源事件图”，输出容量/通信/时序。用一条注释说明“FP8 权重不自动改变其他状态精度”。
+**图表与布局** 使用输入契约表，表下标注“byte / second / FLOP；来源：public / user / measured / assumed”。
 
-**讲解备注** total_params 用于权重容量，active_params 用于每 token 参数计算预算，activation 是运行时张量。FSDP、EP 和 TP 决定分片或复制，rank 放置决定通信经过哪些链路。即使逻辑工作量相同，布局和竞争也会改变执行时间。
+| 输入 | 必须固定或显式变更 |
+|---|---|
+| model / workload | 张量结构、训练或推理负载、每 DP 副本 batch |
+| execution | 并行布局、各状态精度、offload、rank 放置 |
+| hardware / targets | 容量、SU/SO 与链路、时延和吞吐目标 |
+| sources / assumptions | 公开资料、用户输入、实测与假设 |
 
-**来源** [配置说明](../skills/supernode-modeling/references/configuration.md)；[存储说明](../skills/supernode-modeling/references/memory-breakdown.md)。
+**讲解备注** architecture 按真实张量形状派生参数；只有预算时，未知结构列 Unassigned，不缩放账本凑厂商约数。权重驻留、计算、梯度、优化器、KV、通信和权重回传精度独立设置。SP 是 sequence_parallel 开关，开启时 degree=TP，要求结构化推理、TP>1、PP=1；不能重复乘入卡数。FSDP 满足 DP 整除关系。改变 DP 会改变聚合负载；HF 导入只生成模型片段与 missing_fields，仍需完整场景校验。
 
-### 04 Skill 编排和数值引擎通过统一事件图衔接
+**来源** [configuration.md](../skills/supernode-modeling/references/configuration.md)，“配置来源”；[inference.md](../skills/supernode-modeling/references/inference.md)，“Megatron 式 sequence parallel”。
 
-**章节与时间** 系统架构，1.5 分钟。
+### 04 拓扑先编译，再验证实际路径
 
-**核心结论** 自然语言交互、确定性建模和结果解释分层维护，并统一进入同一数值引擎。
-
-**上屏文案**
-
-- Skill 收集场景 组织运行 解释结果
-- 构图器将配置转换为 Graph
-- 下界 仿真 账本与报告复用同一契约
-
-**图表与布局** 主图使用 G00，裁剪为“Skill → 配置 → 构图器 → Graph → 下界与可选仿真 → 账本 → 报告”七层。保留 components 和 Topology 对构图器的侧向输入，以及拓扑子 Skill 的配置生成支路。标注“职责与数据流”。
-
-**讲解备注** supernode-modeling 不包含另一套独立仿真器。模型公式、路径和调度由 supernode_sim 执行；Skill 读取真实输出再解释。当前部署为本地或服务器上的 Python 进程，可通过 CLI 或 Python API 使用，尚无常驻仿真服务。
-
-**来源** [架构说明第 1 至 2 节](simulation-architecture.md)；G00 [整体架构图](diagrams/00-architecture.mmd)。
-
-### 05 严格输入契约保证场景比较具有明确口径
-
-**章节与时间** 系统架构，1.5 分钟。
-
-**核心结论** 结论来自完整场景，模型、硬件、负载和执行布局必须同时有效。
-
-**上屏文案**
-
-- model hardware workload execution targets
-- TP × PP × EP × DP 等于总 NPU 数
-- FSDP 整除 DP batch_size 按每 DP 副本定义
-
-**图表与布局** 五组业务输入与来源信息的分组表。把并行乘积公式放在表下；来源栏用 public、user、measured、assumed 四种文字标签，颜色不作为唯一标识。
-
-**讲解备注** TP 是张量并行，PP 是流水并行，EP 是专家并行，DP 是数据并行。FSDP 是 DP 内的分片组，不重复乘入总卡数。增加 DP 会改变聚合负载，不能把不同负载的结果当作纯硬件比较。HF 导入输出的是模型片段和 missing_fields，需要合并完整场景后再校验。
-
-**来源** [配置说明](../skills/supernode-modeling/references/configuration.md)；[架构说明第 4.1 节](simulation-architecture.md)。
-
-### 06 拓扑子 Skill 将自然语言编译为明确的链路与域成员
-
-**章节与时间** 系统架构，1 分钟。
-
-**核心结论** 高层拓扑规范先经过确定性编译，再进入严格的原生场景。
+**核心结论** SU 域、SO 域及有向连接必须形成明确的物理路径。
 
 **上屏文案**
 
 - 自然语言 → topology spec → 原生 hardware
-- SU 内卡数与 SO 域内超节点数分别声明
-- 方向 带宽 延迟 注入与共享容量显式输入
+- SU 内卡数与 SO 域成员分别声明
+- 改变卡数或域成员后重新编译
 
-**图表与布局** 新增简化适配流程：描述→TopologySpec→成员与连通校验→build_topology.py→原生配置→同一引擎。侧栏示意“4 个 SU 分属于 2 个 SO 域”，仅表示成员关系，不填未提供的性能参数。
+**图表与布局** 一个两层拓扑示意：4 个 SU 分属 2 个 SO 域，域间画方向明确的双向边；旁注“示意不含性能假设”。图下流程：“成员 / 连通校验 → explicit + su_so → communicator 路径核对”。
 
-**讲解备注** 仅生成拓扑无需模型和负载。高层 scale_out.domains 不能直接写入引擎 schema，硬件片段也不能独立完成场景仿真。子编译器支持 full-mesh、ring、mesh、Clos/Fat-tree 等规范允许的形态，验证域成员分区和多 SO 域间有向强连通。图和成员表由子 Skill 结合规范及编译链路派生。
+**讲解备注** 子 Skill 仅生成拓扑时无需模型或负载；有完整场景则用 --base 保留模型、精度、负载、SLO 和 rank 放置。高层 scale_out.domains 不能直接写入引擎 schema。当前编译器采用等大连续 SU 域、单个 SU 内的完整主机，多 SO 域有向图须强连通。编译后核对同 SU、跨 SU 同 SO、跨 SO，以及 H2D/D2H 和已启用的 remote/SSD 路径。原生 size-su 不自动重建显式图，改变物理结构的每个候选须重新编译；单向声明不代表反方向。
 
-**来源** [拓扑子 Skill](../skills/supernode-modeling/subskills/supernode-topology/SKILL.md)；[拓扑输入契约](../skills/supernode-modeling/references/topology.md)。
+**来源** [topology.md](../skills/supernode-modeling/references/topology.md)，“一等输入”；[拓扑子 Skill](../skills/supernode-modeling/subskills/supernode-topology/SKILL.md)，“生成与交付”“保持模型语义”。
 
-### 07 Graph 同时表达工作量依赖和张量生命周期
+### 05 事件依赖与资源准入决定执行
 
-**章节与时间** 系统架构，1 分钟。
-
-**核心结论** 统一中间表示将速率、容量和互斥分开，使不同构图路径复用分析与执行器。
+**核心结论** 下界用于筛查必要条件，实际仿真再检查争用、容量与目标。
 
 **上屏文案**
 
-- Event：deps work startup allocs releases slots
-- Resource 表示速率 memory_caps 表示容量
-- 完成标记连接时序指标与执行记录
+- Graph 连接依赖、工作量与张量生命周期
+- 就绪后仍须通过内存和 slot 准入
+- estimate 通过不代表 SLO 可行
 
-**图表与布局** 一个 kernel Event 连接 compute、HBM 两类资源，并连接输入依赖、allocation/release 和 compute slot。图下给出 Graph 包含 Resource、Event、Allocation、metadata 的结构关系。
+**图表与布局** 一个主流程：配置校验 → 构图与下界 → 执行 → 指标 / SLO。将执行框展开为四步环：“完成释放 → ready 准入 → 共享速率 → 时间推进”，不展开完整函数图。
 
-**讲解备注** 事件消耗各资源的工作量，deps 指定前驱完成条件，slots 表示执行互斥。内存分配和释放不由总参数量替代。训练 step 完成和每序列 token 完成标记写入 Graph，再从实际完成时间计算指标。图中依赖是运行时语义，不等同于 Python 创建节点的先后。
+**讲解备注** 普通引擎以 Event.deps、work、startup、allocs/releases、slots 表达执行；资源分别约束速率、容量和互斥。roofline 独占速率与归一化 max-min 描述共享争用，计算与访存不直接相加。构图循环不代表运行时串行。配置合法、图与路径合法、执行可行、SLO 达标是不同关口；初始容量失败和 memory_admission_deadlock 均保留诊断。流式执行范围见第 12 页。
 
-**来源** [架构说明第 4.2 至 4.3 节](simulation-architecture.md)；[core.py](../supernode_sim/core.py)。
+**来源** [topology.md](../skills/supernode-modeling/references/topology.md)，“Collective 与字节记账”；[配置口径](../skills/supernode-modeling/references/configuration.md)；[事件执行器图](diagrams/08-event-engine.mmd)。
 
-### 08 下界先行筛查必要条件 仿真再检查执行与 SLO
+### 06 训练同时计算状态、搬运与更新
 
-**章节与时间** 系统架构，1 分钟。
-
-**核心结论** estimate 与 simulate 解决不同问题，下界通过不代表场景已可行。
+**核心结论** offload 与重计算改变容量，也带来明确的传输和执行开销。
 
 **上屏文案**
 
-- validate 仅校验配置
-- run 始终先构图并计算 estimate
-- simulate 加入争用 准入与实际完成时间
+- 非交错 1F1B、FSDP、TP/EP 与梯度同步
+- optimizer offload：梯度 D2H → 更新 → 权重 H2D
+- Adam / Muon 按参数组分别建账
 
-**图表与布局** 使用 G01 的主链：load_config→compile_graph→graph_estimate→模式分支。estimate 分支至需求/驻留账本；simulate 分支经执行、指标与 SLO，再汇合报告。用注释标明“必要下界不能证明 SLO 满足”。
+**图表与布局** 一条训练步流程：前向 / 反向 → 梯度同步 → optimizer → step 完成。optimizer 框内画 NPU→Host→NPU 的搬运闭环，标明 gradient 与 weight_transfer 精度。
 
-**讲解备注** duration_lower_bound_s 是依赖路径下界与资源下界的最大值。estimate 的乐观内存时间线忽略争用和 slot，不是通用容量下界。四个关口分别是配置合法、图和路径合法、执行可行、SLO 满足。Python run 只返回字典，CLI 才会调用 write_report。
+**讲解备注** checkpoint 用重计算换 activation 留存，但不消除前向工作集。Dense/shared 与专家参数的复制/分片不同，不能将全部状态统一除以卡数。Muon 需矩阵形状，矩阵 momentum、正交化暂存和辅助 Adam m/v 分列；其分组是建模策略。FP8 权重驻留不意味着 H2D 按 FP8。大型结构化 offload 可显式设置 inflight_components_per_rank: 2；该策略影响峰值与耗时，须随结果披露。10T Adam 逻辑容量放附录 A01，不当作设备峰值或 Muon 配方。
 
-**来源** [架构说明第 3 及 6.3 节](simulation-architecture.md)；G01 [入口与运行主链](diagrams/01-entry-and-run.mmd)。
+**来源** [training.md](../skills/supernode-modeling/references/training.md)，“参数和执行策略”；[memory-breakdown.md](../skills/supernode-modeling/references/memory-breakdown.md)，“Adam 与 Muon”。
 
-### 09 模型结构决定采用组件构图还是参数预算构图
+### 07 推理状态随结构与阶段变化
 
-**章节与时间** 模型与执行，0.75 分钟。
-
-**核心结论** 有明确 architecture 时按张量形状构图，缺少结构时保留参数预算模型。
+**核心结论** 固定 batch 的 Prefill、Decode 与状态布局必须联合建模。
 
 **上屏文案**
 
-- 有 architecture：结构化训练或推理
-- 无 architecture：参数预算训练或推理
-- 未知组件归入 Unassigned
+- Prefill 产生首 token，活跃序列继续 Decode
+- MLA 缓存随长度增长；KDA 保存固定状态
+- SP、KV offload 与 Engram 改变工作集和通信
 
-**图表与布局** 2×2 路由表：architecture 有/无 × training/inference。填写真实入口：Builder.training_graph、Builder.inference、_TrainingBuilder.build、build_inference。表下标注“共用 Graph 不代表执行特性数值等价”。
+**图表与布局** 以一张结构/策略对照表为主图，顶部标“预加载权重后的固定 batch”。
 
-**讲解备注** 结构化路径派生组件参数和状态，预算路径使用声明的 total/active 参数和粗粒度层算子。不能按任意比例把未知参数分给组件。两条路线在 PP 依赖、KV 转换和预取等细节上存在差异，选择路线需要与输入信息及分析目标一致。
+| 结构或策略 | 状态与通信含义 |
+|---|---|
+| MLA / KDA | latent 或展开 KV / 每序列 recurrent + conv state |
+| SP | Norm、残差等按序列分片；组件前 AG、后 RS |
+| KV offload / Engram | 取回与写入 / 查询、缓存和 IOPS；共享实际路径 |
 
-**来源** [架构说明第 5 节](simulation-architecture.md)；G01、G02、G03、G05、G06。
+**讲解备注** 完成序列退出 Decode，不补入新请求。MLA latent KV 在 TP 间复制；KDA recurrent heads 按 TP 分片，不能套用 context parallel。SP 仅支持结构化推理、TP>1、PP=1，等长 collective 存在 padding；attention/KV 仅计有效 token。K3 样例的 compressed MLA 为 512+64=576 元素/token/MLA 层，是明确布局假设，官方 HF 参考实现为展开 K/V。分页、scale、转换与取回 buffer 分列。KV offload 与 Engram 要联合检查 host/remote 资源；Engram 只预测资源成本，不预测模型质量。
 
-### 10 训练构图连接流水调度通信和 activation 生命周期
+**来源** [inference.md](../skills/supernode-modeling/references/inference.md)，“负载与性能指标”“KV 结构”“Engram”“sequence parallel”；[K3 案例](../skills/supernode-modeling/references/ascend950-kimi-k3.md)，“模型必须保留的细节”。
 
-**章节与时间** 模型与执行，1.5 分钟。
+### 08 用组件账本解释同一时刻的峰值
 
-**核心结论** 训练步时和峰值由非交错 1F1B、分片、重算和同步共同决定。
-
-**上屏文案**
-
-- 初始状态 → 1F1B → 层与组件事件
-- FSDP gather 重算 TP EP 梯度同步
-- PP 传输 → optimizer → step 完成
-
-**图表与布局** 使用 G03，保留六块：形状与状态、PP schedule、组件事件、通信与重算、optimizer、完成标记。checkpoint 用侧支路表示。图例写“编译事件 DAG”；G02 完整预算路径放附录。
-
-**讲解备注** 1F1B 包含 warmup、前反向交替和 drain。FSDP gather、reshard_after_forward、sync_each_microbatch 会改变状态生命周期和通信。checkpoint 减少保存量并引入重计算，但前向完整临时工作集仍存在。结构化路径拒绝 lookahead prefetch，预算路径支持受限的一层前瞻；PP send 的后继依赖也不完全相同。
-
-**来源** [训练说明](../skills/supernode-modeling/references/training.md)；G03 [结构化训练](diagrams/03-training-structured.mmd)；G02。
-
-### 11 Optimizer offload 用主机容量换取搬运与更新开销
-
-**章节与时间** 模型与执行，1.25 分钟。
-
-**核心结论** 将优化器状态移到 host 后，必须同时分析 D2H、CPU/DDR 更新和 H2D 权重回传。
+**核心结论** 逻辑容量、复制分片后的驻留与执行峰值分别报告。
 
 **上屏文案**
 
-- 梯度 D2H → CPU 更新 → 权重 H2D
-- master optimizer 与驻留权重分开计量
-- Adam Muon 与辅助参数组分别建账
+- 组件 × 状态矩阵追溯容量来源
+- 峰值构成来自同一时刻的存活张量
+- 独立组件峰值不能直接相加
 
-**图表与布局** 使用 G04 的 offload 闭环，上方 NPU、下方 Host，两条有向搬运箭头。显式写 weight_transfer 精度和 scale；以 NPU 本地更新作为旁路，不画为第二套时间线。
+**图表与布局** 一张概念矩阵，不填虚构容量；右下标“HBM / DDR：容量、驻留、峰值、余量、失败资源”。
 
-**讲解备注** FP8 驻留不会自动使回传为 FP8。Muon momentum、正交化暂存和辅助 Adam 状态分别计算，当前是解析近似，并非 distributed Muon。optimizer 在本步 backward 和同步完成后执行，不与本步 backward 重叠。结构化路径可限制 inflight_components_per_rank，这是会影响时间和峰值的策略。
+| 组件组 | 权重与训练状态 | activation / 工作区 | 推理状态 |
+|---|---|---|---|
+| Embedding / Norm / Output / AttnRes | 按张量归属 | 留存、重算、残差 | 按实际结构 |
+| MLA / KDA | 参数与优化器状态 | 计算暂存 | KV / recurrent + conv |
+| Dense / MoE | 复制与分片 | 路由及通信 buffer | 按实际结构 |
 
-**来源** [训练说明](../skills/supernode-modeling/references/training.md)；[存储说明](../skills/supernode-modeling/references/memory-breakdown.md)；G04 [优化器与 offload](diagrams/04-optimizer-offload.mmd)。
+**讲解备注** K3 明细保留 WordEmbedding、PreNorm、PostNorm、MLA、KDA、Dense、MoE、Output layer 及实际存在的 AttnRes。weight、gradient、master、Adam m/v、Muon momentum、activation、KV/KDA、量化元数据、通信与优化器 workspace 分列。MoE top-k 不缩小全部常驻专家权重。DRAM 与 DDR 不重复计容。resident_only、simulated 与 observed_partial 分别表示驻留、完整执行和已观察前缀；OOM 后观察峰值不能作为完整任务安全容量。完整数值从组件、状态和峰值 CSV 读取。
 
-### 12 固定 batch 推理按 prefill 和活跃序列 decode 构图
+**来源** [memory-breakdown.md](../skills/supernode-modeling/references/memory-breakdown.md)，“建议输出”“数值口径”；[主 Skill](../skills/supernode-modeling/SKILL.md)，“解释结果时的关键口径”。
 
-**章节与时间** 模型与执行，1.5 分钟。
+### 09 流量按语义、路径与资源分别计量
 
-**核心结论** 逐序列 token 完成标记连接推理状态生命周期和延迟指标。
-
-**上屏文案**
-
-- prefill 产生首 token 后续执行 decode
-- 完成序列退出计算 cache 保留至批次结束
-- KV offload 与 Engram 显式产生资源和传输
-
-**图表与布局** 使用 G05，保留固定 batch→step→active sequences→层与组件→token complete 主循环。侧栏分别画旧 KV fetch/新 KV write、KDA 状态和 Engram 查询。图例写“固定负载 无到达队列”。
-
-**讲解备注** 不同序列长度可不同，已完成序列不继续 decode 或读 KV。KV offload 需读旧状态并写新状态，含 scale 的传输；page table 只计驻留。KDA recurrent/conv state 保留在 NPU。Engram 需输入存储容量、带宽、IOPS、命中率和实际路径，不能只给查询字节量。Engram 评估资源与访问成本，不预测知识能力或模型质量收益；其与 KV offload 的独立收益不能相加，需联合检查共享 host/remote 资源。此模型不动态补入请求，不包含冷启动权重加载。
-
-**来源** [推理说明](../skills/supernode-modeling/references/inference.md)；G05 [结构化推理](diagrams/05-inference-structured.mmd)；G06。
-
-### 13 组件与状态账本解释容量来自哪些张量
-
-**章节与时间** 模型与执行，1 分钟。
-
-**核心结论** 组件归因和状态归因交叉展示，避免只给一个总容量数字。
+**核心结论** 网络瓶颈取决于 collective 轮次、rank 放置和共享路径资源。
 
 **上屏文案**
 
-- 组件：Embedding Norm MLA KDA Dense MoE Output AttnRes
-- 状态：weight gradient master Adam Muon activation
-- KV 递归状态 元数据 workspace 分列
+- AG / RS / AR 用 ring；A2AV 用 payload 矩阵
+- payload 与逐跳 physical bytes 分开
+- 链路、注入、NIC 和共享上联共同约束
 
-**图表与布局** 一张概念矩阵：行按组件分组，列为权重、训练状态、activation、KV/递归状态、元数据/工作区。对 MLA 的 KV 和 KDA 的递归状态加文字标记；不填任意比例或未经输出的数字。数值版对应 component_memory.csv 和 state_memory.csv。
+**图表与布局** 一个三层流程：“通信语义 → 算法轮次 → 实际链路与资源”。配一个点对点小例子：B 字节经过 h 跳，payload=B，physical=h×B；明确“单次点对点示意”。
 
-**讲解备注** 结构化路径从张量形状推导 inventory。WordEmbedding、PreNorm、PostNorm、MLA、KDA、Dense、MoE、Output layer 以及实际存在的 AttnRes 都应保留。参数预算模型只在可归因的范围内分解，未知项列 Unassigned。DRAM 容量和 DDR 访问速率属于同一主机内存系统的不同维度，不重复计容。
+**讲解备注** ring 的多轮转发计入 transport payload 总量；dispatch/combine 是 A2AV 的语义视图，不能再加一次。HBM/DDR、注入与物理链路属于不同资源账本，不合并成一个网络字节数。SU/SO 链路类别不是具体 SO 域 ID；域级细分需成员表及逐事件路径归因。速率须区分 bps/Bps、方向、效率和共享容量；400 Gbit/s=50 GB/s/方向。路径静态确定，当前抽象不模拟 ECMP、报文 buffer 或拥塞控制协议。
 
-**来源** [存储说明](../skills/supernode-modeling/references/memory-breakdown.md)；[主 Skill](../skills/supernode-modeling/SKILL.md)。
+**来源** [topology.md](../skills/supernode-modeling/references/topology.md)，“硬件配置与实际路径”“Collective 与字节记账”。
 
-### 14 MLA 缓存与 KDA 递归状态采用不同的容量模型
+### 10 TTFT 与 TPOT 沿关键路径拆解
 
-**章节与时间** 模型与执行，1.25 分钟。
-
-**核心结论** 混合 attention 模型不能对所有层套用同一标准 KV 公式。
+**核心结论** 同一请求的分项可加和为总时延，不能累加并发 rank 耗时。
 
 **上屏文案**
 
-- MLA KV 随上下文增长
-- KDA recurrent 与 conv state 不线性随上下文增长
-- compressed 与 expanded 是明确的布局选择
+- TTFT：所有请求首 token 完成时间的最大值
+- TPOT：每请求平均间隔，再取请求间最大值
+- 计算、分域通信与等待沿关键路径归因
 
-**图表与布局** 两行状态模型比较表。MLA 行写“按层数 序列长度 dtype 与复制规则”；KDA 行写“按层数 序列数 state shape 与 dtype”。注释 K3 compressed=512+64=576 元素/token/MLA 层，样例按 TP 复制。
+**图表与布局** 一张归因表；不以流量比例画耗时占比。表下注“TPOT = TPOP；JSON / CSV 为秒，中文报告 / 网页为毫秒”。
 
-**讲解备注** K3 有 69 个 KDA 层和 24 个 Gated MLA 层。compressed 是明确选择的优化布局假设；官方 HF 参考实现保存展开 K/V。两种布局改变存储和访存需求，但不能据此声称两种实际 kernel 的耗时都经过校准。NoPE 不会移除 64 维 key 投影。标准与 latent KV 的分片、scale 取整应以对应构图路径输出为准。
+| 组成 | 内容 |
+|---|---|
+| 计算 | kernel 计算 / 访存服务时间 |
+| 通信 | node 内、跨主机 SU、SO、其他路径 |
+| 等待与争用 | 显式同步、slot、内存准入、共享资源争用 |
+| 其他 | 其余已归因时间 |
 
-**来源** [推理说明](../skills/supernode-modeling/references/inference.md)；[K3 案例说明](../skills/supernode-modeling/references/ascend950-kimi-k3.md)；[来源快照](sources/README.md)。
+**讲解备注** TTFT 与 TPOT 的最坏请求可能不同，结果各自保留 replica、sequence、total_s、components_s。各类分项必须来自决定该指标的同一请求，不逐项取最大再拼接。上游依赖等待已归入上游工作，不重复加同步时间；跨域通信也不把各域完整服务时长重复相加。TPOT 按相邻 token 时间窗归因后求平均，跨窗事件按覆盖比例分配。estimate、训练、未完成执行、独立 Decode 的 TTFT，以及单 token 的 TPOT 不可用时保留 null/空白，不补零。查看 metrics.latency_breakdown 和 latency_breakdown.csv。
 
-### 15 通信语义展开为算法轮次和实际路径资源
+**来源** [latency-breakdown.md](../skills/supernode-modeling/references/latency-breakdown.md)，指标选择、components_s、可加和规则与不可用状态。
 
-**章节与时间** 资源与结果，1.25 分钟。
+### 11 Feedback 在延迟约束下提高 Decode 吞吐
 
-**核心结论** 网络瓶颈由 collective 算法、rank 放置、逐跳路径和共享端点共同决定。
-
-**上屏文案**
-
-- AG RS AR 采用 ring A2AV 按流量矩阵展开
-- transfer 映射链路 注入 NIC 与共享上联
-- payload 与逐跳 physical bytes 分别统计
-
-**图表与布局** 使用 G07 简化为三层：通信语义→算法轮次→物理路径与 Event。在图旁标“B 字节经 h 跳：payload=B，physical=h×B”。dispatch/combine 与 A2AV 用“同一流量的分类视图”括号连接。
-
-**讲解备注** AG/RS 的 size 是每 rank 完整张量，N−1 轮中每 rank 每轮传 size/N；AR 为 RS→AG。rank=1 不产生通信。路径在构图时静态确定，不按实时拥塞改路。内存、NIC、链路和共享上联工作量会同时记账，不能全部相加称为网络字节；SO 链路类别汇总也不等于具体 SO 域 ID 的统计。
-
-**来源** [拓扑说明](../skills/supernode-modeling/references/topology.md)；G07 [通信与路由展开](diagrams/07-collective-topology.mmd)；[架构说明第 6.2 节](simulation-architecture.md)。
-
-### 16 执行器在依赖内存和共享资源约束下推进事件
-
-**章节与时间** 资源与结果，1.5 分钟。
-
-**核心结论** 真正的运行时并发由准入和资源分配决定，不能直接从构图循环推断。
+**核心结论** 固定硬件与模型，完整执行每个候选后再给出推荐。
 
 **上屏文案**
 
-- 完成并释放 → ready 准入 → 分配速率 → 推进
-- 准入同时检查内存容量和 slots
-- roofline 与归一化 max-min 表达资源争用
+- 搜索 TP / SP / EP、Prefill 长度和 batch
+- 同一次执行同时满足 TTFT、TPOT 与资源约束
+- 在声明候选集内最大化 Decode 吞吐
 
-**图表与布局** 使用 G08，重绘为四步闭环，旁路保留初始容量检查和 memory_admission_deadlock。标注“相同时刻先释放再准入”；max-min 展开细节留在 G08 完整图源。
+**图表与布局** 一个闭环流程：固定模型与硬件 → 枚举候选 → 完整 Prefill+Decode → 筛选目标 → 推荐与 Pareto。底部列推荐字段：“TP/SP/EP、长度、batch、TTFT/TPOT、Decode 吞吐、峰值”。
 
-**讲解备注** 资源可同时服务，kernel 的计算与访存取 roofline 最大耗时项，不简单相加。多个 active 事件按独占进度速率归一化，再分配共享资源。slot 在 startup 和服务期间都被持有。按事件 ID 准入是一种确定性策略；结果不代表所有调度策略的最优时间，也不提供包级或周期级行为。
+**讲解备注** 保持硬件、拓扑、PP/DP/FSDP、rank_order、精度和 offload 不变；SP 共用 TP rank。一个候选的 Decode batch 也用于其 Prefill，不能拼接不同候选的最优长度与最大 batch。Decode 吞吐=Σ(O_i−1)/(max(last_i)−min(first_i))；首 token 属于 Prefill，不用 batch/TPOT 替代。普通输出吞吐仍含 Prefill，另行报告；有原吞吐目标时继续检查。output horizon 保持一致且至少 2，max_candidates 超限会拒绝，不截断搜索。auto 对结构化 DP=PP=1 使用流式完整执行，其他用普通仿真；独立 Decode 不用于联合可行性。推荐、各候选失败原因与时延拆解均保留；无可行项不自动放宽目标或增加硬件。
 
-**来源** G08 [事件执行器](diagrams/08-event-engine.mmd)；[架构说明第 6.4 节](simulation-architecture.md)。
+**来源** [feedback.md](../skills/supernode-modeling/references/feedback.md)，“固定项与联合可行性”“吞吐、延迟与排序口径”“结果与复核”。
 
-### 17 仿真执行峰值必须由同一时刻的内存日志构成解释
+### 12 按分析目标选择普通或流式运行
 
-**章节与时间** 资源与结果，1 分钟。
-
-**核心结论** 逻辑容量、物理驻留和执行并发峰值是三种不同的量。
+**核心结论** 控制仿真器开销时保持原场景、设备约束与失败案例完整。
 
 **上屏文案**
 
-- 逻辑状态容量 → 复制分片后驻留 → 执行峰值
-- 峰值构成按 memory_log 有序回放
-- 独立组件峰值不能相加
+- 完整生命周期审计：普通 estimate / simulate
+- 大型结构化推理、DP=PP=1：优先流式
+- 有界缓存、串行批量与按需明细控制开销
 
-**图表与布局** 使用 G09 的账本主链：alloc/release 日志→有序回放→pool 与 cluster 峰值→同一时刻组件构成。右侧放三种归因模式：resident_only、simulated、observed_partial。
+**图表与布局** 使用运行方式对照表。
 
-**讲解备注** 按 memory_log.sequence 处理同时间点的分配与释放，不能从排序 trace 猜先后。多个组件或内存池可能在不同时间达到自己的峰值，其独立峰值之和不是实际总峰值。OOM 或执行中止后的 observed_partial 仅覆盖已观察前缀，不能解释为完整执行峰值。
+| 方式 | 适用范围与交付 |
+|---|---|
+| 普通引擎 | 训练、其他并行布局、完整组件 / 张量生命周期 |
+| 流式完整执行 | 结构化推理、DP=PP=1；性能、流量、设备峰值与诊断 |
+| 检查点实验 | 匹配配置 / 源码指纹后，恢复完成态分析与导出 |
 
-**来源** [存储说明](../skills/supernode-modeling/references/memory-breakdown.md)；G09 [内存与报告](diagrams/09-memory-and-report.mmd)。
+**讲解备注** run_streaming 逐组件执行，保留依赖、争用与内存准入，支持 SP；不提供普通报告的完整 trace，不能直接交给普通 write_report。phase=all 才覆盖联合 Prefill/Decode；独立 Decode 跳过 Prefill，不证明端到端可行。时序缓存默认 64 MiB / 256 项，属于对象预算而非进程 RSS 上限；每个并发进程另占图和缓存，批量默认串行。大型默认导出精简事件与临时 buffer，保留完整统计；保留张量表超过 50,000 行时写 tensors.csv.gz，以 artifact_export 为准。--full-detail 保留普通 CSV 和全部明细。检查点是已完成数值执行的恢复，不是 active/ready 中途续算；精简 JSON 不能补造丢失生命周期。
 
-### 18 指标使用训练步和逐序列 token 的实际完成时间
+**来源** [resource-usage.md](../skills/supernode-modeling/references/resource-usage.md)，“执行方式”“缓存和批量实验”“文件大小与恢复”；[inference.md](../skills/supernode-modeling/references/inference.md)，“大规模结构化推理”。
 
-**章节与时间** 资源与结果，1 分钟。
+### 13 配置、结果与失败原因一起交付
 
-**核心结论** 指标定义和聚合规则必须与目标时间窗口一致。
-
-**上屏文案**
-
-- 训练：逐步耗时 首次与后续平均 全集群吞吐
-- 推理：TTFT 最大值 TPOT 均值的最大值
-- 输出吞吐等于输出 tokens 除以完整耗时
-
-**图表与布局** 一张指标表：step_time、TTFT、TPOT、输出吞吐，对应公式和计时边界。TTFT 起点写“执行开始”；单输出 token 的 TPOT 写 null，不画为 0。
-
-**讲解备注** step_time_s 为完整 duration 除以 training_steps，并另报逐步时间。TPOT 先对每个序列的首 token 后间隔取平均，再对这些均值取最大。吞吐是全部 DP 副本输出 token 总数除以整次耗时。固定 batch 的 TTFT 不含生产到达排队；TTFT/TPOT 也不是全图工作量的统一 deadline。
-
-**来源** [配置说明](../skills/supernode-modeling/references/configuration.md)；[架构说明第 7 节](simulation-architecture.md)。
-
-### 19 10T 容量锚点显示精度优化需要逐状态计算
-
-**章节与时间** 方案比较，1 分钟。
-
-**核心结论** 权重精度减半仅改变所配置的状态，总训练状态不会自动减半。
+**核心结论** 每项结论都应回到实际配置、命令、版本与引擎产物。
 
 **上屏文案**
 
-- FP8 与 FP16 权重分别为 10 和 20 TB
-- FP16 梯度 FP32 master 与 Adam 状态共 140 TB
-- 基础状态合计 150 与 160 TB
+- 保留配置、来源、运行版本与命令
+- 报告结果、候选范围和失败原因
+- 校准覆盖与未校准假设分别说明
 
-**图表与布局** 单张堆叠柱图，数据取本页下表，仅用 weight、gradient、master、Adam 四段；“基础状态合计”作为柱顶标签，不作为第五段。标“10T 全参数 Adam 逻辑静态容量 十进制 TB”。强调仅 weight 一段变化，不加入运行时峰值。图源引用 training.md。
+**图表与布局** 使用“问题 → 产物”映射表。
 
-**展示数据**
+| 核查目的 | 主要产物 |
+|---|---|
+| 复跑与结论 | config.resolved.json、result.json、report.md |
+| 容量与瓶颈 | component_memory / state_memory / memory_peaks / resources CSV |
+| 时延与搜索 | latency_breakdown.csv、candidates.csv、best.config.json |
+| 事件与导出范围 | events.csv、timeline.json、artifact_export |
+
+**讲解备注** 表中为按命令适用的产物，流式 API 交付紧凑 JSON 与配置，不冒充普通完整报告。Feedback 的 config.resolved.json 是基础场景，best.config.json 才是推荐场景。sweep 枚举受控变量；size-su 的最小值仅限定已检查候选与策略，改变 DP 需披露负载变化，显式图需逐候选重编译。搜索 completed 不代表有可行项；区分执行错误、资源不可行、SLO 未达标和指标不可用。实测 profile 应覆盖实际 kernel、collective 与平台路径；旧结果可读，但代码或配置指纹不匹配时不能当作当前已验证缓存。先看汇总与导出清单，再按行读取大型明细。
+
+**来源** [configuration.md](../skills/supernode-modeling/references/configuration.md)，“CLI”“外部 profile 与 HF 导入”；[feedback.md](../skills/supernode-modeling/references/feedback.md)，“结果与复核”；[topology.md](../skills/supernode-modeling/references/topology.md)，“最小 SU 搜索”。
+
+### 14 A5 上的 10T Kimi K3 合成扩容场景
+
+**核心结论** 以 1024 卡的历史实验贯通模型扩容、流量解释、容量失败与并行方案比较。
+
+**上屏文案**
+
+- 3328 routed experts，精确总参数 10.171385T
+- A5 / Ascend 950DT 假设平台，1024 卡
+- 2026-10-15 历史结果；合成模型、未实机校准
+
+**图表与布局** 以四行场景契约表为主图，顶部小标签“案例 1 / 4”。表下标注“基线 48 组；SP 扩展 96 组。本次复用归档结果，未重跑当前引擎”。
+
+| 固定项 | 案例配置 |
+|---|---|
+| 模型 | 93 层：69 KDA + 24 MLA；92 MoE 层；Top32 / Top64 |
+| 基线并行 | TP8 × EP128 × PP1 × DP1 = 1024；SP 关闭 |
+| 拓扑与容量 | 8 卡/节点、64 卡/SU 柜、16 柜/SO 域；144 GB HBM/卡 |
+| 精度与负载 | FP8 权重/计算；FP16 通信/activation/KV；128k–1M，B1–B32 |
+
+**讲解备注** 本案例对应用户所称 A5，归档配置的卡型名称为 Ascend950DT；平台参数与拓扑为显式建模假设，不能将其等同实机测量。仅增加 routed experts 和 router 输出维度，保留 hidden=7168、latent=3584、专家宽度=3072、2 个 shared experts。EP128 要求专家数可整除，因此选择 3328 专家，即每 EP 26 专家；精确总参数为 10.171385035872T，比 10T 多 1.71385%。Top32 / Top64 活跃参数分别为 154.414012512B / 251.654756448B。这是合成扩容设计，不是官方发布的 10T 模型，也不是早期约 2.77948T backbone 实验。每卡 HBM 标称 4 TB/s；SU 单向 1 TB/s/卡、效率 80%；SO 为 400 Gbit/s/节点、效率 80%，即有效 40 GB/s/节点，柜间共享上联 400 GB/s/方向，显式跨柜路径 4 hops。FP32 KDA 状态单列；GB/TB 采用十进制。输入 128k/256k/512k/1M 对应 131072/262144/524288/1048576 token/序列；batch 为 1/2/4/8/16/32。序列分配至 EP，B≤32 时每个活跃 EP 持有一条完整序列；TP8 留在一个节点内，不将上下文均匀切到 1024 卡。基线报告完成于 2026-10-15 16:43，SP 报告完成于同日 17:58（Asia/Shanghai）；这些是历史归档证据，不代表 2026-10-19 当前引擎重跑。
+
+**来源** [1024 卡基线报告：场景与指标](../outputs/kimi-k3-10t-1024/report.md#场景与指标)、[基线 summary.csv](../outputs/kimi-k3-10t-1024/summary.csv)、[SP 报告](../outputs/kimi-k3-10t-sp/report.md)、[SP summary.csv](../outputs/kimi-k3-10t-sp/summary.csv)。
+
+### 15 柜间流量主导，Top-k 与 batch 放大通信
+
+**核心结论** TP8 基线中，柜间 payload 占 85.01%–89.50%；Top64 使 MoE / SO 流量翻倍。
+
+**上屏文案**
+
+- 128k 完整 Prefill 与单步 Decode，均为全 1024 卡聚合
+- Top64 总 payload 为 Top32 的 1.900 倍
+- 同一 Top-k 下随 batch 线性增加
+
+**图表与布局** 一张四行代表结果表，顶部小标签“案例 2 / 4 · TP8 / EP128”。每行只列成功完成的 128k 案例，流量采用十进制单位。表下标注“有向发送计一次；SO 物理 hopbytes = SO payload × 4”。
+
+| Top-k / Batch | Prefill 总 TB | Decode 总 GB/步 | Decode 柜间 GB/步 | 柜间占比 |
+|---|---:|---:|---:|---:|
+| 32 / B1 | 48.803 | 0.372 | 0.317 | 85.01% |
+| 32 / B32 | 1,561.684 | 11.915 | 10.129 | 85.01% |
+| 64 / B1 | 92.712 | 0.707 | 0.633 | 89.50% |
+| 64 / B32 | 2,966.792 | 22.635 | 20.258 | 89.50% |
+
+**讲解备注** 数值逐项取自基线 summary.csv 和 phase_traffic.csv 中 context=128k、batch_size=1/32 的完整阶段；不是从柱长或带宽反推。payload 为逻辑 transport payload，每个有向发送计一次；dispatch/combine 是 all_to_all_v 的语义视图，不能再次叠加。Top64 的 MoE / SO 为 Top32 的 2 倍，而 TP all-reduce 不变，因此总 payload 实际为 1.899738 倍。当前布局下单步 Decode 网络 payload 不随上下文长度变化，序列长度仍影响 KV 读与 attention 计算；完整 Prefill 流量随总 token 数线性增加。256k–1M 基线 Prefill 失败，对应 planned_phase_traffic.csv 只能说明完整计划需求，不能当实际完成流量；本页避免将其混入成功结果。柜内 payload 与 SU hopbytes 相等；柜间 4-hop 物理流量为柜间 payload 的 4 倍，不能把两种口径相加。HBM 工作量是本地读写流量，不能当 HBM 容量。该历史 pairwise EP128 每次 dispatch/combine 有 127 轮，92 层各执行两次，TP 使用 ring；报告估算 collective 启动延迟下界约 450–473 ms/步，尚无真实 collective 校准，因此总字节/总带宽不足以解释 Decode 时延。
+
+**来源** [基线 phase_traffic.csv](../outputs/kimi-k3-10t-1024/phase_traffic.csv)，筛选 context=128k、batch_size=1/32，字段 transport_payload_bytes / so_payload_bytes；[基线 summary.csv](../outputs/kimi-k3-10t-1024/summary.csv)；[网络流量口径](../outputs/kimi-k3-10t-1024/report.md#网络流量)；[计划流量](../outputs/kimi-k3-10t-1024/planned_phase_traffic.csv)。
+
+### 16 TP8 基线完成 128k，长 Prefill 触及容量边界
+
+**核心结论** 48 组基线中仅 12 组 128k 完成端到端执行，长上下文首先受 Prefill 工作集限制。
+
+**上屏文案**
+
+- 128k：所有 Top-k / batch 组合完成
+- 256k / 512k / 1M：36 组 Prefill 均失败
+- 失败后的独立 Decode 不能证明端到端可行
+
+**图表与布局** 一张四行上下文对照表，统一选 Top32 / B1，顶部小标签“案例 3 / 4 · TP8 / EP128”。表中 TTFT / TPOT 仅展示端到端指标，失败项用“—”。表下标注“已准入峰值不含被拒绝申请；失败所需为当时容量下界，非最终峰值”。
+
+| 输入 | TTFT s | TPOT ms | 已准入峰值 GB/卡 | 失败所需 GB/卡 |
+|---|---:|---:|---:|---:|
+| 128k | 1,046.782 | 463.531 | 118.971 | — |
+| 256k | — | — | 126.462 | 145.257 |
+| 512k | — | — | 141.483 | 179.071 |
+| 1M | — | — | 62.663 | 167.914 |
+
+**讲解备注** TTFT 是预加载权重后、固定 batch 开始到批内最晚首 token 的时间；TPOT 仅为首 token 后的一个 Decode 间隔，未覆盖连续服务、排队、continuous batching 或 P99。表中 128k 行 decode_source=end_to_end；后三行 Prefill 未完成，端到端时延留空。128k 的 Top32 / B32 为 TTFT 1109.548 s、TPOT 487.698 ms，Top64 / B1 为 2084.445 s / 471.472 ms，Top64 / B32 为 2208.881 s / 496.575 ms，均完成；不能与 standalone Decode 混读。256k/512k/1M 的 Prefill 均在 AttnRes 申请触发 memory_admission_deadlock；失败层分别为 49/25/1（1-based），已准入峰值分别为 126.462/141.483/62.663 GB，失败申请所需分别为 145.257/179.071/167.914 GB。这里的“所需”是 144 GB + shortage_bytes，表示当时加入被拒绝申请的容量下界，不是完整任务最终峰值；低于 144 GB 的已准入峰值不代表可行。Top-k 与 B1–B32 各组共享这一失败边界，因为当前映射让每个活跃 EP 持有一条完整序列。失败配置的 TTFT 与端到端 TPOT 留空；预置完整 KV 后所得独立 Decode 只说明条件性单步成本。128k 峰值来自同一张卡同一时刻，主要构成为 activation 67.660 GB、AttnRes residual 15.032 GB、weight 23.603 GB、runtime 8.000 GB、KV 3.624 GB，另有量化元数据与其他状态；各值经舍入，不用独立组件峰值相加。权重与复制关系决定静态 HBM 约 32.597 GB/卡，不能将逻辑 10.171T 直接除以 1024 作为驻留量。
+
+**来源** [基线 summary.csv](../outputs/kimi-k3-10t-1024/summary.csv)，字段 ttft_s / tpot_s / decode_source / prefill_peak_hbm_bytes / failure_required_hbm_bytes；[失败诊断](../outputs/kimi-k3-10t-1024/failure_diagnostics.json)；[同峰值组件](../outputs/kimi-k3-10t-1024/peak_components.csv)；[内存峰值与失败定位](../outputs/kimi-k3-10t-1024/report.md#内存峰值与失败定位)。
+
+### 17 TP/SP 联合调整：容量与时延改善，流量增加
+
+**核心结论** 两档 TP/SP/EP 组合完成了长上下文实验，并展示了更低峰值、较短 Decode 与更高通信量之间的取舍。
+
+**上屏文案**
+
+- SP 扩展 96/96 组完成，覆盖至 1M
+- TP / EP 同时调整，算法轮次与 payload 一起变化
+- 旧基线缺少边界通信；不能归因为 SP 单变量收益
+
+**图表与布局** 一张三行对照表，统一选 Top32 / 128k / B1，顶部小标签“案例 4 / 4 · 归档方案比较”。表下标注“2026-10-15 历史结果；SP 使用冻结 runtime，未实机校准”。
+
+| 方案 | TTFT s | TPOT ms | Prefill 峰值 GB/卡 | Decode 总 GB/步 |
+|---|---:|---:|---:|---:|
+| TP8 / EP128，SP 关 | 1,046.782 | 463.531 | 118.971 | 0.372 |
+| TP16 / SP16 / EP64 | 1,041.874 | 246.775 | 38.132 | 1.952 |
+| TP32 / SP32 / EP32 | 1,040.291 | 147.866 | 34.889 | 6.627 |
+
+**讲解备注** SP 共用 TP 通信组，不额外乘入卡数。SP16/32 分别跨 2/4 个 8 卡节点，仍完全在一个 64 卡 SU 柜内；norm 与 AttnRes 按序列切分，组件前 AG、后 RS。对应 Top32 / 128k / B1 的 TTFT 分别为旧基线 1046.782 s、SP16 1041.874 s、SP32 1040.291 s，Prefill 时延变化远小于 Decode。Top32 / 1M / B1 在 SP16/32 下的 Prefill 峰值为 99.688/85.346 GB、TTFT 为 8422.024/8365.714 s、TPOT 为 262.629/163.721 ms；旧基线 1M Prefill 失败，不能将其独立 Decode 与新方案的端到端 TPOT 当作同一种服务能力比较。全体 96 组含 Top32/64、4 档上下文与 6 档 batch，均完成；可行性仅针对这些已检查配置。Compressed MLA KV 仍在 TP 间复制，不能再除以 SP；KDA heads 按 TP 分片。当前 MoE 实现复制各 TP slice 的完整 latent dispatch，使 SP16/32 的柜间 payload 为 TP8 的 2/4 倍；单 query 的 Top32 柜间 payload 分别为 0.633078/1.266156 GB，基线为 0.316539 GB。Decode 等长 collective 将每个非空 EP lane 的 1 个 query padding 到 16/32 行，进一步增加 AG/RS，但 attention、MoE 计算与 KV 只计有效 token。比较复用真实旧基线，旧引擎未计 embedding/output 边界通信，SP 版本新增 RS/AG；同时 TP/EP、算法轮次和工作集发生变化，因此这不是控制所有其他变量的 SP 因果实验。实验期间源码曾并发修改，归档以恢复的冻结源码、配置 SHA 与 producer 证据核验 96 份结果；54 份磁盘观测指纹不同于运行中已加载 runtime。冻结 runtime ID 为 sha256:6759029adf34d1c8da4893051b2163ffd376243fcc61ad470fa70ae86d6907d2，两组隔离完整重放通过；不能称与当前工作区引擎匹配。结果仍基于均匀路由、粗粒度 roofline 与所选 collective，没有实机 kernel / collective 校准。
+
+**来源** [SP summary.csv](../outputs/kimi-k3-10t-sp/summary.csv)，筛选 top_k=32、context=128k、batch_size=1；[旧基线 summary.csv](../outputs/kimi-k3-10t-1024/summary.csv)；[逐组 comparison.csv](../outputs/kimi-k3-10t-sp/comparison.csv)；[SP phase_traffic.csv](../outputs/kimi-k3-10t-sp/phase_traffic.csv)；[与归档 TP8 基线比较](../outputs/kimi-k3-10t-sp/report.md#与归档tp8基线比较)；[runtime 来源审计](../outputs/kimi-k3-10t-sp/audit/runtime-provenance.json)；[冻结源码清单](../outputs/kimi-k3-10t-sp/runtime-frozen/manifest.json)。
+
+### 18 结论受负载、抽象与校准范围约束
+
+**核心结论** 现有输出支持架构比较和敏感性分析，实机准确性需要对应证据。
+
+**上屏文案**
+
+- 固定 batch 不含到达队列、冷启动或 P99
+- 流体资源与均匀 MoE 不覆盖所有生产行为
+- 公开结构、硬件规格和运行假设分开
+
+**图表与布局** 一张“可解释 / 需补证据”边界表。
+
+| 可解释的范围 | 不能据此直接推出 |
+|---|---|
+| 声明负载下的容量、流量、关键路径 | continuous batching、PD 分离、生产 tail latency |
+| 确定性路径与共享资源争用 | 包级 ECMP、拥塞控制、周期级行为 |
+| 结构账本与显式 profile | 实机误差百分比、缓存最优容量、MTE 通道数 |
+
+**讲解备注** K3 文本 backbone 为 93 层、69 KDA+24 MLA，形状派生约 2.77948T，排除视觉和训练 MTP；官方 2.8T/104B 为约数。950DT 144 GB、4 TB/s 为公开资料，样例以 SI 容量建模，链路方向、效率、Host/SO 和 compressed KV 另列假设。64/128 NPU 样例的 SU 划分不是 Atlas 950 真实域上限。通用非交错 1F1B/FSDP2/CPU offload 不等于 K3 生产训练；未覆盖动态冗余专家、分布式 Muon、activation offload 等完整策略。没有实测不报告误差百分比或“符合实机”。仅有字节、工作集与搬运需求不能确定缓存层级容量或 MTE 通道数。
+
+**来源** [inference.md](../skills/supernode-modeling/references/inference.md)，“MoE 与模型近似”；[topology.md](../skills/supernode-modeling/references/topology.md)，“Collective 与字节记账”；[K3 / 950 案例边界](../skills/supernode-modeling/references/ascend950-kimi-k3.md)。
+
+### 19 用同一场景闭合分析与选型
+
+**核心结论** 通过明确输入、统一计算与真实产物形成可审查的方案依据。
+
+**上屏文案**
+
+- 固定场景：结构、负载、精度、布局与拓扑
+- 解释瓶颈：容量、流量、时延与等待
+- 受控搜索：保留推荐、失败原因和校准范围
+
+**图表与布局** 一个五步闭环：编辑场景 → 校验与运行 → 账本与时延拆解 → 受控调整 / Feedback → 复跑验证。中心写“同一配置 · 同一口径 · 可追溯”。
+
+**讲解备注** 主讲到此结束。容量、网络和性能必须来自一致的场景假设。先核对输入与可行性，再比较候选，最终用实测校准收敛绝对预测。附录提供容量交叉检查、可复跑命令和来源，不将未运行的结果作为本次交付结论。
+
+**来源** [主 Skill](../skills/supernode-modeling/SKILL.md)；[项目说明](../README.md)。
+
+## 四 备查附录
+
+### A01 10T 逻辑容量锚点
+
+**核心结论** 降低权重精度只改变对应状态，全部训练状态不会随之减半。
+
+**上屏文案**
+
+- 10T 全参数 Adam；十进制 TB
+- FP8 / FP16 权重为 10 / 20 TB
+- 基础状态合计为 150 / 160 TB
+
+**图表与布局** 使用原始数值表或两根堆叠柱。柱中只包含四种状态，合计作为顶部标签，不画成第五段。
 
 | 状态 | FP8 权重方案 TB | FP16 权重方案 TB |
 |---|---:|---:|
 | weight | 10 | 20 |
 | gradient FP16 | 20 | 20 |
 | master FP32 | 40 | 40 |
-| Adam m 与 v FP32 | 80 | 80 |
+| Adam m/v FP32 | 80 | 80 |
 | 基础状态合计 | 150 | 160 |
 
-**讲解备注** 这是合成容量锚点，用于核对字节公式。假设 10T 参数全部更新、梯度 FP16、master 和 Adam m/v 为 FP32，不含 metadata、复制、暂存或 activation。CPU optimizer offload 的 master+m/v 为 120 TB；每步梯度 D2H 20 TB，回传 FP8/FP16 权重分别 10/20 TB。示例的巨容量设备不是产品规格。
+**讲解备注** 这是合成逻辑容量交叉检查，假设 1e13 参数全部更新；不含 scale、额外副本、activation、通信 buffer、workspace 或复制。不是集群物理总容量、设备峰值或 Muon 状态。master+m/v offload 到 CPU 为 120 TB。每步 FP16 梯度 D2H payload=20 TB；H2D 按 weight_transfer 取 FP8 10 TB 或 FP16 20 TB，另计 FP8 元数据和其他 collective。驻留 FP8、回传 FP16 时仍按 20 TB 回传。
 
-**来源** [训练说明中的 10T 锚点](../skills/supernode-modeling/references/training.md)；[README](../README.md)。
+**来源** [training.md](../skills/supernode-modeling/references/training.md)，“10T FP8/FP16 交叉检查”。
 
-### 20 Kimi K3 案例将公开结构和运行假设分别保存
+### A02 命令与产物速查
 
-**章节与时间** 方案比较，1.25 分钟。
-
-**核心结论** 资料驱动场景用于比较精度、状态布局和容量方案，真实性边界随配置保留。
+**核心结论** 先校验完整场景，再按问题选择入口并检查真实输出。
 
 **上屏文案**
 
-- 文本 backbone：93 层 69 KDA 加 24 MLA
-- 950DT 公开值：144 GB 与 4 TB/s；容量按 SI 建模
-- 精度 布局 拓扑 效率与 Host 参数单独声明
+- 配置合法 → 路径合法 → 执行可行 → SLO 达标
+- 网页任务与搜索 / 流式入口分别使用
+- 命令是复跑示例，不代表本次已执行
 
-**图表与布局** 一张事实与假设分栏表。事实列写 K3 层结构、官方约数 2.8T/104B、950DT 公开规格；假设列写统一 FP8/FP16、compressed KV、方向带宽与效率、Host/SO。表下列 64 NPU 推理及 128 NPU FSDP2 训练场景用途。
+**图表与布局** 上屏使用入口表；完整命令放 speaker notes，不把长路径挤入正文。
 
-**讲解备注** 引擎按形状推导约 2.77948T 文本 backbone 参数，排除视觉和训练 MTP；官方约数不替代张量清单。FP8/FP16 是设计对比，发布 checkpoint 为混合精度。64 NPU 是单柜切片，128 卡样例人为分成两个 64 卡 SU 域，并非真实平台 scale-up 上限。仿真按 144e9 byte 解读公开 144 GB，保留厂商容量单位的不确定性。950 资料含发布和路线图信息；型号与公开规格不能代表端到端实测性能。
-
-**来源** [K3 案例说明](../skills/supernode-modeling/references/ascend950-kimi-k3.md)；[官方来源快照](sources/README.md)；[案例配置](../examples/kimi_k3_ascend950_fp8.yaml)。
-
-### 21 扫描与 SU 搜索在有限候选内保留可行方案和失败原因
-
-**章节与时间** 方案比较，1.25 分钟。
-
-**核心结论** 必要条件剪枝后仿真候选，最小值限定于指定集合、负载与执行策略。
-
-**上屏文案**
-
-- sweep 枚举精度 offload 布局等受控变量
-- size-su 先校验与下界筛查 再仿真
-- 显式拓扑变化须逐候选重新编译
-
-**图表与布局** 使用 G10 的 size-su 支路：候选→校验→驻留/严格性能下界剪枝→simulate→记录结果→排序。标出排序键 su_size、npu_count、duration_s；侧注“single multi both”。
-
-**讲解备注** 仅固定驻留容量和严格性能下界可用于剪枝，不能用乐观内存峰值，也不能把 TTFT/TPOT 作为全图 deadline。未指定布局时推导 DP，会改变聚合负载，报告需保留每候选配置。explicit_links 绑定卡数和成员，当前内置搜索不自动重编译。无可行候选需查看子状态 no_feasible_candidate，不能只看退出码。未设置 SLO 时，只判断容量和执行可行性，不能宣称业务目标已满足。
-
-**来源** [拓扑说明](../skills/supernode-modeling/references/topology.md)；G10 [扫描与 SU 搜索](diagrams/10-sweep-and-su-search.mmd)；[架构说明第 8.1 节](simulation-architecture.md)。
-
-### 22 配置来源校准命中和执行产物支持复跑与审计
-
-**章节与时间** 应用与边界，0.75 分钟。
-
-**核心结论** 用可重跑配置和真实产物支撑结论，校准范围与未匹配项一起解释。
-
-**上屏文案**
-
-- resolved config 配置 hash 引擎版本与来源
-- 报告 JSON 资源 内存 CSV 与 timeline
-- kernel 按工作量匹配 未匹配项保留解析模型
-
-**图表与布局** 一张产物映射表：复跑→config.resolved.json；结论→report.md/result.json；瓶颈→resources.csv；峰值→组件/状态/峰值 CSV；时序→events.csv/timeline.json。下方画 profile→匹配→保留物理约束 的校准链。
-
-**讲解备注** 实测 kernel 条目需同名、同 FLOPs/HBM 工作量及适用 dtype/phase，duration 为不含 startup 的独占服务时间，不能低于物理下界。硬件覆盖和 kernel 校准是两个层次。大型结果精简导出不改变已参与计算的工作量和峰值；全生命周期核查需从计算阶段保留 full detail，完成态检查点详见附录 A07。
-
-**来源** [配置说明](../skills/supernode-modeling/references/configuration.md)；[主 Skill](../skills/supernode-modeling/SKILL.md)；G09、G11。
-
-### 23 结论适用于声明的负载模型拓扑和执行策略
-
-**章节与时间** 应用与边界，0.75 分钟。
-
-**核心结论** 当前抽象支持架构预测和敏感性分析，正式选型还需对应实测校准。
-
-**上屏文案**
-
-- 固定 batch 与非交错 1F1B 是当前执行基线
-- 无动态 serving 排队 P99 包级或周期级仿真
-- 缓存与 MTE 需求需结合硬件和 kernel 校准
-
-**图表与布局** 一张适用范围表：已支持→组件账本/固定负载/资源争用/有限搜索；尚未支持→PD 分离/投机推理/expert offload/生产队列/ECMP 包级。用文字标签区分能力与演进项。
-
-**讲解备注** MoE 默认均匀路由，稀疏 decode 使用期望专家触达估算。缓存工作集和搬运量不能直接推导缓存最佳容量或 MTE 通道数。通用 FSDP2/CPU offload baseline 不等于 K3 生产训练。建议演进项包括显式拓扑搜索衔接、SO 域归因、执行缓存解耦和更多校准，均不可写成现有能力。
-
-**来源** [架构说明第 10 至 11 节](simulation-architecture.md)；[K3 案例边界](../skills/supernode-modeling/references/ascend950-kimi-k3.md)。
-
-### 24 统一事件图让资源约束与方案比较形成可追溯闭环
-
-**章节与时间** 应用与边界，0.75 分钟。
-
-**核心结论** 通过严格场景、统一事件图和清晰口径，把预测转为可审查的架构依据。
-
-**上屏文案**
-
-- 输入明确：结构 负载 精度 布局 拓扑与来源
-- 计算统一：容量 通信 时序与目标同图分析
-- 结论可查：保留配置 账本 失败原因与校准范围
-
-**图表与布局** 一个闭环：场景→运行→账本与瓶颈→调整→复跑。下方保留三项下一步：固定目标场景、检查受控变量、补齐实测校准。显示项目 README 的真实链接；作者联系方式未提供时省略。
-
-**讲解备注** 架构价值来自同一场景下的可解释比较。容量、性能和网络不能各自使用不同的隐含假设。先固定目标负载，再比较精度、offload、并行布局和 SU/SO，最后用实测校准收敛结论。此页作为正式汇报最后一页，在问答时保持显示；来源和详细函数图可按问题跳转附录。
-
-**来源** [主 Skill](../skills/supernode-modeling/SKILL.md)；[项目 README](../README.md)；[架构说明](simulation-architecture.md)。
-
-## 四 技术附录
-
-以下是备查页内容。按问答选择展示，不需要把各段详细说明全部放上屏。
-
-### A01 配置命令与四个检查关口
-
-**上屏文案**
-
-- 配置合法 → 图与路径合法 → 执行可行 → SLO 满足
-- import-hf 只输出模型片段与 missing_fields
-- CLI 与 Python API 的报告责任分别说明
-
-**讲解与备查说明** 标准工作流为定位引擎和资料、保留原场景、补齐必要输入及来源、保存独立配置、validate、按问题选择 estimate/simulate/sweep/size-su，最后读取真实产物。validate 不构图；Python run 返回字典，调用者决定是否 write_report。CLI 的 2 表示输入/图相关错误，3 表示顶层容量不可行或 SLO 失败；扫描/搜索还要检查候选和子搜索状态。estimated 表示下界分析，不证明可行；infeasible 表示容量或执行约束失败；slo_failed 表示执行完成但目标未满足；搜索根状态 completed 不代表存在可行候选。
-
-**命令示例**
-
-```powershell
-# 从项目根目录使用项目 Python 解释器运行
-python -m supernode_sim schema -o outputs/config.schema.json
-python -m supernode_sim validate examples/demo_training.yaml
-python -m supernode_sim estimate examples/demo_training.yaml -o outputs/demo-training-estimate
-python -m supernode_sim simulate examples/demo_training.yaml -o outputs/demo-training
-python -m supernode_sim simulate examples/demo_inference.yaml -o outputs/demo-inference
-python -m supernode_sim sweep examples/training_10t_fp8.yaml --axes examples/sweep_precision.yaml --mode estimate -o outputs/precision-sweep
-python -m supernode_sim size-su examples/demo_inference.yaml --mode both -o outputs/su-search
-```
-
-这些是可复跑命令示例；输出目录应按实验区分，执行前保留已有产物。正式数字从对应输出读取。
-
-**来源** [配置说明](../skills/supernode-modeling/references/configuration.md)；[README](../README.md)；G01。
-
-### A02 参数预算与结构化训练的执行特性需要分别解释
-
-**上屏文案**
-
-- 预算模型保留 Unassigned 结构化模型按形状归因
-- 预算训练为 Adam 结构化训练支持 Adam 与 Muon
-- 共用事件引擎不表示预取和 PP 依赖相同
-
-**讲解与备查说明** G02 与 G03 是构图控制流。Python 的 step/stage/layer/component 循环是在编译 Event DAG，不能解释成真实算子完全串行执行。activation checkpoint 会重放 kernel 和必要通信；其前向临时工作集仍需容量。
-
-**展示表格**
-
-| 特性 | 参数预算训练 | 结构化训练 |
+| 问题 | 入口 | 重点检查 |
 |---|---|---|
-| 入口 | _TrainingBuilder.build() | Builder.training_graph() |
-| 参数来源 | total/active 声明预算 | parameter_inventory() 张量形状 |
-| optimizer | Adam | Adam/Muon 参数组 |
-| FSDP lookahead prefetch | 受限的一层前瞻 | 当前拒绝 prefetch=true |
-| PP 后继依赖 | phase.done 与异步 send.done 分开 | stage 后继可能等待 send 完成 |
-| 有界在途 optimizer 窗口 | 未实现此窗口 | inflight_components_per_rank |
-| 未知组件 | Unassigned | 仅对明确结构归因 |
+| 编辑与单次分析 | 网页、validate / estimate / simulate | 配置、汇总、容量和时延拆解 |
+| 参数与规模选择 | sweep / size-su | 候选、失败原因、负载与拓扑 |
+| 延迟约束下吞吐选择 | feedback | candidates、最佳配置、联合 SLO |
+| 大型推理 / 恢复 | run_streaming / run_reference_experiment.py | 阶段范围、导出清单、匹配指纹 |
 
-**图表与布局** 并列差异表作为主图；需要源码细节时分别展示 G02 和 G03，不缩小两张长图塞在一页。
+**讲解备注** 从项目根目录使用项目 Python。输出目录按实验区分，保留已有产物。示例命令如下；不同命令按各自实际导出清单交付。
 
-**来源** [训练说明](../skills/supernode-modeling/references/training.md)；[架构说明第 5.1 节](simulation-architecture.md)；G02、G03。
-
-### A03 两条推理路径的状态与通信粒度存在差异
-
-**上屏文案**
-
-- 共同采用固定变长 batch prefill 与 decode
-- 预算路径融合旧 KV 转换 结构化路径显式分配解码 buffer
-- 事件粒度和 TP 通信位置需要按路径解释
-
-**讲解与备查说明** 完成序列退出计算和 KV 读取，但容量保留至固定批次结束。G06 的 ready 后 KV fetch、Engram 和 weight cast 是可重叠的依赖分支；layer.done 等待输出与 KV write。结构化路径逐组件建模 MLA、KDA 和 AttnRes。标准或 latent KV、分页、量化 scale、offload 精度需明确。
-
-**展示表格**
-
-| 项目 | 参数预算推理 | 结构化推理 |
-|---|---|---|
-| 入口 | build_inference() | Builder.inference() |
-| 状态公式 | kv_layout_bytes() | attention_state()/attnres_state() |
-| 旧 KV 转换 | 融合到 attention | 显式转换和解码 buffer |
-| TP reduction | 两次 reduction 位于层末 | attention/FFN 组件后展开 |
-| 容量与 scale 取整 | 使用预算路径公式 | 使用组件路径公式 |
-| 结果比较 | 同路径受控变量比较 | 同路径受控变量比较 |
-
-**图表与布局** 先展示差异表；按问题单独展示 G05 或 G06，禁止假设两条路径数值等价。
-
-**来源** [推理说明](../skills/supernode-modeling/references/inference.md)；[架构说明第 5.2 及 10 节](simulation-architecture.md)；G05、G06。
-
-### A04 精度单位与加和规则决定容量和流量的解释
-
-**上屏文案**
-
-- 每种张量状态的 dtype 独立配置
-- 逻辑静态容量可加 独立峰值不可加
-- payload physical bytes 与资源 work 分开
-
-**讲解与备查说明** 十进制 GB=10^9 byte，TB=10^12 byte；GiB/TiB 使用二进制。400 Gbit/s=50 GB/s，实际有效速率还需结合效率，且必须区分单向、双向合计和上联聚合。DRAM 与 DDR 不作为两份容量。FP8/INT8 activation 通信使用共享静态 scale 假设；权重和 KV 元数据另计。
-
-**展示表格**
-
-| 核对项 | 公式或规则 |
+| 用途 | 命令 |
 |---|---|
-| 单状态逻辑容量 | 参数或元素数 × 状态每元素 byte，另计 scale/metadata |
-| 物理驻留 | 在逻辑状态上应用明确的复制/分片/放置规则 |
-| 仿真执行峰值 | 对同一时刻仍存活的 allocations 加和 |
-| 10T FP8/FP16 weight | 10/20 TB，不能代表全部训练状态 |
-| 点对点 payload B 经 h 跳 | payload=B；总逐跳 physical=h×B；各链路类别按该类别跳数分别累计 |
-| 训练每步 token | batch_size × sequence_length × gradient_accumulation × DP |
-| 通信分类 | dispatch/combine 与 all-to-all-v 是同一 payload 的视图，不重复加和 |
+| 网页 | python skills/supernode-modeling/scripts/launch_frontend.py --project-root . |
+| 校验 | python -m supernode_sim validate examples/demo_inference.yaml |
+| 估算 | python -m supernode_sim estimate examples/demo_inference.yaml -o outputs/demo-estimate |
+| 仿真 | python -m supernode_sim simulate examples/demo_inference.yaml -o outputs/demo-inference |
+| 扫描 | python -m supernode_sim sweep examples/training_10t_fp8.yaml --axes examples/sweep_precision.yaml --mode estimate -o outputs/precision-sweep |
+| SU 搜索 | python -m supernode_sim size-su examples/demo_inference.yaml --mode both -o outputs/su-search |
+| Feedback | python -m supernode_sim feedback examples/demo_inference.yaml --search examples/feedback_inference.yaml -o outputs/demo-feedback |
+| 推荐复核 | python -m supernode_sim simulate outputs/demo-feedback/best.config.json -o outputs/demo-feedback-best |
+| 完成态恢复 | python -u scripts/run_reference_experiment.py examples/kimi_k3_ascend950_training_muon_128.yaml -o outputs/kimi-k3-ascend950-training-muon-128 |
 
-**来源** [配置说明](../skills/supernode-modeling/references/configuration.md)；[存储说明](../skills/supernode-modeling/references/memory-breakdown.md)；[训练说明](../skills/supernode-modeling/references/training.md)。
+需要逐事件 / 张量生命周期时，普通 estimate/simulate 添加 --full-detail。结构化推理且 DP=PP=1 可用 Python API run_streaming(config, phase='all')；紧凑结果与配置按 API 文档保存，不直接交给普通 write_report。Feedback 推荐不存在时不执行 best.config.json 复核命令。
 
-### A05 Adam 与 Muon 状态和 offload 窗口需按参数组建模
+**来源** [configuration.md](../skills/supernode-modeling/references/configuration.md)；[frontend.md](../skills/supernode-modeling/references/frontend.md)；[resource-usage.md](../skills/supernode-modeling/references/resource-usage.md)。
 
-**上屏文案**
+### A03 来源与详细图索引
 
-- Adam 分列 master m v 与 gradient
-- Muon 分列 momentum 正交化 scratch 和辅助 Adam
-- 有界在途窗口改变峰值和耗时
-
-**讲解与备查说明** Muon 对矩阵参数使用 momentum 和解析 Newton–Schulz 工作量；当前建模策略中，embedding、output 与向量等辅助参数组走 Adam，须明示分组策略，不能说成 K3 的完整官方配方。K3 per-head Muon 并不消除矩阵 momentum。当前无 distributed Muon 跨 rank 全矩阵组装；通用 baseline 不能代表生产 P2P 正交化实现。大型结构化 offload 可显式设置 inflight_components_per_rank: 2，保留搬运与更新重叠；不能将该策略隐去。
-
-**图表与布局** 使用 G04 完整流程，标明 backward 尾部前驱、D2H、CPU/NPU update、pack、H2D 与 scale、refresh、step done。对“组件内事件链”和“跨组件允许重叠”分别注释；不画 optimizer 与本步 backward 重叠。
-
-**来源** [存储说明](../skills/supernode-modeling/references/memory-breakdown.md)；[K3 案例说明](../skills/supernode-modeling/references/ascend950-kimi-k3.md)；G04。
-
-### A06 显式拓扑编译验证成员共享瓶颈与实际路径
+**核心结论** 当前能力以仓库 Skill 和真实产物为准，公开事实与运行假设可分别追溯。
 
 **上屏文案**
 
-- SO 域成员完整且不重复 多域有向连接强连通
-- 相同 SU 跨 SU 同 SO 跨 SO 路径分别核对
-- 改变卡数或分组后重新生成显式图
+- 能力与口径：主 Skill、references、拓扑子 Skill
+- 模型与平台：官方来源快照及字段级来源
+- 详细函数图留在仓库，按需查阅
 
-**讲解与备查说明** 拓扑子编译器当前支持等大连续 SU 域，主机完整落在一个 SU 域内。--base 保留模型、负载、精度、布局和 targets，替换拓扑并校验完整场景；并行乘积冲突需报告，不能静默改 DP/global batch。编译器默认 max_links=200000，高层 full-mesh 显式展开为平方规模链路；原生 full-mesh 模板按需懒建。新图使用 routing_policy: su_so；旧显式图默认 shortest_hop，人工路由应核对类别约束。Clos 多 spine 与共享上联是容量抽象，不提供 ECMP 包级模拟。
+**图表与布局** 使用四组来源卡片。每组显示简称与路径；完整链接保留在备注或文档中。
 
-**命令示例**
-
-```powershell
-python skills/supernode-modeling/subskills/supernode-topology/scripts/build_topology.py --schema -o outputs/topology.schema.json
-python skills/supernode-modeling/subskills/supernode-topology/scripts/build_topology.py skills/supernode-modeling/subskills/supernode-topology/examples/two_domains.yaml -o outputs/topology.hardware.yaml
-# 合并完整场景时以实际 topology spec 与 base 文件替换示例路径
-python skills/supernode-modeling/subskills/supernode-topology/scripts/build_topology.py path/to/topology.yaml --base path/to/scenario.yaml -o outputs/scenario.topology.yaml
-```
-
-hardware 片段需合并模型、负载与执行配置后才能 simulate。域级流量细分需结合成员表与逐事件路径；原生 SU/SO 类别汇总不能直接当作 SO 域矩阵。
-
-**来源** [拓扑说明](../skills/supernode-modeling/references/topology.md)；[拓扑子 Skill](../skills/supernode-modeling/subskills/supernode-topology/SKILL.md)；[拓扑规范](../skills/supernode-modeling/subskills/supernode-topology/references/specification.md)；G07。
-
-### A07 大图精简与检查点分别解决导出体积和完成态恢复
-
-**上屏文案**
-
-- 精简明细不减少参与计算的事件或容量
-- 检查点在数值执行完成后提交 manifest
-- 恢复跳过 simulate 仍重建图并回放日志
-
-**讲解与备查说明** 事件或 allocation 超过 50000 时，默认精简重复原始明细，结果保留原始/导出/省略数量和真实汇总。CLI estimate/simulate 默认 full_detail=false；Python run 默认 true，write_report 默认 false。全部生命周期导出需计算和导出阶段均保留完整明细。检查点保存压缩 JSONL trace、memory_log 和最后提交的 manifest；验证配置与数值源码 fingerprint，流式迭代核对条数。不支持仿真中途 active/ready/remaining 续算，精简 result.json 不能替代原始检查点。
-
-**图表与布局** 使用 G11，分成“首次数值执行并提交”和“匹配完成态后恢复导出”两路，汇合到指标、账本与报告。明确标注“不支持数值执行中途续算”。
-
-**命令示例**
-
-```powershell
-# 保留完整明细，按场景规模评估输出体积
-python -m supernode_sim simulate examples/demo_training.yaml --full-detail -o outputs/demo-training-full
-# 同命令可读取已提交且匹配的完成态检查点，继续分析与导出
-python -u scripts/run_reference_experiment.py examples/kimi_k3_ascend950_training_muon_128.yaml -o outputs/kimi-k3-ascend950-training-muon-128
-```
-
-**来源** [主 Skill](../skills/supernode-modeling/SKILL.md)；[架构说明第 8.2 至 8.3 节](simulation-architecture.md)；G11 [检查点与恢复](diagrams/11-reference-checkpoint.mmd)。
-
-### A08 扩展能力需要同步配置事件语义指标与验证
-
-**上屏文案**
-
-- 当前能力与需求草稿分别标记
-- 新策略先定义张量 通信 依赖与生命周期
-- 新 SLO 或剪枝需证明对应时间窗口
-
-**讲解与备查说明** 现阶段优先完善显式拓扑候选重编译、SO 域归因、执行与缓存接口及 kernel/collective 校准；大图压缩和服务化是后续工程演进。动态 serving、PD、投机和 expert offload 要新增事件语义、指标和验证，不能仅在 Skill 或报告中添加名称。
-
-**展示表格**
-
-| 状态 | 能力或约束 |
+| 来源组 | 本稿依据 |
 |---|---|
-| 当前支持 | 组件账本、Adam/Muon 基线、FSDP2、CPU optimizer offload、固定 batch、KV offload、Engram、拓扑编译、有限候选搜索 |
-| 当前拒绝的组合 | 无 architecture 的 Muon、结构化 lookahead prefetch、跨 PP tied embedding/AttnRes、非权重状态 FP4 |
-| 尚未建模 | interleaved pipeline、Pipeline ZeRO-2、activation offload、distributed Muon、动态请求队列、PD、投机、expert offload |
-| 网络与硬件边界 | 确定性单路径/流体资源共享，无 ECMP 包级拥塞控制和周期级行为 |
-| 验证入口 | 配置/拓扑非法项、DAG 与共享速率、准入和释放、容量/流量守恒、完成标记、恢复指纹与完整性 |
+| 工作流与配置 | [主 Skill](../skills/supernode-modeling/SKILL.md)、[frontend](../skills/supernode-modeling/references/frontend.md)、[configuration](../skills/supernode-modeling/references/configuration.md) |
+| 模型与资源 | [training](../skills/supernode-modeling/references/training.md)、[inference](../skills/supernode-modeling/references/inference.md)、[memory-breakdown](../skills/supernode-modeling/references/memory-breakdown.md) |
+| 拓扑、时延与搜索 | [topology](../skills/supernode-modeling/references/topology.md)、[子 Skill](../skills/supernode-modeling/subskills/supernode-topology/SKILL.md)、[latency-breakdown](../skills/supernode-modeling/references/latency-breakdown.md)、[feedback](../skills/supernode-modeling/references/feedback.md) |
+| 规模、案例与公开事实 | [resource-usage](../skills/supernode-modeling/references/resource-usage.md)、[K3 / 950](../skills/supernode-modeling/references/ascend950-kimi-k3.md)、[官方来源快照](sources/README.md) |
+| A5 / 10T 历史仿真 | [TP8 基线报告](../outputs/kimi-k3-10t-1024/report.md)、[TP/SP 对照报告](../outputs/kimi-k3-10t-sp/report.md)、[基线 CSV](../outputs/kimi-k3-10t-1024/summary.csv)、[TP/SP CSV](../outputs/kimi-k3-10t-sp/summary.csv) |
 
-**来源** [架构说明第 10 至 12 节](simulation-architecture.md)；[主 Skill](../skills/supernode-modeling/SKILL.md)。
+**讲解备注** 内容日期 2026-10-19 表示本稿读取仓库文档的基线，不把旧架构说明日期当作当前引擎修订。正式数值另保留运行命令、配置与代码版本。K3 结构与 950 规格的公开来源、核验日期和不确定性见 docs/sources/README.md；不以型号相同替代性能验证。
 
-### R01 来源与引用
+**来源** 上表所列仓库文件；[项目说明](../README.md)。
 
-PPT 页脚引用对应的 Skill 章节、架构说明和图号；涉及公开模型或硬件时同时引用官方来源。以下相对路径以本文件所在 docs 目录为基准。
+## 五 详细图源链接（不生成额外幻灯片）
 
-| 编号 | 资料 | 支持内容 |
-|---|---|---|
-| S01 | [父 Skill 完整说明](../skills/supernode-modeling/SKILL.md) | 范围、工作流、口径与真实运行约束 |
-| S02 | [配置与 CLI](../skills/supernode-modeling/references/configuration.md) | 输入、精度、单位、指标、校准与命令 |
-| S03 | [组件存储账本](../skills/supernode-modeling/references/memory-breakdown.md) | 组件/状态、加和、峰值与 Adam/Muon |
-| S04 | [训练建模](../skills/supernode-modeling/references/training.md) | FSDP2、1F1B、optimizer offload 与 10T 锚点 |
-| S05 | [推理建模](../skills/supernode-modeling/references/inference.md) | 固定 batch、KV、KDA、Engram 与指标 |
-| S06 | [拓扑输入契约](../skills/supernode-modeling/references/topology.md) | SU/SO、链路口径、路径与搜索 |
-| S07 | [K3 与 950 案例说明](../skills/supernode-modeling/references/ascend950-kimi-k3.md) | 场景用途、结构、精度和真实性边界 |
-| S08 | [自然语言拓扑子 Skill](../skills/supernode-modeling/subskills/supernode-topology/SKILL.md) | 规范生成、编译与派生图 |
-| S09 | [拓扑规范](../skills/supernode-modeling/subskills/supernode-topology/references/specification.md) | 字段、成员、链路与编译限制 |
-| S10 | [系统架构说明](simulation-architecture.md) | 分层、数据契约、能力、部署和演进 |
-| S11 | [函数流程说明](simulation-function-flows.md) | 函数调用/控制流和图例解释 |
-| S12 | [项目说明](../README.md) | 安装、运行、产物与样例 |
-| S13 | [官方资料快照](sources/README.md) | K3 与 950 公开来源、核验日期和建模边界 |
-| S14 | [原始需求说明](../supernode_network_requirements.md) | 问题背景；其中需求项不自动视为实现能力 |
+主讲按本稿重绘简图。以下既有函数图用于深入核查，不将旧总览图中的入口列表当作当前能力全集；不在本文重复 Mermaid 源码。
 
-公开来源可在来源页分两栏列出；本项目快照核验日期为 2026 年 9 月 23 日，范围和单位口径见 sources/README.md。
-
-- Moonshot AI，[Kimi K3 官方技术博客](https://www.kimi.ai/blog/kimi-k3)，模型概要与技术说明。
-- Moonshot AI，[Kimi-K3 官方仓库](https://github.com/MoonshotAI/Kimi-K3)，模型结构与技术报告。
-- Moonshot AI，[官方 config.json](https://huggingface.co/moonshotai/Kimi-K3/blob/main/config.json) 与 [文本参考实现](https://huggingface.co/moonshotai/Kimi-K3/blob/main/modeling_kimi_linear.py)，张量形状、KV 布局和参数归属。
-- Huawei，[Huawei Connect 2025 官方演讲](https://www.huawei.com/en/news/2025/9/hc-xu-keynote-speech)，2025 年 9 月 18 日，950DT 公开规格与 Atlas 950 路线图。
-- Huawei，[MWC 2026 官方新闻](https://www.huawei.com/en/news/2026/3/mwc-superpod-ai)，2026 年 3 月 2 日，Atlas 950 单柜与最大规模说明。
-
-## 五 图源索引与完整 Mermaid 素材
-
-此处保留已有架构与函数图的原始节点和连接，供 PPT 绘图引用。原始长图可用于备查，主讲采用裁剪后的可读版本。G00 是职责数据流图；G01–G07 主要描述调用与构图控制流；G08 是运行时执行；G09–G11 是归因、搜索和恢复流程。所有图都是模型与代码结构示意，不能充当真实模型框架 trace 或实机测量。
-
-| 图号 | 图名与文件 | 使用页 | 保留要点 |
-|---|---|---|---|
-| G00 | [整体架构](diagrams/00-architecture.mmd) | 主讲 04 | 职责与数据流；保留七层、components/Topology 输入和拓扑子 Skill 支路 |
-| G01 | [CLI 与单次运行](diagrams/01-entry-and-run.mmd) | 主讲 08 与附录 A01 | 保留构图、estimate、simulate 分支；validate 不构图，run 不自动导出 |
-| G02 | [参数预算训练](diagrams/02-training-budget.mmd) | 附录 A02 | 保留 phase.done 与 send.done 区分；预算路径只支持 Adam |
-| G03 | [结构化训练](diagrams/03-training-structured.mmd) | 主讲 10 与附录 A02 | 保留组件顺序、checkpoint 与完成标记；不支持 lookahead prefetch |
-| G04 | [优化器与 offload](diagrams/04-optimizer-offload.mmd) | 主讲 11 与附录 A05 | 保留 backward 前驱、D2H、更新、pack、H2D/scale、refresh |
-| G05 | [结构化推理](diagrams/05-inference-structured.mmd) | 主讲 12 与附录 A03 | 保留 active sequence、KV/KDA 状态和 token 完成标记 |
-| G06 | [参数预算推理](diagrams/06-inference-budget.mmd) | 附录 A03 | 保留 ready 并行支路、旧 KV 融合转换与层末 TP reduction |
-| G07 | [通信与拓扑展开](diagrams/07-collective-topology.mmd) | 主讲 15 与附录 A06 | 保留语义、算法轮次和资源路径三层，payload 与 physical 分开 |
-| G08 | [事件执行器](diagrams/08-event-engine.mmd) | 主讲 16 | 保留释放、准入、共享速率、推进闭环和容量失败 |
-| G09 | [内存归因与报告](diagrams/09-memory-and-report.mmd) | 主讲 17 和 22 | 按职责组织账本及输出，文件节点不是严格写文件时间顺序 |
-| G10 | [扫描与 SU 搜索](diagrams/10-sweep-and-su-search.mmd) | 主讲 21 | 保留必要条件剪枝、仿真、失败和集合内最小 |
-| G11 | [检查点与恢复](diagrams/11-reference-checkpoint.mmd) | 附录 A07 | 保留完成态 manifest 提交；恢复仍构图和回放，不支持中途续算 |
-
-### G00 整体架构
-
-原文件 [diagrams/00-architecture.mmd](diagrams/00-architecture.mmd)。使用：主讲 04。
-
-```mermaid
-flowchart TB
-    U["用户问题：训练 / 推理 / 流量 / SU 选型"] --> S["supernode-modeling：场景编排与结果解释"]
-    S --> TS["supernode-topology：自然语言转 topology spec"]
-    TS --> TC["build_topology.py：校验与编译显式图"]
-    TC --> C
-    S --> C["场景 YAML/JSON：model / hardware / workload / execution / targets"]
-    C --> V["config.load_config() + Config.model_validate()"]
-    V --> A["analysis.run() / search.sweep() / search.size_su()"]
-    A --> G["analysis.compile_graph()"]
-    G --> B["构图器：structured.Builder / training._TrainingBuilder / inference.build_inference()"]
-    B --> D["core.Graph：Event + Resource + Allocation + metadata"]
-    T["Topology：设备、链路、路径与通信映射"] --> B
-    P["components：形状、参数与状态公式"] --> B
-    D --> K["apply_kernel_profiles()：匹配实测 kernel"]
-    K --> E["graph_estimate()：必要性能下界"]
-    E -->|simulate 模式| X["engine.simulate()：依赖、内存准入、slot、资源争用"]
-    E -->|estimate 模式| R["需求 / 指标 / SLO / 组件内存账本"]
-    X --> R
-    R --> O["report.write_report()：JSON / Markdown / CSV / timeline"]
-    O --> S
-```
-
-### G01 CLI 与单次运行
-
-原文件 [diagrams/01-entry-and-run.mmd](diagrams/01-entry-and-run.mmd)。使用：主讲 08 与附录 A01。
-
-```mermaid
-flowchart TD
-    CLI["snmodel / python -m supernode_sim"] --> MAIN["cli.main() → _main() → parser()"]
-    MAIN --> CMD{"内部：命令类型"}
-    CMD -->|schema| SCHEMA["Config.model_json_schema() → 写出 schema"]
-    CMD -->|import-hf| HF["import_hf_config() → read_data()<br/>模型片段 + missing_fields"]
-    CMD -->|其余命令| LOAD["load_config() → read_data()<br/>可选校准 deep_merge() → Config.model_validate()"]
-    LOAD --> SUB{"内部：命令分派"}
-    SUB -->|validate| VALID["返回 valid；不构图"]
-    SUB -->|sweep / size-su| SEARCH["sweep() / size_su()<br/>见图 10"]
-    SUB -->|estimate / simulate| RUN["analysis.run(config, mode, full_detail)"]
-    RUN --> COMPILE["compile_graph()<br/>规范化 Config → Topology.__init__()"]
-    COMPILE --> ARCH{"内部：model.architecture 存在？"}
-    ARCH -->|是| STRUCT["build_structured()<br/>Builder.training_graph() / inference()"]
-    ARCH -->|否，training| TRAIN["build_training() → _TrainingBuilder.build()"]
-    ARCH -->|否，inference| INFER["build_inference()"]
-    STRUCT --> CAL["apply_kernel_profiles()<br/>内部：补充 assumptions / fidelity"]
-    TRAIN --> CAL
-    INFER --> CAL
-    CAL --> EST["graph_estimate(graph)<br/>DAG 与资源下界、驻留容量、通信总量"]
-    EST --> REQ["device_requirements()<br/>内部：快照、SHA-256、目标窗口、requirements"]
-    REQ --> MODE{"内部：mode == simulate？"}
-    MODE -->|是| SIM["engine.simulate(graph)<br/>analysis 中别名 simulate_graph"]
-    SIM --> MET["execution_metrics() → evaluate_targets()<br/>内部：汇总最终 status"]
-    MODE -->|否| MEM["build_memory_breakdown()<br/>见图 9"]
-    MET --> MEM
-    MEM --> RESULT["run() 返回结果字典"]
-    RESULT --> WRITE["CLI：write_report(result, output)"]
-    SEARCH --> WRITE
-    WRITE --> EXIT["打印摘要并返回退出码<br/>main() finally 恢复 GC 状态"]
-```
-
-### G02 参数预算训练
-
-原文件 [diagrams/02-training-budget.mmd](diagrams/02-training-budget.mmd)。使用：附录 A02。
-
-```mermaid
-flowchart TD
-    ENTRY["training.build_training(config, topology)"] --> INIT["_TrainingBuilder.__init__()<br/>内部：rank / stage 映射与 dense / expert 参数预算"]
-    INIT --> BUILD["build() → initial_state()<br/>驻留 weights / gradients / master / Adam / runtime"]
-    BUILD --> STEP["内部：遍历 training step"]
-    STEP --> STAGE["内部：遍历 PP stage<br/>pipeline_schedule(stage, stages, microbatches)"]
-    STAGE --> PHASE["phase(step, stage, F或B, micro)<br/>phase_previous() 建立前驱"]
-    PHASE --> LAYER["内部：按 F 正序 / B 逆序遍历层"]
-    LAYER --> GATHER["按 FSDP / reshard 条件 add_gather()<br/>可选一层前瞻预取"]
-    GATHER --> DISPATCH["可选 collective(EP dispatch)<br/>内部：权重精度转换、activation 生命周期"]
-    DISPATCH --> CK{"内部：B 且 activation checkpointing？"}
-    CK -->|是| RECOMP["kernel(forward=True)<br/>重放 TP / EP 通信"]
-    CK -->|否| KERNEL["kernel(..., forward=F)<br/>创建计算与 HBM work 的 Event"]
-    RECOMP --> KERNEL
-    KERNEL --> COMM["collective(TP attention / MLP all_reduce)<br/>可选 EP combine"]
-    COMM --> SYNC{"内部：B 到达梯度同步点？"}
-    SYNC -->|是| GRAD["collective()<br/>dense EP AR → FSDP RS → replica DP AR"]
-    SYNC -->|否| DONE["barrier(layer done)<br/>释放本层已消费临时分配"]
-    GRAD --> DONE
-    DONE --> MOREL{"内部：还有层？"}
-    MOREL -->|是| LAYER
-    MOREL -->|否| PDONE["barrier(phase done)"]
-    PDONE --> SEND["有相邻 PP stage 时：<br/>内部可选 pack → Topology.transfer() → 可选 unpack<br/>send.done 供接收方依赖"]
-    SEND --> MOREP{"内部：还有 phase / stage？"}
-    MOREP -->|是| STAGE
-    MOREP -->|否| OPT["optimizer(step)<br/>图 4：Adam 与可选 CPU offload"]
-    OPT --> MORES{"内部：还有 step？"}
-    MORES -->|是| STEP
-    MORES -->|否| RETURN["内部：写 schedule / logical_memory / step_end_events<br/>返回 Graph"]
-```
-
-### G03 结构化训练
-
-原文件 [diagrams/03-training-structured.mmd](diagrams/03-training-structured.mmd)。使用：主讲 10 与附录 A02。
-
-```mermaid
-flowchart TD
-    ENTRY["build_structured() → Builder.__init__()<br/>Topology.populate() + parameter_inventory()"]
-    ENTRY --> INIT["training_graph() → initial()<br/>states() / state_dtype() / local_elements()"]
-    INIT --> STEP["内部：step → PP stage<br/>pipeline_schedule() → F或B / microbatch"]
-    STEP --> LAYER["内部：按阶段方向遍历 stage layers"]
-    LAYER --> GATHER["按 FSDP / reshard 条件 gather()<br/>collective(all_gather)"]
-    GATHER --> ACT["activation_rows() → component_activations()<br/>内部：B 时建立或复用 gradient buffers"]
-    ACT --> CK{"内部：B 且 checkpoint？"}
-    CK -->|是| RECOMP["recompute_layer()<br/>kernel() + TP / EP + 临时状态"]
-    CK -->|否| ORDER["component_order(layer)<br/>F 正序 / B 逆序遍历组件"]
-    RECOMP --> ORDER
-    ORDER --> DISPATCH["MoE 时 collective(EP dispatch)"]
-    DISPATCH --> KERNEL["逐 rank kernel()<br/>权重转换、FLOPs/HBM、activation/state allocs/releases"]
-    KERNEL --> COMM["MoE 时 collective(combine)<br/>attention / FFN 后 collective(TP all_reduce)"]
-    COMM --> MOREC{"内部：还有组件？"}
-    MOREC -->|是| ORDER
-    MOREC -->|否| SYNC{"内部：B 到达梯度同步点？"}
-    SYNC -->|是| GRAD["collective()<br/>FSDP RS → replica AR → dense EP AR"]
-    SYNC -->|否| DONE["barrier(layer.done)<br/>释放 gather / gradient / recompute 临时项"]
-    GRAD --> DONE
-    DONE --> MOREL{"内部：还有层？"}
-    MOREL -->|是| LAYER
-    MOREL -->|否| PHASE["barrier(phase 完成)<br/>释放消费完的 PP receive 等状态"]
-    PHASE --> SEND["有下游时 pipeline_transfer()<br/>可选 pack → Topology.transfer() → 可选 unpack<br/>内部：stage_previous 指向发送完成"]
-    SEND --> MOREP{"内部：还有 phase / stage？"}
-    MOREP -->|是| STEP
-    MOREP -->|否| OPT["optimizer(step, stage tails)<br/>见图 4"]
-    OPT --> MORES{"内部：还有 step？"}
-    MORES -->|是| STEP
-    MORES -->|否| ANNOTATE["annotate_collective_allocations()<br/>返回 Graph"]
-```
-
-### G04 优化器与 offload
-
-原文件 [diagrams/04-optimizer-offload.mmd](diagrams/04-optimizer-offload.mmd)。使用：主讲 11 与附录 A05。
-
-```mermaid
-flowchart TD
-    ENTRY["optimizer(step)<br/>依赖本步 backward / stage 尾部完成"] --> LOOP["内部：预算版遍历 rank × layer<br/>结构化版遍历 rank × layer × component"]
-    LOOP --> LIMIT["结构化可选 inflight_components_per_rank<br/>为组件接入有界在途链的前驱"]
-    LIMIT --> OFF{"内部：optimizer_offload？"}
-    OFF -->|是| D2H["Topology.transfer(D2H gradients)<br/>CPU gradient buffer"]
-    OFF -->|否| NPU["选择 NPU 本地更新资源"]
-    D2H --> KIND["结构化：optimizer_states()<br/>预算版：固定 Adam"]
-    NPU --> KIND
-    KIND --> UPDATE["内部：创建 update Event<br/>Adam / Muon 工作量、状态访问与 scratch"]
-    UPDATE --> PACK["内部：创建 pack Event<br/>master 转为传输 / 驻留权重精度"]
-    PACK --> BACK{"内部：optimizer_offload？"}
-    BACK -->|是| H2D["Topology.transfer(H2D weights)<br/>必要时另外传输 scale"]
-    BACK -->|否| REFRESH["内部：refresh Event<br/>更新持久权重，释放临时 buffer"]
-    H2D --> REFRESH
-    REFRESH --> MORE{"内部：还有更新项？"}
-    MORE -->|是| LOOP
-    MORE -->|否| DONE["barrier(train.stepN.done)<br/>外层 build() / training_graph() 汇总 step_end_events"]
-```
-
-### G05 结构化推理
-
-原文件 [diagrams/05-inference-structured.mmd](diagrams/05-inference-structured.mmd)。使用：主讲 12 与附录 A03。
-
-```mermaid
-flowchart TD
-    ENTRY["build_structured() → Builder.__init__()"] --> INIT["Builder.inference() → initial()<br/>驻留权重 / runtime / 可选 Engram"]
-    INIT --> DP["内部：遍历 DP replica"]
-    DP --> TOKEN["内部：遍历 output step<br/>0 = prefill；其余 = decode"]
-    TOKEN --> ACTIVE["内部：筛选 output_length 大于 step 的序列<br/>按 EP lane 分配 tokens"]
-    ACTIVE --> LAYER["内部：遍历 layer → 确定 PP stage"]
-    LAYER --> STATE["attention_state() / attnres_state()<br/>KDA 固定状态 或 paged KV 增量<br/>可选残差状态"]
-    STATE --> COMPONENT["component_order(layer)<br/>遍历 embedding / norm / attention / FFN / output"]
-    COMPONENT --> DISPATCH["MoE 时 collective(EP dispatch)"]
-    DISPATCH --> ACT["逐 rank activation_rows()<br/>prefill Output 仅算每序列末位"]
-    ACT --> READ["内部可选：旧 KV fetch → decode conversion<br/>PreNorm 前 Engram lookup"]
-    READ --> KERNEL["kernel()<br/>权重转换 + component Event"]
-    KERNEL --> WRITE["内部可选：新 KV encode → offload write"]
-    WRITE --> COMM["MoE combine<br/>attention / FFN 后 TP all_reduce"]
-    COMM --> MOREC{"内部：还有组件？"}
-    MOREC -->|是| COMPONENT
-    MOREC -->|否| DONE["barrier(layer_done)<br/>释放上个 stage 的 receive buffer"]
-    DONE --> PP{"内部：跨 PP stage？"}
-    PP -->|是| SEND["pipeline_transfer()<br/>pack → Topology.transfer() → unpack"]
-    PP -->|否| MOREL{"内部：还有层？"}
-    SEND --> MOREL
-    MOREL -->|是| LAYER
-    MOREL -->|否| COMPLETE["barrier(token_complete)<br/>记录 sequence_token_completion_events"]
-    COMPLETE --> MORET{"内部：还有 output step？"}
-    MORET -->|是| TOKEN
-    MORET -->|否| MORED{"内部：还有 replica？"}
-    MORED -->|是| DP
-    MORED -->|否| RETURN["annotate_collective_allocations()<br/>返回 Graph"]
-```
-
-### G06 参数预算推理
-
-原文件 [diagrams/06-inference-budget.mmd](diagrams/06-inference-budget.mmd)。使用：附录 A03。
-
-```mermaid
-flowchart TD
-    ENTRY["inference.build_inference(config, topology)"] --> INIT["Topology.populate()<br/>内部：rank / layer 映射，驻留权重与缓存设施"]
-    INIT --> LOOPS["内部：DP → output step → layer → EP → TP<br/>step0 prefill，后续 decode，仅 active 序列"]
-    LOOPS --> LAYOUT["闭包 layout() → kv_layout_bytes()<br/>data / scale / page table"]
-    LAYOUT --> READY["闭包 alloc() / add()<br/>ready Event：KV 增量、activation 与临时状态"]
-    READY --> FETCH["内部可选：KV offload fetch<br/>Topology.transfer()"]
-    READY --> ENGRAM["内部可选：Engram lookup / cache hit<br/>Topology.transfer() 与资源 Event"]
-    READY --> CAST["内部可选：weight conversion Event"]
-    FETCH --> DENSE["内部：dense Event<br/>attention + dense 计算，读侧 KV 转换融合建模"]
-    ENGRAM --> DENSE
-    CAST --> DENSE
-    DENSE --> KVCONVERT["内部可选：新 KV conversion"]
-    KVCONVERT --> KVWRITE["内部可选：KV offload write"]
-    KVCONVERT --> MOE["可选 collective(dispatch)<br/>expert Event → collective(combine)"]
-    MOE --> TP["闭包 collective()<br/>层末 TP attention AR → TP FFN AR"]
-    TP --> PP["内部可选 PP：pack → Topology.transfer() → unpack"]
-    PP --> DONE["内部：layer.done<br/>等待层输出与 KV write；释放临时 buffer"]
-    KVWRITE --> DONE
-    DONE --> MOREL{"内部：还有层？"}
-    MOREL -->|是| LOOPS
-    MOREL -->|否| TOKEN["内部：token barrier<br/>记录逐序列 token 完成事件"]
-    TOKEN --> MORE{"内部：还有 step / replica？"}
-    MORE -->|是| LOOPS
-    MORE -->|否| RETURN["返回 Graph"]
-```
-
-### G07 通信与拓扑展开
-
-原文件 [diagrams/07-collective-topology.mmd](diagrams/07-collective-topology.mmd)。使用：主讲 15 与附录 A06。
-
-```mermaid
-flowchart TD
-    ENTRY["构图器 collective() 封装<br/>结构化 / 预算训练 / 预算推理"] --> CAST["内部：必要时 pack Event<br/>activation → communication dtype"]
-    CAST --> TC["Topology.collective(graph, kind, ranks, size, deps)"]
-    TC --> SINGLE{"内部：rank 数为 1？"}
-    SINGLE -->|是| IDENTITY["直接返回传入 deps，不产生通信事件"]
-    SINGLE -->|否| KIND{"内部：collective 类型"}
-    KIND -->|AG / RS| RING["内部：ring，N-1 轮<br/>每 rank 每轮 size/N"]
-    KIND -->|AR| AR["内部：RS → AG，两阶段 ring"]
-    KIND -->|A2AV| A2A["内部：按 payload_matrix<br/>pairwise N-1 轮，对角项无网络传输"]
-    RING --> TRANS["Topology.transfer(src, dst, bytes, deps)"]
-    AR --> TRANS
-    A2A --> TRANS
-    TRANS --> PATH["Topology.path(src, dst)"]
-    PATH --> ROUTE["内部依次：缓存 → 按 SU/SO 策略验证显式 routes<br/>→ 同 SU full_mesh 懒建直连<br/>→ 确定性最少 hop 搜索（按策略筛选链路）"]
-    ROUTE --> WORK["transfer() 内部：端点内存、逐跳链路<br/>injection / shared group / NIC / bridge 工作量<br/>startup = 路径 latency 之和"]
-    WORK --> EVENT["返回 Event<br/>payload 与 physical bytes 分别记 metadata"]
-    EVENT --> BUFS["collective() 内部：添加 send / recv allocation<br/>完成时 release，设置 tx / rx slots<br/>追加到 graph.events"]
-    BUFS --> NEXT{"内部：还有轮次 / 阶段？"}
-    NEXT -->|是，前轮 terminals 作为 deps| TRANS
-    NEXT -->|否| TERMINALS["返回末轮 terminal event IDs"]
-    TERMINALS --> UNPACK["构图器：必要时 unpack 与 wire buffer 释放"]
-    IDENTITY --> UNPACK
-```
-
-### G08 事件执行器
-
-原文件 [diagrams/08-event-engine.mmd](diagrams/08-event-engine.mmd)。使用：主讲 16。
-
-```mermaid
-flowchart TD
-    ENTRY["engine.simulate(graph)"] --> CHECK["内部：校验唯一 ID、资源、allocation、依赖和 DAG"]
-    CHECK --> VALID{"内部：图合法？"}
-    VALID -->|否| ERROR["闭包 fail(error, code, detail)<br/>result() 带 diagnostics"]
-    VALID -->|是| INIT["闭包 allocate(initial_allocations)<br/>记录 sequence / time / 占用 / 峰值"]
-    INIT --> CAP{"内部：驻留内存超容量？"}
-    CAP -->|是| OOM["fail(infeasible, initial_memory_exceeded)"]
-    CAP -->|否| FIN["循环内部：先完成事件<br/>release 内存与 slots，更新 ready，写 trace"]
-    FIN --> ALL{"内部：全部事件完成？"}
-    ALL -->|是| RESULT["排序 trace → result(feasible)"]
-    ALL -->|否| ADMIT["内部：按 ID 扫描 ready<br/>slot 空闲且内存可容纳 → 原子 allocate<br/>active = startup + remaining"]
-    ADMIT --> CHANGE{"内部：刚完成或准入了事件？"}
-    CHANGE -->|是| FIN
-    CHANGE -->|否| ACTIVE{"内部：存在 active？"}
-    ACTIVE -->|否，内存阻塞| DEAD["fail(infeasible, memory_admission_deadlock)"]
-    ACTIVE -->|否，其他情况| ERROR
-    ACTIVE -->|是| RATE["max_min_rates(startup 已结束的 active work)"]
-    RATE --> SOLO["函数内部：solo = min(capacity / work)<br/>归一化需求 = work × solo"]
-    SOLO --> FAIR["函数内部：等量提高未冻结事件的速度比例<br/>冻结瓶颈资源相关事件，重复至全部分配"]
-    FAIR --> SPEED["返回 rate = fraction × solo"]
-    SPEED --> DELTA["simulate 内部：delta = min<br/>下一 startup 结束、remaining/rate"]
-    DELTA --> OK{"内部：时间步可推进且合法？"}
-    OK -->|否| ERROR
-    OK -->|是| ADVANCE["内部：更新 remaining / work_done / busy<br/>now += delta"]
-    ADVANCE --> FIN
-```
-
-### G09 内存归因与报告
-
-原文件 [diagrams/09-memory-and-report.mmd](diagrams/09-memory-and-report.mmd)。使用：主讲 17 和 22。
-
-```mermaid
-flowchart TD
-    ENTRY["analysis.run() 的 graph / simulation / estimate"] --> MEM["build_memory_breakdown()"]
-    MEM --> INDEX["闭包 add_tensor() → _labels()<br/>索引全部 allocations 与释放事件<br/>可省略临时 buffers 的宽明细行"]
-    INDEX --> LOG{"内部：存在 memory_log？"}
-    LOG -->|是| REPLAY["内部：按 sequence 有序回放<br/>校验 ID、pool、bytes、时间与生命周期"]
-    REPLAY --> CHANGE["闭包 change()<br/>更新池/组件/状态与集群并发峰值"]
-    LOG -->|否| RESIDENT["对 initial residency 调用 change()<br/>mode = resident_only"]
-    CHANGE --> STATUS["内部：完整执行为 simulated<br/>提前停止为 observed_partial"]
-    STATUS --> TABLES["内部：生成 tensors / pools / component_state_rows<br/>state_rows / cluster / logical states"]
-    RESIDENT --> TABLES
-    TABLES --> GROUPS["_equivalent_groups()<br/>返回 memory_breakdown"]
-    GROUPS --> RUNRESULT["run() 返回完整结果对象"]
-    RUNRESULT --> WRITE["write_report(result, directory, full_detail)"]
-    WRITE --> PREP["_prepare_export()<br/>检测大图/已精简明细，生成 artifact_export"]
-    PREP --> DETAIL{"内部：请求 full detail 但明细已丢失？"}
-    DETAIL -->|是| ERROR["ValueError：必须从计算阶段重新保留完整明细"]
-    DETAIL -->|否| JSON["内部：写 result.json / config.resolved.json<br/>markdown_report() → report.md"]
-    JSON --> CSV["_csv()<br/>资源、内存、组件、状态、张量、峰值、参数"]
-    CSV --> SIM{"内部：存在 simulation？"}
-    SIM -->|是| TRACE["_csv(events.csv)<br/>_write_timeline(timeline.json)"]
-    SIM -->|否| OUT["返回输出目录"]
-    TRACE --> OUT
-```
-
-### G10 扫描与 SU 搜索
-
-原文件 [diagrams/10-sweep-and-su-search.mmd](diagrams/10-sweep-and-su-search.mmd)。使用：主讲 21。
-
-```mermaid
-flowchart TD
-    CMD{"CLI 分派"} -->|sweep| SW["sweep(config, axes, mode)<br/>校验 axes 与 max_candidates"]
-    SW --> PRODUCT["内部：itertools.product 枚举组合<br/>copy 配置 → set_field()"]
-    PRODUCT --> SWVALID["Config.model_validate()"]
-    SWVALID --> SWRUN["run(candidate, mode, full_detail=False)<br/>compact_result()"]
-    SWVALID -->|异常| SWBAD["内部：保留 invalid_config 与原因"]
-    SWRUN --> SWNEXT{"内部：还有组合？"}
-    SWBAD --> SWNEXT
-    SWNEXT -->|是| PRODUCT
-    SWNEXT -->|否| SWOUT["返回 completed + candidates"]
-    CMD -->|size-su| SU["size_su(config, single / multi / both)"]
-    SU --> ENUM["内部：枚举 NPU count × SU size × parallel layout<br/>多域需 total_npus 或 max_total_npus"]
-    ENUM --> VALID["Config.model_validate(candidate)"]
-    VALID -->|异常| BAD["记录 invalid_config"]
-    VALID --> EST["run(candidate, estimate, full_detail=False)"]
-    EST --> MEM{"内部：resident_memory 超容量？"}
-    MEM -->|是| MP["记录 infeasible<br/>resident_memory_lower_bound 剪枝"]
-    MEM -->|否| PERF{"内部：duration 下界超过有效全图 deadline？"}
-    PERF -->|是| PP["记录 slo_failed<br/>performance_lower_bound 剪枝"]
-    PERF -->|否| SIM["run(candidate, simulate, full_detail=False)<br/>_payload_summary()"]
-    BAD --> NEXT{"内部：还有候选？"}
-    MP --> NEXT
-    PP --> NEXT
-    SIM --> NEXT
-    NEXT -->|是| VALID
-    NEXT -->|否| BEST["内部：过滤 feasible<br/>按 SU size / NPU count / duration 排序"]
-    BEST --> OUT["返回 best / minimum_su_size / 全部候选<br/>或 no_candidates / no_feasible_candidate"]
-```
-
-### G11 检查点与恢复
-
-原文件 [diagrams/11-reference-checkpoint.mmd](diagrams/11-reference-checkpoint.mmd)。使用：附录 A07。
-
-```mermaid
-flowchart TD
-    ENTRY["run_reference_experiment.main()"] --> CONFIG["load_config() → fingerprint()<br/>resolved config + 指定数值源码"]
-    CONFIG --> WRAP["内部：保存 analysis 原函数并安装进度包装<br/>准备 checkpoint/fingerprint 前20位目录"]
-    WRAP --> RUN["analysis.run(config, simulate, full_detail=False)"]
-    RUN --> COMPILE["包装 compile_graph() → 原 compile_graph()<br/>包装 graph_estimate() → 原 graph_estimate()"]
-    COMPILE --> SIM["包装 simulate_graph(graph)"]
-    SIM --> EXISTS{"内部：已提交 manifest.json？"}
-    EXISTS -->|否| PHYSICS["原 engine.simulate(graph)"]
-    PHYSICS --> SAVE["save_records(trace) + save_records(memory_log)<br/>gzip JSONL 临时文件完成后替换"]
-    SAVE --> COMMIT["内部：最后提交 manifest.json<br/>fingerprint / count / size / simulation 摘要"]
-    EXISTS -->|是| LOAD["load_checkpoint(directory, fingerprint)"]
-    COMMIT --> LOAD
-    LOAD --> CHECK["内部：校验 fingerprint 与文件大小<br/>大记录使用 JSONLRecords，否则加载 list"]
-    CHECK --> METRIC["run() 继续 execution_metrics() / evaluate_targets()"]
-    METRIC --> MEM["包装 breakdown() → build_memory_breakdown()<br/>按 sequence 回放日志，流式记录省临时明细"]
-    MEM --> EXPORT["write_report(result, output)<br/>继续生成汇总与导出"]
-    EXPORT --> FINALLY["内部 finally：恢复 analysis 原函数与 GC 状态"]
-```
-
+| 内容 | 原始图文件 |
+|---|---|
+| 架构与普通 CLI 主链 | [00-architecture.mmd](diagrams/00-architecture.mmd)、[01-entry-and-run.mmd](diagrams/01-entry-and-run.mmd) |
+| 参数预算 / 结构化训练 | [02-training-budget.mmd](diagrams/02-training-budget.mmd)、[03-training-structured.mmd](diagrams/03-training-structured.mmd) |
+| optimizer offload | [04-optimizer-offload.mmd](diagrams/04-optimizer-offload.mmd) |
+| 结构化 / 参数预算推理 | [05-inference-structured.mmd](diagrams/05-inference-structured.mmd)、[06-inference-budget.mmd](diagrams/06-inference-budget.mmd) |
+| 通信路径与执行器 | [07-collective-topology.mmd](diagrams/07-collective-topology.mmd)、[08-event-engine.mmd](diagrams/08-event-engine.mmd) |
+| 账本、传统搜索与恢复 | [09-memory-and-report.mmd](diagrams/09-memory-and-report.mmd)、[10-sweep-and-su-search.mmd](diagrams/10-sweep-and-su-search.mmd)、[11-reference-checkpoint.mmd](diagrams/11-reference-checkpoint.mmd) |
