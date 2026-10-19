@@ -1,0 +1,53 @@
+{
+  "metadata": {
+    "timer_boundary": "client",
+    "timestamp_granularity": "token",
+    "source": "Synthetic example for metric definitions; not a benchmark or hardware measurement",
+    "status": "synthetic",
+    "model": "synthetic-example-no-real-model",
+    "hardware": "none; illustrative timestamps only",
+    "runtime": "none; manually constructed test data"
+  },
+  "measurement_window_s": [1.0, 5.0],
+  "slo": {"ttft_s": 0.5, "tpot_s": 0.1},
+  "requests": [
+    {
+      "id": "warmup",
+      "arrival_s": 0.0,
+      "token_times_s": [0.4, 0.5],
+      "finish_s": 0.51,
+      "warmup": true,
+      "status": "success",
+      "input_tokens": 128,
+      "output_tokens": 2
+    },
+    {
+      "id": "request-1",
+      "arrival_s": 1.0,
+      "token_times_s": [1.25, 1.3, 1.36],
+      "finish_s": 1.38,
+      "input_tokens": 256,
+      "output_tokens": 3
+    },
+    {
+      "id": "request-2-single-token",
+      "arrival_s": 2.0,
+      "token_times_s": [2.4],
+      "input_tokens": 64,
+      "output_tokens": 1
+    },
+    {
+      "id": "request-3-failed",
+      "arrival_s": 3.0,
+      "token_times_s": [3.2],
+      "finish_s": 3.3,
+      "status": "failed"
+    },
+    {
+      "id": "request-4-incomplete",
+      "arrival_s": 4.8,
+      "token_times_s": [],
+      "status": "incomplete"
+    }
+  ]
+}

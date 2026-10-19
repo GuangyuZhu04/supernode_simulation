@@ -1,6 +1,6 @@
 ---
 name: supernode-modeling
-description: Model supernode training and inference memory, compute, communication, and TTFT/TPOT (TPOP) latency breakdowns with supernode_sim, automatically preparing and opening its editable local web dashboard. Use for component-level memory and Adam/Muon states; Kimi K3 and Ascend 950 scenarios; offload, KV/KDA state, SU/SO topology generation and minimum-SU searches; or feedback searches for TP/SP/EP, prefill length and decode batch that maximize decode throughput under latency targets on fixed hardware and topology.
+description: Model supernode training and inference resources, optional acceleration features, and TTFT/TPOT (TPOP) latency breakdowns with supernode_sim, automatically opening its editable local web dashboard. Use for DSpark draft/verify, CSA/HCA/KDA attention, quantization, checkpoint/offload, Adam/Muon, Kimi K3 and Ascend 950, SU/SO topology and minimum-SU searches, or feedback searches for TP/SP/EP, prefill length and decode batch under latency targets.
 ---
 
 # 超节点资源与通信建模
@@ -34,6 +34,7 @@ python -m supernode_sim schema
 ## 按问题选择资料和命令
 
 - 配置、来源、单位、CLI：读 [configuration.md](references/configuration.md)。
+- 选择训练/推理加速特性、DSpark、CSA/HCA/KDA 或对比 feature 开关：读 [features.md](references/features.md)，使用顶层 `features` 或 `--features` 文件；先运行 `list-features` 查看当前支持范围。
 - 大型仿真、批量实验或本机内存/磁盘紧张：读 [resource-usage.md](references/resource-usage.md)，选择流式运行、缓存预算与导出粒度。
 - 按组件分析存储、activation、梯度、Adam/Muon：读 [memory-breakdown.md](references/memory-breakdown.md)。
 - Kimi K3 / Ascend 950 样例和真实性边界：读 [ascend950-kimi-k3.md](references/ascend950-kimi-k3.md)。
@@ -41,12 +42,15 @@ python -m supernode_sim schema
 - 推理/KV 压缩与 offload/Engram：读 [inference.md](references/inference.md)。
 - TTFT、TPOT（TPOP）的计算、node 内 / scale-up / scale-out 通信与等待拆解：读 [latency-breakdown.md](references/latency-breakdown.md)。
 - 固定模型、拓扑和硬件，输入 TTFT、TPOT（用户也可能写 TPOP），反求 TP/SP/EP、Prefill 长度及 Decode batch：读 [feedback.md](references/feedback.md)，运行 `feedback`，在满足目标的有限候选内优先最大化 Decode 吞吐量。
+- TTFT、TPOT（用户可能写作 TPOP）、实测对齐或性能优化：先读 [runtime-calibration.md](references/runtime-calibration.md)；引用 K3/950DT 的 10 ms 数据时再读 [kimi-k3-runtime-evidence.md](references/kimi-k3-runtime-evidence.md)。
 - 接收 SU/SO 拓扑、scale-out 域、分析链路瓶颈/最小域搜索：读 [topology.md](references/topology.md)。
 - 用户用自然语言生成或修改 scale-up / scale-out 拓扑：按子 skill [supernode-topology](subskills/supernode-topology/SKILL.md) 生成拓扑规范、原生配置和拓扑图，再回到本 skill 做流量仿真。仅生成拓扑时在子 skill 内完成，不要求模型或负载。
 
 先检查用户提供的配置与可核实资料，再补齐问题所需的参数。只询问会改变结论且无法从现有资料获得的缺失项，使用明确字段名。模型名称不是结构证据；对未公开结构采用用户认可或明确标注的 synthetic 假设，不把假设写成某模型的公开规格。
 
 保留用户场景，在工作目录创建可重跑配置。先 `validate`，再按任务运行 `estimate`、`simulate`、`sweep`、`size-su` 或 `feedback`；`estimate` 提供必要下界，不能证明 SLO 可行。硬件显然无法容纳的配置也有分析价值，保留失败原因而不自动放大硬件。
+
+Feature 是模型与执行策略输入，不是固定加速倍率。对同一路径的重复设置保留冲突检查；resolved config 使用 canonical 字段重跑。Attention 类型变化需要实际模型逐层结构和维度，不能默认质量等价；DSpark 类路径必须有显式 draft 成本、驻留及接受数。核对报告中的 `model_metadata.feature_plan`，并区分已选择、解析建模、profile 驱动和仍不支持的功能。
 
 ## 拓扑作为输入
 
@@ -85,6 +89,8 @@ python -m supernode_sim schema
 
 只需要性能、流量、容量峰值和失败诊断的大型结构化推理，DP=PP=1 时优先使用 [流式推理](references/inference.md#大规模结构化推理)。需要完整组件/张量生命周期、训练或其他并行布局时继续使用普通引擎。批量实验默认串行并复用匹配结果；每个并发进程会分别占用图和缓存内存。
 
+启用 `speculative_decode` 时使用普通 `simulate`；流式路径当前不处理投机轮次，会明确报错。不要绕过限制把投机结果退回普通 decode。
+
 大型 optimizer offload 场景可显式配置 `execution.optimizer.inflight_components_per_rank: 2`，限制同时在途的组件更新并保留搬运/计算重叠；这是执行策略，会影响峰值和耗时，应随结果说明。未设置时保留原有全部提交策略。
 
-用户指出仿真与现实存在差距时，先核对结构、精度、复制/分片与模型范围，再核对平台 SKU、单位、带宽方向、拓扑和实测 kernel/collective。用可核实 profile 替换合成硬件，并说明尚未校准的影响。型号相同不等于已验证性能准确；没有实测结果时不报告误差百分比或“符合真实情况”。
+用户指出仿真与现实存在差距时，先对齐计时边界、负载与软件执行路径，再核对结构、精度、复制/分片、平台 SKU、拓扑及实测 kernel/collective。使用 [校准流程](references/runtime-calibration.md) 分开校准 prefill/decode、服务时间和启动开销；检查实际匹配覆盖率。公开的整网 TPOT 不能填入单算子 profile，投机 decode 的吞吐不能充当普通 decode 的耗时，缺失 TTFT 保持未知。没有同条件留出实测时，交付可复跑的预测和明确限制，不报告误差百分比或“符合真实情况”。

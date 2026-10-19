@@ -14,6 +14,7 @@ from .components import (parameter_inventory, inventory_summary, optimizer_state
                          attnres_state)
 from .core import Allocation, DTYPE_BYTES, Event, Graph, Resource
 from .training import pipeline_schedule
+from .sparse_attention import sparse_attention_state, sparse_attention_work, position_bias_rows
 
 
 class Builder:
@@ -58,6 +59,13 @@ class Builder:
             ])
         if self.a.get('attnres_block_size'):
             self.g.metadata['assumptions'].append('AttnRes retains residual blocks across layers; FP32 reference attention workspace is included. PP>1 is rejected until residual forwarding is modeled.')
+        if any(kind in ('CSA', 'HCA') for kind in self.a['attention_by_layer']):
+            self.g.metadata['assumptions'].extend([
+                'CSA/HCA model sliding-window/shared latent KV, gated compression and CSA indexing; these components do not reproduce a complete DeepSeek V4 model or mHC.',
+                'Sparse latent/index pools are replicated across TP and grow on demand; rolling-window and FP32 compression state reserve per-request buffers. No L2 hit ratio is assumed.',
+                'CSA index-score TP all-reduce is a serialized cost at the component boundary, not an exact intra-kernel dependency trace. Top-k operation throughput uses configured FP32 throughput as an analytical scalar proxy.',
+                'CSA/HCA training uses the generic component backward multiplier and saved-state model; indexer auxiliary training loss and exact gradient routing are not modeled.',
+            ])
         self.g.metadata['sequence_parallel'] = {
             'enabled': self.sp, 'degree': self.tp if self.sp else 1,
             'world_axis': 'shared_with_tp',
@@ -226,13 +234,85 @@ class Builder:
         return component_activations(self.m, layer, tokens, tp=self.tp, ep=self.ep,
                                     training=self.training if training is None else training, checkpointing=checkpoint)
 
-    def kernel(self, name, rank, layer, component, tokens, deps, *, backward=False, phase='prefill', total_tokens=None, allocations=(), releases=(), lengths=None):
+    def inference_state_allocations(self, prefix, rank, layer, lengths, step):
+        """Grow persistent committed state; speculative candidate buffers are separate."""
+        kind = self.a['attention_by_layer'][layer]
+        state = (sparse_attention_state(self.m, layer, lengths, tp=self.tp) if kind in ('CSA', 'HCA')
+                 else attention_state(self.m, layer, len(lengths), max(lengths, default=0), tp=self.tp))
+        component = state['component']
+        allocations = []
+        if state['kind'] == 'recurrent':
+            if step == 0:
+                for category, elements, dtype in [('recurrent_state', state['recurrent_elements'], self.p['recurrent']),
+                                                   ('convolution_state', state['convolution_elements'], self.p['activation'])]:
+                    if elements:
+                        allocations.append(self.allocation(prefix + f'.{rank}.{category}', rank,
+                            elements * DTYPE_BYTES[dtype], component, category, layer, dtype))
+            return allocations
+        if state['kind'] == 'compressed_sparse':
+            # Latent and index pools are replicated across TP. FP32 compressor
+            # history is distinct from the configured KV dtype and metadata.
+            values = {key: (state[key] * DTYPE_BYTES[self.p['kv']], self.p['kv'])
+                      for key in state['storage_categories']['kv_dtype']}
+            values.update({key: (state[key] * 4, 'fp32') for key in state['storage_categories']['fp32']})
+            if self.p['kv'] in ('fp8', 'int8'):
+                values['kv_scales'] = (sum(ceil(state[key] / self.f['kv_scale_block']) for key in
+                    state['storage_categories']['kv_dtype']) * self.f['scale_bytes'], None)
+            for category, (size, dtype) in values.items():
+                key = rank, layer, category
+                growth = max(0, size - self.cache.get(key, 0))
+                self.cache[key] = max(size, self.cache.get(key, 0))
+                if growth:
+                    allocations.append(self.allocation(prefix + f'.{rank}.{category}', rank, growth,
+                        component, category, layer, dtype, formula=state['formula']))
+            return allocations
+        pages = sum(ceil(length / self.f['kv_page_tokens']) for length in lengths)
+        elements = pages * self.f['kv_page_tokens'] * state['elements_per_token']
+        values = {'kv_cache': elements * DTYPE_BYTES[self.p['kv']],
+                  'kv_scales': ceil(elements / self.f['kv_scale_block']) * self.f['scale_bytes'] if self.p['kv'] in ('fp4', 'fp8', 'int8') else 0,
+                  'page_table': pages * self.f['kv_page_entry_bytes']}
+        for category, size in values.items():
+            key = rank, layer, category
+            growth = max(0, size - self.cache.get(key, 0))
+            self.cache[key] = max(size, self.cache.get(key, 0))
+            fraction = self.f['kv_offload_fraction'] if self.f['kv_offload'] != 'none' else 0
+            store = self.host(rank) if self.f['kv_offload'] == 'host' else 'remote0'
+            for part, node, suffix in [(1 - fraction, rank, 'local'), (fraction, store, 'offload')]:
+                if growth * part:
+                    allocations.append(self.allocation(prefix + f'.{rank}.{category}.{suffix}', node,
+                        growth * part, component, category, layer, self.p['kv'] if category == 'kv_cache' else None))
+        return allocations
+
+    def sparse_index_collective(self, prefix, layer, groups, lengths, deps, phase,
+                                query_lengths=None, divisor=1):
+        """Account for CSA index-score TP reduction in the component schedule.
+
+        Compute is aggregated per component, so this is a serialized communication
+        cost, not the exact intra-kernel order of index projection and attention.
+        """
+        if self.a['attention_by_layer'][layer] != 'CSA' or self.tp == 1:
+            return list(deps)
+        work = sparse_attention_work(self.m, layer, lengths,
+            phase='prefill' if phase in ('forward', 'backward', 'recompute') else phase,
+            tp=self.tp, query_lengths=query_lengths)
+        amount = work['indexer_reduce_elements'] * DTYPE_BYTES[self.p['compute']] / divisor
+        if not amount:
+            return list(deps)
+        terminals = []
+        for i, group in enumerate(groups):
+            terminals += list(self.topo.collective(self.g, prefix + f'.index_scores.tp{i}', 'all_reduce', group,
+                amount, tuple(deps), metadata={'component': 'CSA', 'layer': layer,
+                    'operation': 'index_score_reduce', 'buffer_dtype': self.p['compute']}))
+        return terminals or list(deps)
+
+    def kernel(self, name, rank, layer, component, tokens, deps, *, backward=False, phase='prefill', total_tokens=None, allocations=(), releases=(), lengths=None, query_lengths=None):
         tensors = self.local_tensors(layer, component)
         total_tokens = tokens * self.ep if total_tokens is None else total_tokens
         # Tied output still performs projection, without owning another tensor.
         if component == 'Output' and not tensors:
             tensors = [t for t in self.by_layer[layer] if t.component == 'Output']
         active_elements = 0.0
+        projection_elements = 0.0
         weight_reads = 0.0
         conversion_elements = 0.0
         for tensor in tensors:
@@ -240,24 +320,41 @@ class Builder:
             touched = 1 - (1 - self.m['top_k'] / self.m['num_experts']) ** total_tokens if tensor.ep_shard else 1.0
             active = tensor.active_fraction * self.ep if tensor.ep_shard else 1.0
             active_elements += elements * active
+            projection_elements += elements * active if tensor.role == 'matrix' else 0
+            if component in ('CSA', 'HCA') and tensor.name.endswith('.position_bias'):
+                a = self.a[component.lower()]
+                queries = query_lengths if query_lengths is not None else (
+                    [1] * len(lengths or []) if phase == 'decode' else list(lengths or []))
+                touched *= position_bias_rows(lengths or [], queries, a['compress_ratio']) / a['compress_ratio']
             if self.f.get('extra_weight_copy_dtype') == self.p['compute']:
                 weight_reads += elements * touched * DTYPE_BYTES[self.p['compute']]
             else:
                 weight_reads += elements * touched * DTYPE_BYTES[self.weight_dtype(tensor)] + self.scale(elements * touched, self.weight_dtype(tensor))
             if self.weight_dtype(tensor) != self.p['compute']:
                 conversion_elements += elements * touched
-        flops = 2 * active_elements * tokens
+        flops = 2 * (projection_elements if component in ('CSA', 'HCA') else active_elements) * tokens
         if component == 'WordEmbedding':
             flops = tokens * self.m['hidden_dim'] / self.tp
             weight_reads = tokens * self.m['hidden_dim'] * DTYPE_BYTES[self.p['weight']] / self.tp
             conversion_elements = 0
         if component in ('PreNorm', 'PostNorm'):
             flops = 5 * tokens * sum(t.elements for t in tensors if t.role == 'norm')
-        if component == 'KDA':
+        sparse = None
+        if component in ('CSA', 'HCA'):
+            sparse = sparse_attention_work(self.m, layer, lengths or [],
+                phase='prefill' if phase in ('forward', 'backward', 'recompute') else phase,
+                tp=self.tp, query_lengths=query_lengths)
+            flops += sparse['extra_flops'] / (self.ep if self.training else 1)
+        elif component == 'KDA':
             a = self.a['kda']
             flops += 8 * tokens * a['num_heads'] * a['head_k_dim'] * a['head_v_dim'] / self.tp
         elif component in ('MLA', 'GQA', 'MHA', 'MQA'):
-            pairs = sum(s * (s + 1) / 2 for s in lengths) if lengths is not None and phase in ('prefill', 'forward', 'backward', 'recompute') else sum(lengths or [])
+            if phase == 'verify':
+                if query_lengths is None or len(query_lengths) != len(lengths or []):
+                    raise ValueError('Verification attention requires per-request query lengths')
+                pairs = sum(q * (s - q) + q * (q + 1) / 2 for s, q in zip(lengths, query_lengths))
+            else:
+                pairs = sum(s * (s + 1) / 2 for s in lengths) if lengths is not None and phase in ('prefill', 'forward', 'backward', 'recompute') else sum(lengths or [])
             pairs /= self.ep if self.training else 1
             qk_dim = self.a['mla']['qk_nope_head_dim'] + self.a['mla']['qk_rope_head_dim'] if component == 'MLA' else self.m['head_dim']
             v_dim = self.a['mla']['v_head_dim'] if component == 'MLA' else self.m['head_dim']
@@ -267,6 +364,13 @@ class Builder:
             flops += 10 * block['stored_elements']
         if backward:
             flops *= 2
+        if sparse is not None and sparse['indexer_score_workspace_elements'] and not backward:
+            workspace = self.allocation(name + '.index_scores', rank,
+                sparse['indexer_score_workspace_elements'] * DTYPE_BYTES[self.p['compute']] / (self.ep if self.training else 1),
+                component, 'indexer_score_workspace', layer, self.p['compute'],
+                formula='reference indexer pre-mask scoring matrix; local heads plus reduced scores')
+            allocations = tuple(allocations) + (workspace,)
+            releases = tuple(releases) + (workspace.id,)
         working = sum(a.size_bytes for a in allocations)
         pending = list(deps)
         conversion_id = None
@@ -284,7 +388,7 @@ class Builder:
             if state['kind'] == 'recurrent':
                 cache_reads = state['recurrent_elements'] * DTYPE_BYTES[self.p['recurrent']] + state['convolution_elements'] * DTYPE_BYTES[self.p['activation']]
                 cache_reads /= self.ep if self.training else 1
-            elif phase == 'decode':
+            elif phase in ('decode', 'verify'):
                 cache_reads = sum(lengths) * state['elements_per_token'] * DTYPE_BYTES[self.p['kv']]
         cache_writes = 0
         if not self.training and component in ('MLA', 'GQA', 'MHA', 'MQA', 'KDA'):
@@ -293,7 +397,18 @@ class Builder:
                 cache_writes = state['recurrent_elements'] * DTYPE_BYTES[self.p['recurrent']] + state['convolution_elements'] * DTYPE_BYTES[self.p['activation']]
             else:
                 cache_writes = tokens * state['elements_per_token'] * DTYPE_BYTES[self.p['compute']]
+        if sparse is not None:
+            divisor = self.ep if self.training else 1
+            cache_reads = ((sparse['attention_read_elements'] + sparse['indexer_read_elements']) * DTYPE_BYTES[self.p['kv']]
+                           + (sparse['compression_read_elements'] + sparse['state_read_elements']) * 4) / divisor
+            cache_writes = (sparse['cache_write_elements'] * DTYPE_BYTES[self.p['kv']]
+                            + sparse['state_write_elements'] * 4) / divisor
         work = {rank + '.compute': max(flops, 0), rank + '.hbm': weight_reads + 2 * working + cache_reads + cache_writes}
+        if sparse is not None and sparse['selection_operations'] and not backward:
+            selection = rank + '.selection'
+            scalar_rate = self.h['npu']['flops'].get('fp32', self.h['npu']['flops'][self.p['compute']]) * self.h['npu']['efficiency']
+            self.g.resources[selection] = Resource(selection, scalar_rate, 'operation/s', 'selection')
+            work[selection] = sparse['selection_operations'] / (self.ep if self.training else 1)
         if backward:
             work[rank + '.hbm'] += active_elements * DTYPE_BYTES[self.p['gradient']]
         return self.add(Event(name, tuple(pending), work, slots=(rank + '.compute_stream',),
@@ -301,7 +416,8 @@ class Builder:
             metadata={'kernel': component.lower(), 'component': component, 'layer': layer, 'phase': phase,
                       'flops': flops, 'working_set_bytes': weight_reads + working + cache_reads,
                       'tokens': tokens, 'sequence_parallel': self.sp,
-                      'sequence_parallel_degree': self.tp if self.sp else 1}))
+                       'sequence_parallel_degree': self.tp if self.sp else 1,
+                       **({'sparse_attention': sparse, 'selection_rate_assumption': 'Scalar operation throughput proxied by configured FP32 FLOP/s; calibrate with kernel profiles.'} if sparse is not None else {})}))
 
     def annotate_collective_allocations(self):
         for event in self.g.events:
@@ -380,9 +496,25 @@ class Builder:
                     allocations.append(self.allocation(aid, rank, state['recurrent_chunk_elements'] * DTYPE_BYTES[self.p['recurrent']],
                         'KDA', 'recompute_workspace', layer, self.p['recurrent']))
                     retained.append(aid)
+                if component in ('CSA', 'HCA'):
+                    state = attention_training_state(self.m, layer, self.w['batch_size'] / self.ep,
+                                                      self.w['sequence_length'], tp=self.tp)
+                    for category, field, dtype, byte_width in (
+                            ('compressed_attention_pool', 'compressed_pool_elements', self.p['kv'], DTYPE_BYTES[self.p['kv']]),
+                            ('attention_selection_indices', 'selection_index_elements', None, 4)):
+                        size = state[field] * byte_width
+                        if size:
+                            aid = name + f'.{rank}.recompute.{component}.{category}'
+                            allocations.append(self.allocation(aid, rank, size, component, 'recompute_workspace',
+                                layer, dtype, formula=state['formula'], storage_role=category,
+                                storage_dtype='int32' if dtype is None else dtype))
+                            retained.append(aid)
                 ends.append(self.kernel(name + f'.{rank}.recompute.{component}', rank, layer, component,
                     tokens, previous, phase='recompute', allocations=allocations, releases=releases, lengths=lengths))
             previous = ends
+            if component == 'CSA':
+                previous = self.sparse_index_collective(name + '.recompute', layer,
+                    self.groups(stage, 'tp'), lengths, previous, phase='recompute', divisor=self.ep)
             if component == 'MoE' and self.ep > 1:
                 terminals = []
                 for i, group in enumerate(self.groups(stage, 'ep')):
@@ -401,15 +533,19 @@ class Builder:
     def inference(self):
         self.initial()
         self.g.metadata.update(token_completion_events={}, sequence_token_completion_events={})
+        plan = getattr(self, '_inference_plan', None)
         for d in range(self.dp):
             previous = []
             token_ends = []
             sequence_ends = {str(i): [] for i in range(self.w['batch_size'])}
-            for step in range(max(self.w['output_lengths'])):
-                phase = 'prefill' if step == 0 else 'decode'
-                active = [i for i, length in enumerate(self.w['output_lengths']) if length > step]
+            for step in range(len(plan) if plan is not None else max(self.w['output_lengths'])):
+                plan_item = plan[step] if plan is not None else None
+                phase = plan_item['phase'] if plan_item else ('prefill' if step == 0 else 'decode')
+                active = (list(range(self.w['batch_size'])) if plan_item else
+                          [i for i, length in enumerate(self.w['output_lengths']) if length > step])
                 local = {e: [i for i in active if i % self.ep == e] for e in range(self.ep)}
-                tokens = {e: sum(self.w['input_lengths'][i] if step == 0 else 1 for i in local[e]) for e in range(self.ep)}
+                tokens = ({e: plan_item['query_tokens'] * len(local[e]) for e in range(self.ep)} if plan_item else
+                          {e: sum(self.w['input_lengths'][i] if step == 0 else 1 for i in local[e]) for e in range(self.ep)})
                 sp_rows = {e: ceil(tokens[e] / self.tp) for e in range(self.ep)} if self.sp else tokens
                 sp_full_tokens = {e: sp_rows[e] * self.tp for e in range(self.ep)} if self.sp else tokens
                 if self.sp:
@@ -423,6 +559,10 @@ class Builder:
                 total_tokens = sum(tokens.values())
                 residuals = []
                 incoming_receives = []
+                round_prefix = f'infer.d{d}.s{step}'
+                round_before = getattr(self, '_inference_round_before', None)
+                if round_before:
+                    previous = round_before(round_prefix, plan_item, previous)
                 for layer in range(self.m['layers']):
                     stage = layer * self.pp // self.m['layers']
                     prefix = f'infer.d{d}.s{step}.l{layer}'
@@ -432,30 +572,10 @@ class Builder:
                     for rank in ranks:
                         e = self.coords[rank][2]
                         owned = [i for i in range(self.w['batch_size']) if i % self.ep == e]
-                        lengths = [self.w['input_lengths'][i] + min(step, self.w['output_lengths'][i] - 1) for i in owned]
-                        state = attention_state(self.m, layer, len(owned), max(lengths, default=0), tp=self.tp)
-                        component = state['component']
-                        allocations = []
-                        if state['kind'] == 'recurrent':
-                            if step == 0:
-                                for state_name, elements, dtype in [('recurrent_state', state['recurrent_elements'], self.p['recurrent']), ('convolution_state', state['convolution_elements'], self.p['activation'])]:
-                                    if elements:
-                                        allocations.append(self.allocation(prefix + f'.{rank}.{state_name}', rank, elements * DTYPE_BYTES[dtype], component, state_name, layer, dtype))
-                        else:
-                            pages = sum(ceil(length / self.f['kv_page_tokens']) for length in lengths)
-                            elements = pages * self.f['kv_page_tokens'] * state['elements_per_token']
-                            values = {'kv_cache': elements * DTYPE_BYTES[self.p['kv']],
-                                      'kv_scales': ceil(elements / self.f['kv_scale_block']) * self.f['scale_bytes'] if self.p['kv'] in ('fp4', 'fp8', 'int8') else 0,
-                                      'page_table': pages * self.f['kv_page_entry_bytes']}
-                            for category, size in values.items():
-                                key = rank, layer, category
-                                growth = max(0, size - self.cache.get(key, 0))
-                                self.cache[key] = size
-                                fraction = self.f['kv_offload_fraction'] if self.f['kv_offload'] != 'none' else 0
-                                store = self.host(rank) if self.f['kv_offload'] == 'host' else 'remote0'
-                                for f, node, suffix in [(1 - fraction, rank, 'local'), (fraction, store, 'offload')]:
-                                    if growth * f:
-                                        allocations.append(self.allocation(prefix + f'.{rank}.{category}.{suffix}', node, growth * f, component, category, layer, self.p['kv'] if category == 'kv_cache' else None))
+                        lengths = ([plan_item['context_before'] + (plan_item['query_tokens'] if phase == 'prefill'
+                                    else plan_item['committed_tokens'])] * len(owned) if plan_item else
+                                   [self.w['input_lengths'][i] + min(step, self.w['output_lengths'][i] - 1) for i in owned])
+                        allocations = self.inference_state_allocations(prefix, rank, layer, lengths, step)
                         block = attnres_state(self.m, layer, sp_rows[e] if self.sp else tokens[e])
                         if block['new_elements']:
                             aid = prefix + f'.{rank}.attnres_block'
@@ -474,8 +594,9 @@ class Builder:
                                 continue
                         sp_buffers = []
                         if self.sp and component in (self.a['attention_by_layer'][layer], self.a['ffn_by_layer'][layer], 'Output'):
+                            selected_output = component == 'Output' and phase != 'verify'
                             gather_rows = ({e: ceil(len(local[e]) / self.tp) * self.tp for e in range(self.ep)}
-                                           if component == 'Output' else sp_full_tokens)
+                                           if selected_output else sp_full_tokens)
                             gathered = []
                             for rank in ranks:
                                 e = self.coords[rank][2]
@@ -484,7 +605,7 @@ class Builder:
                                     sp_buffers.append(aid)
                                     gathered.append(self.allocation(aid, rank, gather_rows[e] * self.m['hidden_dim'] * DTYPE_BYTES[self.p['activation']],
                                         component, 'sp_gathered_input', layer, self.p['activation'],
-                                        valid_source_tokens=len(local[e]) if component == 'Output' else tokens[e], padded_tokens=gather_rows[e], sequence_parallel_degree=self.tp))
+                                        valid_source_tokens=len(local[e]) if selected_output else tokens[e], padded_tokens=gather_rows[e], sequence_parallel_degree=self.tp))
                             gather_start = self.barrier(prefix + f'.{component}.sp_gather_allocate', ready, gathered)
                             terminals = []
                             for e in range(self.ep):
@@ -517,7 +638,8 @@ class Builder:
                                     dtype = row.get('dtype', self.p['activation'])
                                     allocations.append(self.allocation(prefix + f'.{rank}.{component}.activation{i}', rank, row['elements'] * DTYPE_BYTES[dtype], component, 'activation', layer, dtype, formula=row['formula']))
                             deps = list(ready)
-                            active_lengths = [self.w['input_lengths'][i] + step for i in local[e]]
+                            active_lengths = ([plan_item['context_before'] + plan_item['query_tokens']] * len(local[e])
+                                              if plan_item else [self.w['input_lengths'][i] + step for i in local[e]])
                             kind = self.a['attention_by_layer'][layer]
                             offload = self.f['kv_offload'] != 'none' and self.f['kv_offload_fraction'] > 0
                             if component == kind and kind != 'KDA' and offload:
@@ -536,7 +658,8 @@ class Builder:
                                 allocations_to_release = []
                             if component == kind and kind != 'KDA' and step and self.p['kv'] != self.p['compute']:
                                 state = attention_state(self.m, layer, len(local[e]), 1, tp=self.tp)
-                                old_elements = sum(max(0, length - 1) for length in active_lengths) * state['elements_per_token']
+                                current_queries = plan_item['query_tokens'] if plan_item else 1
+                                old_elements = sum(max(0, length - current_queries) for length in active_lengths) * state['elements_per_token']
                                 if old_elements:
                                     aid = prefix + f'.{rank}.kv_decoded'
                                     raw = old_elements * DTYPE_BYTES[self.p['compute']]
@@ -575,7 +698,8 @@ class Builder:
                                 allocations.append(self.allocation(raw_kv, rank, raw_bytes, component, 'kv_write_buffer', layer, raw_dtype))
                             end = self.kernel(prefix + f'.{rank}.{component}', rank, layer, component, count, deps,
                                               phase=phase, total_tokens=total_tokens, allocations=allocations,
-                                              releases=[a.id for a in allocations if a.id != raw_kv] + allocations_to_release, lengths=active_lengths)
+                                              releases=[a.id for a in allocations if a.id != raw_kv] + allocations_to_release, lengths=active_lengths,
+                                              query_lengths=[plan_item['query_tokens']] * len(local[e]) if plan_item else None)
                             if kv_convert and new_elements:
                                 aid = prefix + f'.{rank}.kv_quantized'
                                 full_bytes = self.kv_bytes(new_elements)
@@ -596,6 +720,16 @@ class Builder:
                                     end = self.add(event)
                             ends.append(end)
                         ready = ends or ready
+                        if component == 'CSA' and self.tp > 1:
+                            index_ends = []
+                            for e in range(self.ep):
+                                lengths = ([plan_item['context_before'] + plan_item['query_tokens']] * len(local[e])
+                                           if plan_item else [self.w['input_lengths'][i] + step for i in local[e]])
+                                queries = [plan_item['query_tokens']] * len(local[e]) if plan_item else None
+                                group = [self.ranks[d, stage, e, t] for t in range(self.tp)]
+                                index_ends += self.sparse_index_collective(prefix + f'.e{e}', layer,
+                                    [group], lengths, ready, phase, query_lengths=queries)
+                            ready = index_ends or ready
                         if component == 'MoE':
                             terminals = []
                             for t in range(self.tp):
@@ -632,10 +766,14 @@ class Builder:
                             transfers.append(end)
                             incoming_receives.append(received)
                         previous = transfers
+                round_after = getattr(self, '_inference_round_after', None)
+                if round_after:
+                    previous = round_after(round_prefix, plan_item, previous)
+                committed = plan_item['committed_tokens'] if plan_item else 1
                 end = self.barrier(f'infer.d{d}.token{step}', previous, releases=residuals, phase='token_complete', token_index=step)
-                token_ends.append(end)
+                token_ends.extend([end] * committed)
                 for i in active:
-                    sequence_ends[str(i)].append(end)
+                    sequence_ends[str(i)].extend([end] * committed)
                 previous = [end]
             self.g.metadata['token_completion_events'][str(d)] = token_ends
             self.g.metadata['sequence_token_completion_events'][str(d)] = sequence_ends
@@ -643,6 +781,11 @@ class Builder:
 
     def training_graph(self):
         self.initial()
+        if any(kind in ('CSA', 'HCA') for kind in self.a['attention_by_layer']):
+            self.g.metadata['assumptions'].append(
+                'CSA/HCA training is an analytical forward/backward resource proxy, not complete DeepSeek V4 training: '
+                'mHC, indexer auxiliary loss and gradient routing are not modeled. Sparse attention saves compressed '
+                'pools and selection indices; checkpointing discards them after forward and reconstructs them before backward.')
         stage_previous = {}
         for step in range(self.w['training_steps']):
             for stage in range(self.pp):
@@ -721,6 +864,20 @@ class Builder:
                                         size = state['recurrent_chunk_elements'] * DTYPE_BYTES[self.p['recurrent']]
                                         if size:
                                             allocations.append(self.allocation(name + f'.{rank}.kda_saved', rank, size, 'KDA', 'saved_recurrent_states', layer, self.p['recurrent']))
+                                    if component in ('CSA', 'HCA'):
+                                        state = attention_training_state(self.m, layer, self.w['batch_size'] / self.ep,
+                                                                          self.w['sequence_length'], tp=self.tp)
+                                        for category, field, dtype, byte_width in (
+                                                ('compressed_attention_pool', 'compressed_pool_elements', self.p['kv'], DTYPE_BYTES[self.p['kv']]),
+                                                ('attention_selection_indices', 'selection_index_elements', None, 4)):
+                                            size = state[field] * byte_width
+                                            if size:
+                                                allocation = self.allocation(name + f'.{rank}.{component}.{category}', rank,
+                                                    size, component, category, layer, dtype,
+                                                    formula=state['formula'], storage_dtype='int32' if dtype is None else dtype)
+                                                allocations.append(allocation)
+                                                if self.f['activation_checkpointing']:
+                                                    releases.append(allocation.id)
                                     self.saved[key] = [a.id for a in allocations if a.id not in releases]
                                     if component == 'AttnRes':
                                         block = attnres_state(self.m, layer, local_tokens)
@@ -733,6 +890,10 @@ class Builder:
                                 ends.append(self.kernel(name + f'.{rank}.{component}', rank, layer, component, local_tokens, previous, backward=not forward, phase=phase,
                                     allocations=allocations, releases=releases, lengths=[self.w['sequence_length']] * self.w['batch_size']))
                             previous = ends
+                            if forward and component == 'CSA':
+                                previous = self.sparse_index_collective(name, layer, self.groups(stage, 'tp'),
+                                    [self.w['sequence_length']] * self.w['batch_size'], previous,
+                                    phase=phase, divisor=self.ep)
                             if component == 'MoE' and self.ep > 1:
                                 terminals = []
                                 for i, group in enumerate(self.groups(stage, 'ep')):

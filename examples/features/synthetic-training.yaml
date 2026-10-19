@@ -1,0 +1,49 @@
+# Synthetic smoke-test dimensions and capacities; not a hardware benchmark.
+schema_version: '1.0'
+model:
+  name: synthetic-feature-training
+  layers: 1
+  hidden_dim: 16
+  num_heads: 4
+  kv_heads: 2
+  head_dim: 4
+  architecture:
+    vocab_size: 32
+    attention_by_layer: [GQA]
+    ffn_by_layer: [Dense]
+    dense_intermediate_dim: 32
+hardware:
+  name: synthetic-small-device-not-a-product
+  npu_count: 1
+  su_size: 1
+  npus_per_host: 1
+  npu:
+    hbm_bytes: 67108864
+    hbm_Bps: 1000000000
+    flops: {fp16: 1000000000, bf16: 1000000000, fp32: 100000000}
+    efficiency: 1
+    runtime_bytes: 65536
+    workspace_bytes: 4096
+  cpu:
+    dram_bytes: 67108864
+    dram_Bps: 1000000000
+    flops: 100000000
+    efficiency: 1
+workload:
+  scenario: training
+  batch_size: 1
+  sequence_length: 8
+  gradient_accumulation: 1
+  training_steps: 1
+features:
+  precision: {weight: bf16, compute: bf16, gradient: bf16, activation: bf16}
+  activation_checkpointing: true
+  optimizer_offload: true
+  optimizer: {kind: adam}
+sources:
+  '*':
+    status: assumed
+    description: Synthetic feature smoke test; every model/hardware value is illustrative and is not a K3, V4 or 950DT specification.
+assumptions:
+  - Checkpointing trades retained activations for recomputation; optimizer offload may increase step time.
+  - This one-device case demonstrates feature wiring, not distributed scaling or production throughput.

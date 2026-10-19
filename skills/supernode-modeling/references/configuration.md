@@ -15,6 +15,7 @@
 | `targets` | `throughput_tokens_s`, `ttft_s`, `tpot_s`, `step_time_s`，及搜索候选字段 |
 | `sources` | 以字段路径或对象名称为 key，记录 `status`, `description`, `uri`, `revision` |
 | `assumptions` | 记录用户提供或分析所需的假设，随输出保存 |
+| `features` | 可选统一输入，展开为 canonical 配置；具体选项与冲突规则见 [features.md](features.md) |
 
 内部单位是 byte、second、FLOP。容量示例用十进制 TB/GB；吞吐用 byte/s。配置中的 `80e9` 表示 80 GB，不是 80 GiB。`tp * pp * ep * dp == npu_count`；FSDP 是 DP 子组，`dp % fsdp == 0`。更换卡数后要同时校验并行分解与 rank 放置。
 
@@ -73,3 +74,5 @@ Kimi K3 的适配器识别嵌套 `text_config`，验证 1-based KDA/MLA 层号�
 MLA 的 `architecture.mla.cache_layout` 可设 `compressed` / `expanded`。导入后的默认 `compressed` 是优化存储假设；HF 参考实现的 expanded K/V 与优化 latent-cache 内核不同。以样例中的按字段来源说明为模板，明确所模拟的缓存布局和未校准的 kernel 耗时。
 
 配置顶层 `calibration` 可引用相对于场景文件的 YAML/JSON；校准文件支持 `hardware` 覆盖和 `source`。例如使用实测 `npu.efficiency`、`hbm_Bps`、链路效率和 CPU 有效 FLOPs。kernel 专用校准字段先检查当前 schema 的支持范围，不能默默将未支持字段忽略。复跑优先使用 `config.resolved.json`，避免外部校准文件改变结果。
+
+`hardware.kernel_profiles` 的条目按 kernel 名、FLOPs、HBM bytes 及可选 dtype/phase 匹配；`duration_s` 不含启动，新增可选 `startup_s` 显式替换原启动时间。检查实际匹配覆盖率与 prefill/decode 分项，不以配置了 profile 作为校准成功证明。实测数据契约、缓存命中口径及校准限制见 [runtime-calibration.md](runtime-calibration.md)。

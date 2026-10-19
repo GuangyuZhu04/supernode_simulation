@@ -42,6 +42,8 @@ CPU/DDR、每 host NPU 数、H2D/D2H、SO、FP16/BF16 FLOPs、效率、runtime/w
 
 ## 精度改进与校准
 
+2026-10 的 CANN 优化实现公开了特定 32 卡、DSpark 路径的 TPOT 参考，但接受长度按 4 归一化、只统计大小模型；其 TTFT 未披露。见 [运行时证据与适用范围](kimi-k3-runtime-evidence.md)，不要把该值移植到本项目普通 decode、其他 batch/并行布局或不同规模模型。现有案例的静态容量依据仍有效，运行时精度须独立验证。
+
 先用组件账本对齐参数和精度，再用同硬件同负载的 kernel、HBM/H2D 带宽与 collective 实测校准。至少区分计算效率、有效带宽、启动时间和 host 内存；不能用一个总体系数同时校准所有误差。
 
 真实 K3 训练还使用 virtual PP、MoonEP 动态冗余专家、Pipeline ZeRO-2、FP8 activation offload/remote offload、AttnRes checkpoint 和 P2P Muon 正交化。通用 FSDP2/非交错 1F1B/CPU optimizer baseline 与该生产实现不同；没有端到端实测数据时，交付资料驱动的预测与敏感性，不能声称绝对误差已被校准。

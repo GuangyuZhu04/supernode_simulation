@@ -112,7 +112,17 @@ python -m supernode_sim import-hf path/to/config.json --overrides path/to/model-
 
 场景中可设置 `calibration: calibration.example.yaml`，路径相对于场景文件。校准文件仅接受 `hardware` 覆盖项和 `source`；解析后的输出配置已嵌入覆盖值，不依赖原校准文件。
 
-`hardware.kernel_profiles` 支持按 kernel 名称提供实测条目列表，每条包括 `flops`、`memory_bytes`、`duration_s`，可选 `dtype` 和 `phase`。仅匹配相同工作量；未匹配项保留解析模型并报告。`duration_s` 是不含事件启动延迟的独占服务时间，不能低于物理计算/带宽下界。匹配后保留真实 FLOPs、共享 HBM 争用与计算流串行约束；用测量时间替换粗略效率限制。匹配信息在 `model_metadata.kernel_calibration`。
+`hardware.kernel_profiles` 支持按 kernel 名称提供实测条目列表，每条包括 `flops`、`memory_bytes`、`duration_s`，可选 `dtype`、`phase` 和 `startup_s`。仅匹配相同工作量；未匹配项保留解析模型并报告。`duration_s` 是不含事件启动延迟的独占服务时间，不能低于物理计算/带宽下界。`startup_s` 给出时替换原启动开销，省略则保留原值，不能把同一启动时间重复计入两个字段。匹配后保留真实 FLOPs、共享 HBM 争用与计算流串行约束；用测量时间替换粗略效率限制。
+
+普通图与流式执行均在 `model_metadata.kernel_calibration` 报告实际匹配数量、覆盖率和 prefill/decode 分项；只有发生匹配才标记部分 kernel 校准。工作量匹配不自动验证张量形状、平台或软件版本，事件覆盖率也不代表端到端精度。实测对齐流程见 [运行时校准](skills/supernode-modeling/references/runtime-calibration.md)，K3/950DT 的公开投机 decode 参考及计时限制见 [来源核验](skills/supernode-modeling/references/kimi-k3-runtime-evidence.md)。
+
+可用随 skill 提供的标准库工具分析逐 token 实测 trace，输出 TTFT、请求 TPOT、E2E、独立 ITL 分布、吞吐和联合 SLO goodput，并显式计数 warmup、失败与未完成请求。以下示例为 synthetic，只验证工具，不能用于硬件校准：
+
+```powershell
+python skills/supernode-modeling/scripts/analyze_inference_trace.py skills/supernode-modeling/assets/inference-trace.example.json -o outputs/trace-metrics.example.json
+```
+
+decode 的 KV 问题需要分开分析前缀复用、设备页驻留与硬件缓存命中。当前静态 `kv_offload_fraction` 不代表动态命中率；HBM 驻留的 KV 仍有读带宽成本。自动前缀复用、KV 淘汰/抢占/重算和 L2 命中尚未模拟，不能用一个命中率直接缩放 TTFT/TPOT。
 
 ## 设计搜索与建模边界
 
@@ -136,7 +146,22 @@ Feedback 输出候选 CSV、失败诊断、Pareto 与布局可行边界，并在
 - 推理为固定变长 batch，完成的序列不再 decode；latent KV 按明确配置的 latent/RoPE 张量计算，TP 复制假设记录在报告。
 - Clos/Fat-tree 模板是单 spine 抽象；支持显式有向链路、共享容量与路由覆盖，无报文拥塞控制或 ECMP 包级仿真。
 - 事件采用 roofline 和归一化 max-min 资源共享。缓存报告是算子工作集及访问量；不据此声称 L1/L2/L3 最优容量或精确 MTE 通道数。
-- 当前没有 PD 分离、投机推理、expert offload、生产排队尾延迟和周期级仿真。
+- 投机推理支持显式 draft/profile 与接受数驱动的同步 batch 轮次模型，不模拟接受率算法或具体 DSpark 内核；当前没有 PD 分离、expert offload、生产排队尾延迟和周期级仿真。
+
+## 可选加速特性
+
+在场景顶层 `features` 中选择策略，或用 `--features <文件>` 传入独立对象。统一入口整合量化、checkpoint、optimizer/KV offload、FSDP、SP、Adam/Muon，以及结构化 CSA/HCA/KDA、DSpark 类 draft/verify 轮次。旧 canonical 配置继续有效，冲突会明确报错；resolved 配置只保留 canonical 字段。
+
+```powershell
+python -m supernode_sim list-features
+python -m supernode_sim simulate examples/features/synthetic-training.yaml -o outputs/features/training
+python -m supernode_sim simulate examples/features/synthetic-attention-base.yaml --features examples/features/synthetic-attention-features.yaml -o outputs/features/attention
+python -m supernode_sim simulate examples/features/synthetic-dspark.yaml -o outputs/features/dspark
+```
+
+这些小示例全部是 synthetic，不代表真实硬件 benchmark。报告和 JSON 的 `model_metadata.feature_plan` 列出实际选择与限制。CSA/HCA 计入压缩池、滑窗、索引/选择、评分暂存及索引 TP 通信；训练保留/重算相关状态，但不包含完整 DeepSeek V4 的 mHC 或 indexer 辅助训练目标。投机模式计入 draft prompt 准备、draft 成本、完整 verify query、接受/回滚与临时状态，并按实际输出 token 计指标；同步等长 batch、DP=PP=1，目前只支持普通 `simulate`。
+
+开启特性不保证更快：offload 可能增加传输，checkpoint 增加重算，投机有 draft/验证成本。融合与图执行通过具体 kernel profile 表达，不能用通用倍数。参数、可用组合、示例与证据边界见 [feature 输入说明](skills/supernode-modeling/references/features.md)。
 
 ## 使用 Skill
 

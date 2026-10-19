@@ -1,0 +1,32 @@
+# Contents are the feature object itself, without another `features:` wrapper.
+# All dimensions are synthetic; architecture changes do not establish model quality.
+precision: {weight: bf16, compute: bf16, activation: bf16, kv: bf16, recurrent: fp32}
+attention:
+  attention_by_layer: [CSA, HCA, KDA]
+  csa:
+    q_lora_rank: 4
+    head_dim: 4
+    rope_head_dim: 2
+    o_groups: 2
+    o_lora_rank: 4
+    window_size: 4
+    compress_ratio: 4
+    index_num_heads: 2
+    index_head_dim: 2
+    index_topk: 2
+  hca:
+    q_lora_rank: 4
+    head_dim: 4
+    rope_head_dim: 2
+    o_groups: 2
+    o_lora_rank: 4
+    window_size: 4
+    compress_ratio: 8
+  kda:
+    num_heads: 4
+    head_k_dim: 4
+    head_v_dim: 4
+    conv_kernel: 4
+    gate_low_rank_dim: 4
+    state_dtype: fp32
+    chunk_size: 4

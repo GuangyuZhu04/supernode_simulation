@@ -10,6 +10,7 @@ from pathlib import Path
 from .analysis import run
 from .config import Config, import_hf_config, load_config, read_data
 from .feedback import FeedbackSpec, feedback
+from .features import build_feature_plan, feature_catalog
 from .report import write_report
 from .search import size_su, sweep
 
@@ -35,6 +36,7 @@ def parser() -> argparse.ArgumentParser:
     for name in ('validate', 'estimate', 'simulate', 'sweep', 'size-su', 'feedback'):
         p = sub.add_parser(name)
         p.add_argument('config', type=Path)
+        p.add_argument('--features', type=Path, help='JSON/YAML feature object; conflicts with explicit canonical configuration are rejected')
         if name != 'validate':
             p.add_argument('--output', '-o', type=Path, default=Path('outputs') / name)
         if name in ('estimate', 'simulate'):
@@ -61,6 +63,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument('--output', '-o', required=True, type=Path)
     p = sub.add_parser('schema')
     p.add_argument('--output', '-o', type=Path)
+    p = sub.add_parser('list-features', help='List modeled options, required scopes and unsupported serving features')
+    p.add_argument('--output', '-o', type=Path)
     return root
 
 
@@ -73,8 +77,9 @@ def _main(argv: list[str] | None = None) -> int:
         if args.command == 'web':
             from .web import main as web_main
             return web_main(['--host', args.host, '--port', str(args.port), '--output', str(args.output)])
-        if args.command == 'schema':
-            data = json.dumps(Config.model_json_schema(), ensure_ascii=False, indent=2)
+        if args.command in ('schema', 'list-features'):
+            payload = Config.model_json_schema() if args.command == 'schema' else feature_catalog()
+            data = json.dumps(payload, ensure_ascii=False, indent=2)
             if args.output:
                 args.output.parent.mkdir(parents=True, exist_ok=True)
                 args.output.write_text(data, encoding='utf-8')
@@ -88,9 +93,10 @@ def _main(argv: list[str] | None = None) -> int:
             args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
             print(json.dumps({'status': 'missing_input' if result['missing_fields'] else 'imported', 'missing_fields': result['missing_fields'], 'path': str(args.output)}, ensure_ascii=False))
             return 2 if result['missing_fields'] else 0
-        config = load_config(args.config)
+        config = load_config(args.config, features=args.features)
         if args.command == 'validate':
-            print(json.dumps({'status': 'valid', 'schema_version': config.schema_version, 'model': config.model.name}, ensure_ascii=False))
+            print(json.dumps({'status': 'valid', 'schema_version': config.schema_version, 'model': config.model.name,
+                              'feature_plan': build_feature_plan(config)}, ensure_ascii=False))
             return 0
         if args.command == 'sweep':
             result = sweep(config, read_data(args.axes), args.mode)
