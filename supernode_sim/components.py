@@ -140,6 +140,36 @@ def parameter_inventory(model: dict) -> list[ParameterTensor]:
             linear(stem + ".mla.output", component, layer, n * value, h)
             if a.get("use_output_gate", False):
                 linear(stem + ".mla.output_gate", component, layer, h, n * value)
+        elif kind in ("CSA", "HCA"):
+            from .sparse_attention import sparse_spec
+            _, a = sparse_spec(model, layer)
+            d, rq, groups, rank = a["head_dim"], a["q_lora_rank"], a["o_groups"], a["o_lora_rank"]
+            prefix = stem + "." + kind.lower()
+            linear(prefix + ".q_down", kind, layer, h, rq, tp_shard=False)
+            norm(prefix + ".q_norm", kind, layer, rq)
+            linear(prefix + ".q_up", kind, layer, rq, n * d)
+            linear(prefix + ".kv", kind, layer, h, d, tp_shard=False)
+            norm(prefix + ".kv_norm", kind, layer, d)
+            add(prefix + ".output_down.weight", kind, layer, (groups, rank, n * d // groups),
+                formula="grouped low-rank output: groups * rank * (heads*head_dim/groups)")
+            linear(prefix + ".output_up", kind, layer, groups * rank, h)
+            add(prefix + ".attention_sink", kind, layer, (n,), role="vector")
+
+            def compressor(name, width):
+                ratio = a["compress_ratio"]
+                coff = 2 if ratio == 4 else 1
+                for projection in ("kv", "gate"):
+                    linear(name + "." + projection, kind, layer, h, coff * width, tp_shard=False)
+                add(name + ".position_bias", kind, layer, (ratio, coff * width),
+                    role="vector", tp_shard=False, formula="learned compression-position gate bias")
+                norm(name + ".norm", kind, layer, width)
+
+            compressor(prefix + ".compressor", d)
+            if kind == "CSA":
+                ih, index_d = a["index_num_heads"], a["index_head_dim"]
+                linear(prefix + ".indexer.q_up", kind, layer, rq, ih * index_d)
+                linear(prefix + ".indexer.head_weights", kind, layer, h, ih)
+                compressor(prefix + ".indexer.compressor", index_d)
         elif kind == "KDA":
             a = arch.get("kda") or {}
             nh = a.get("num_heads", n)
@@ -339,6 +369,29 @@ def component_activations(model: dict, layer: int, tokens: float, *, tp: int = 1
         add(kind, "softmax_lse", tokens * n / tp, "FlashAttention logsumexp per query head")
         if a.get("use_output_gate", False):
             add(kind, "output_gate", tokens * n * dv / tp, "tokens * heads * v_head_dim / TP")
+    elif kind in ("CSA", "HCA"):
+        from .sparse_attention import sparse_spec
+        _, a = sparse_spec(model, layer)
+        d, r = a["head_dim"], a["compress_ratio"]
+        coff = 2 if r == 4 else 1
+        add(kind, "q_latent", tokens * a["q_lora_rank"], "replicated tokens * q_lora_rank")
+        add(kind, "latent_kv", tokens * d, "shared K/V rows; replicated across TP")
+        add(kind, "queries_and_output", 2 * tokens * n * d / tp, "tokens * heads * head_dim * 2 / TP")
+        add(kind, "output_latent", tokens * a["o_groups"] * a["o_lora_rank"] / tp,
+            "tokens * output_groups * output_rank / TP")
+        add(kind, "softmax_lse", tokens * n / tp, "one saved attention LSE per query head")
+        # Compressor gate/value projections must be retained for its backward,
+        # independently of final compressed pools owned by attention_state.
+        widths = d + (a["index_head_dim"] if kind == "CSA" else 0)
+        add(kind, "compression_values_and_gates", 2 * tokens * coff * widths,
+            "two FP32 compressor projections per input; main plus optional index compressor")
+        if tokens:
+            rows[-1]["dtype"] = "fp32"
+        if kind == "CSA":
+            add(kind, "index_queries", tokens * a["index_num_heads"] * a["index_head_dim"] / tp,
+                "tokens * index_heads * index_head_dim / TP")
+            add(kind, "index_head_weights", tokens * a["index_num_heads"] / tp,
+                "tokens * index_heads / TP")
     elif kind == "KDA":
         a = arch.get("kda") or {}
         nh = a.get("num_heads", n)
@@ -420,6 +473,9 @@ def attention_state(model: dict, layer: int, batch: int, sequence_length: int,
         raise ValueError("nonnegative batch/sequence length and positive TP required")
     arch = _arch(model)
     kind = _kind(model, layer, "attention_by_layer").upper()
+    if kind in ("CSA", "HCA"):
+        from .sparse_attention import sparse_attention_state
+        return sparse_attention_state(model, layer, [sequence_length] * batch, tp=tp)
     if kind == "KDA":
         a = arch.get("kda") or {}
         nh = a.get("num_heads", model.get("num_heads", 32))
@@ -464,7 +520,18 @@ def attention_training_state(model: dict, layer: int, batch: int,
     """
     if min(batch, sequence_length) < 0 or tp < 1:
         raise ValueError("nonnegative batch/sequence length and positive TP required")
-    if _kind(model, layer, "attention_by_layer").upper() != "KDA":
+    kind = _kind(model, layer, "attention_by_layer").upper()
+    if kind in ("CSA", "HCA"):
+        from .sparse_attention import sparse_spec
+        _, a = sparse_spec(model, layer)
+        pools = batch * (sequence_length // a["compress_ratio"])
+        width = a["head_dim"] + (a["index_head_dim"] if kind == "CSA" else 0)
+        return {"component": kind, "recurrent_chunk_elements": 0, "chunks": 0,
+                "compressed_pool_elements": pools * width,
+                "selection_index_elements": batch * sequence_length * min(a["index_topk"], sequence_length // a["compress_ratio"]) if kind == "CSA" else 0,
+                "formula": "saved compressed rows and (CSA) selected row indices; projection activations accounted separately",
+                "assumption": "analytical attention backward storage; top-k is nondifferentiable, no indexer auxiliary training loss"}
+    if kind != "KDA":
         return {"component": _kind(model, layer, "attention_by_layer"),
                 "recurrent_chunk_elements": 0, "chunks": 0,
                 "formula": "not a recurrent attention layer"}

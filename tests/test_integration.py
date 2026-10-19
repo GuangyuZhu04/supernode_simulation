@@ -11,6 +11,7 @@ import uuid
 import yaml
 
 from supernode_sim.analysis import compile_graph, run
+from supernode_sim.calibration import apply_kernel_profiles
 from supernode_sim.cli import main
 from supernode_sim.config import Config, deep_merge, import_hf_config, load_config
 from supernode_sim.report import write_report
@@ -207,6 +208,14 @@ class CalibrationIntegrationTests(unittest.TestCase):
         self.assertEqual(matching.work["npu0.hbm"], original.work["npu0.hbm"])
         self.assertEqual(matching.metadata["calibration"]["match"], "exact_work")
         self.assertGreater(graph.metadata["kernel_calibration"]["matched_events"], 0)
+        coverage = graph.metadata["kernel_calibration"]
+        self.assertEqual(coverage["eligible_events"], coverage["matched_events"] + coverage["unmatched_events"])
+        self.assertGreater(coverage["coverage_fraction"], 0)
+        self.assertLess(coverage["coverage_fraction"], 1)
+        self.assertGreater(coverage["by_phase"]["prefill"]["matched_events"], 0)
+        self.assertEqual(coverage["by_phase"]["decode"]["matched_events"], 0)
+        self.assertEqual(graph.metadata["fidelity"]["hardware_performance_by_phase"]["decode"], "uncalibrated")
+        self.assertEqual(graph.metadata["fidelity"]["serving_performance"], "not_validated")
         result = run(data)
         traced = next(row for row in result["simulation"]["trace"] if row["id"] == original.id)
         self.assertAlmostEqual(traced["duration_s"], 0.01)
@@ -219,12 +228,53 @@ class CalibrationIntegrationTests(unittest.TestCase):
         self.assertNotIn("calibration", matching.metadata)
         self.assertEqual(graph.metadata["kernel_calibration"]["matched_events"], 0)
         self.assertIn("attention_dense", graph.metadata["kernel_calibration"]["unmatched_kernels"])
+        self.assertEqual(graph.metadata["fidelity"]["hardware_performance"], "uncalibrated")
+
+    def test_profiles_replace_startup_only_when_explicit(self):
+        original, data = self.calibration_case()
+        for startup in (None, 0.0, 0.003):
+            with self.subTest(startup=startup):
+                graph = compile_graph(specification())
+                event = next(e for e in graph.events if e.id == original.id)
+                event.startup_s = 0.002
+                data["hardware"]["kernel_profiles"]["attention_dense"][0]["startup_s"] = startup
+                apply_kernel_profiles(graph, data)
+                self.assertEqual(event.startup_s, 0.002 if startup is None else startup)
+                self.assertEqual(event.metadata["calibration"]["startup_calibrated"], startup is not None)
+
+    def test_phase_specific_startup_changes_ttft_and_tpot_independently(self):
+        data = specification().model_dump()
+        graph = compile_graph(data)
+        profiles = []
+        for phase in ("prefill", "decode"):
+            event = next(e for e in graph.events if e.metadata.get("kernel") == "attention_dense"
+                         and e.metadata.get("phase") == phase)
+            profiles.append({"flops": event.work["npu0.compute"], "memory_bytes": event.work["npu0.hbm"],
+                             "duration_s": 0.01, "dtype": "fp16", "phase": phase})
+        data["hardware"]["kernel_profiles"] = {"attention_dense": profiles}
+        baseline = run(data)
+        for index, phase in enumerate(("prefill", "decode")):
+            profiles[index]["startup_s"] = 0.003
+            changed = run(data)
+            matched = changed["model_metadata"]["kernel_calibration"]["by_phase"][phase]["matched_events"]
+            metric = "ttft_s" if phase == "prefill" else "tpot_s"
+            unaffected = "tpot_s" if phase == "prefill" else "ttft_s"
+            self.assertAlmostEqual(changed["metrics"][metric] - baseline["metrics"][metric], matched * 0.003)
+            self.assertAlmostEqual(changed["metrics"][unaffected], baseline["metrics"][unaffected])
+            profiles[index].pop("startup_s")
 
     def test_impossible_measured_duration_is_rejected(self):
         _, data = self.calibration_case()
         data["hardware"]["kernel_profiles"]["attention_dense"][0]["duration_s"] = 1e-30
+        data["hardware"]["kernel_profiles"]["attention_dense"][0]["startup_s"] = 10.0
         with self.assertRaisesRegex(ValueError, "physical"):
             compile_graph(data)
+
+    def test_negative_startup_is_rejected(self):
+        _, data = self.calibration_case()
+        data["hardware"]["kernel_profiles"]["attention_dense"][0]["startup_s"] = -1e-6
+        with self.assertRaises(ValueError):
+            Config.model_validate(data)
 
 
 class ArtifactAndCLIIntegrationTests(unittest.TestCase):

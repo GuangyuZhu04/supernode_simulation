@@ -34,6 +34,21 @@ def small_config():
     }
 
 
+@pytest.mark.parametrize('module', ['sparse_attention', 'speculative', 'features'])
+def test_feature_implementation_change_invalidates_checkpoint_fingerprint(monkeypatch, module):
+    from pathlib import Path
+    config = Config.model_validate(small_config())
+    before = reference.fingerprint(config)
+    read_bytes = Path.read_bytes
+
+    def changed(path):
+        content = read_bytes(path)
+        return content + b'\n# different feature implementation\n' if path.name == module + '.py' else content
+
+    monkeypatch.setattr(Path, 'read_bytes', changed)
+    assert reference.fingerprint(config) != before
+
+
 def checkpoint(directory, fingerprint='known-fingerprint'):
     data = {'trace': [{'id': 'first', 'start_s': 0, 'end_s': 1}],
             'memory_log': [{'sequence': 0, 'time_s': 0, 'action': 'allocate',

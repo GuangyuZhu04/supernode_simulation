@@ -15,10 +15,11 @@ import json
 import re
 from typing import Callable
 
-from .analysis import execution_metrics
-from .calibration import apply_kernel_profiles
+from .analysis import execution_metrics, model_fidelity
+from .calibration import apply_kernel_profiles, calibration_summary, merge_calibration_summaries
 from .cache import BoundedCache
 from .config import Config
+from .features import build_feature_plan
 from .core import Allocation, Event, Graph
 from .engine import simulate
 from .structured import Builder
@@ -31,6 +32,8 @@ _PERMANENT = {
     'weight', 'quantization_metadata', 'extra_weight_copy', 'runtime', 'workspace',
     'kv_cache', 'kv_scales', 'page_table', 'recurrent_state', 'convolution_state',
     'lookup_table', 'lookup_cache',
+    'window_elements', 'compressed_pool_elements', 'indexer_pool_elements',
+    'compression_state_elements', 'indexer_compression_state_elements',
 }
 _STEP = re.compile(r'^infer\.d\d+\.(?:s(\d+)\.|token(\d+)$)')
 _PREFIX = re.compile(r'^infer\.d\d+\.s\d+\.l\d+')
@@ -95,6 +98,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
     if phase not in ('all', 'prefill', 'decode'):
         raise ValueError("phase must be 'all', 'prefill', or 'decode'")
     spec = config if isinstance(config, Config) else Config.model_validate(config)
+    if spec.execution.features.speculative_decode.enabled:
+        raise ValueError('Speculative decoding currently requires ordinary simulate; streaming round state is not implemented')
     if spec.workload.scenario != 'inference' or spec.model.architecture is None:
         raise ValueError('Streaming requires structured inference architecture')
     if spec.execution.dp != 1 or spec.execution.pp != 1:
@@ -164,6 +169,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
 
         builder.initial = cached_initial
     component_macros = {}
+    kernel_calibration = calibration_summary()
     phases = {}
     peaks = defaultdict(float)
     categories_at_peak = {}
@@ -234,7 +240,13 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
             event.deps = tuple(dep for dep in event.deps if dep in local_ids)
         chunk = Graph(resources=graph.resources, memory_caps=graph.memory_caps,
                       events=list(sink), initial_allocations=initial_allocations())
-        apply_kernel_profiles(chunk, data)
+        replay = terminal.metadata.get('_stream_replay')
+        if replay:
+            chunk_calibration = replay['kernel_calibration']
+        else:
+            apply_kernel_profiles(chunk, data)
+            chunk_calibration = chunk.metadata['kernel_calibration']
+        merge_calibration_summaries(kernel_calibration, chunk_calibration)
         used_resources = {key for event in chunk.events for key in event.work}
         chunk.resources = {key: chunk.resources[key] for key in used_resources}
         initial_bytes = defaultdict(float)
@@ -246,7 +258,6 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         # precise topology, dependency structure, slot ordering and dtypes stay
         # in the key. Token releases can refer to earlier layers and are cheap,
         # so they deliberately bypass caching.
-        replay = terminal.metadata.get('_stream_replay')
         cache_key = None
         if not replay and (terminal.id.endswith('.layer_done') or terminal.metadata.get('_stream_component')):
             digest = hashlib.sha256()
@@ -336,7 +347,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         survivors = [allocation for event in sink for allocation in event.allocs if allocation.id not in released]
         macro_key = terminal.metadata.get('_stream_macro_key')
         if macro_key is not None and fits and not survivors and not (released & named.keys()):
-            component_macros[macro_key] = {'template': cached, 'communication': traffic}
+            component_macros[macro_key] = {'template': cached, 'communication': traffic,
+                                           'kernel_calibration': chunk_calibration}
         for aid in released:
             named.pop(aid, None)
         for event in sink:
@@ -442,6 +454,9 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
     for phase_result in phases.values():
         phase_result['peak_hbm_bytes'] = max((v for k, v in phase_result['memory_peaks_bytes'].items() if k.endswith('.hbm')), default=0)
         phase_result['communication']['classification_note'] = 'Semantic and collective payloads are two views; physical bytes count link hops.'
+    graph.metadata['kernel_calibration'] = kernel_calibration
+    graph.metadata['fidelity'] = model_fidelity(spec, kernel_calibration)
+    graph.metadata['feature_plan'] = build_feature_plan(spec, kernel_calibration)
     return {
         'status': status, 'execution_mode': 'structured_layer_streaming', 'phase': phase,
         'metrics': metrics, 'phase_metrics': phases, 'chunks': chunks,

@@ -1,0 +1,91 @@
+# Synthetic scheduling/resource example, not measured DSpark or model accuracy.
+schema_version: '1.0'
+model:
+  name: synthetic-dspark-GQA-KDA
+  layers: 2
+  hidden_dim: 16
+  num_heads: 4
+  kv_heads: 2
+  head_dim: 4
+  architecture:
+    vocab_size: 32
+    attention_by_layer: [GQA, KDA]
+    ffn_by_layer: [Dense, Dense]
+    dense_intermediate_dim: 32
+    kda:
+      num_heads: 4
+      head_k_dim: 4
+      head_v_dim: 4
+      gate_low_rank_dim: 4
+      chunk_size: 4
+hardware:
+  name: synthetic-small-device-not-a-product
+  npu_count: 1
+  su_size: 1
+  npus_per_host: 1
+  npu:
+    hbm_bytes: 67108864
+    hbm_Bps: 1000000000
+    flops: {fp16: 1000000000, bf16: 1000000000, fp32: 100000000}
+    efficiency: 1
+    runtime_bytes: 65536
+    workspace_bytes: 4096
+workload:
+  scenario: inference
+  batch_size: 1
+  input_length: 8
+  output_length: 7
+features:
+  speculative_decode:
+    enabled: true
+    method: dspark
+    draft_tokens: 2
+    # Each entry is committed output tokens per synchronized round, including
+    # bonus/replacement tokens. Prefill already emits the first output token.
+    accepted_lengths: [2, 1, 3]
+    acceptance_source:
+      status: assumed
+      description: Handwritten synthetic round counts; not measured acceptance or a token-correctness claim.
+    draft:
+      cost_unit: per_step
+      prefill_cost:
+        flops: 200
+        memory_bytes: 256
+        duration_s: 0.000008
+        source:
+          status: assumed
+          description: Synthetic draft prompt preparation for this entire local batch; included before target prefill.
+      # Full synthetic draft weights/KV/runtime residency for this scenario.
+      resident_bytes_per_rank: 32768
+      workspace_bytes_per_rank: 1024
+      cost:
+        flops: 100
+        memory_bytes: 128
+        duration_s: 0.000005
+        startup_s: 0.000001
+        source:
+          status: assumed
+          description: Synthetic per-rank whole-local-batch cost for one draft position.
+    commit_cost:
+      flops: 10
+      memory_bytes: 32
+      duration_s: 0.000001
+      source:
+        status: assumed
+        description: Synthetic per-rank whole-local-batch accept/commit cost per round.
+    replay_cost:
+      flops: 50
+      memory_bytes: 64
+      duration_s: 0.000002
+      source:
+        status: assumed
+        description: Synthetic state-replay cost per rank on rounds with rejection; not ReplaySSM calibration.
+    snapshot_bytes_per_rank: 128
+sources:
+  '*':
+    status: assumed
+    description: Synthetic target/draft resources and acceptance counts; not a real K3, V4, DSpark or 950DT benchmark.
+assumptions:
+  - DSpark is a selected scheduling method label; acceptance prediction and output-token correctness are not simulated.
+  - Profile-driven costs here are assumed values, not measured timings.
+  - Committed tokens share the model-side round completion timestamp; this is not a client streaming trace.

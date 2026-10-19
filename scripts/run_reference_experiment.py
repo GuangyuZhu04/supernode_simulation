@@ -59,7 +59,8 @@ def fingerprint(config):
     snapshot = config.model_dump()
     snapshot['calibration'] = None
     digest = hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode())
-    for name in ('core', 'config', 'components', 'structured', 'training', 'inference', 'topology', 'engine', 'calibration', 'cache'):
+    for name in ('core', 'config', 'features', 'components', 'sparse_attention', 'speculative',
+                 'structured', 'training', 'inference', 'topology', 'engine', 'calibration', 'cache'):
         digest.update((ROOT / 'supernode_sim' / (name + '.py')).read_bytes())
     return digest.hexdigest()
 

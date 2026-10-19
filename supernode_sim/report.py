@@ -190,6 +190,18 @@ def markdown_report(result: dict) -> str:
             lines += ['', '容量按张量形状推导；激活与耗时仍为解析模型，尚未通过整机实测校准。`feasible` 表示在本模型假设下满足约束，不代表真实整机部署验证。']
         if config['workload']['scenario'] == 'training' and fidelity.get('distributed_muon') == 'not_implemented':
             lines += ['', '**Muon 训练限制：尚未实现分布式 Muon 正交化。当前训练步时间是本地更新与通信的代理模型，不能作为已验证的生产训练性能。**']
+        plan = result.get('model_metadata', {}).get('feature_plan', {})
+        selected = [row for row in plan.get('features', []) if row.get('selected')]
+        if selected:
+            lines += ['', '## 已选择的特性', '', '| 特性 | 建模方式 | 适用边界 |', '|---|---|---|']
+            for row in selected:
+                lines.append(f"| {_safe_cell(row['name'])} | {_safe_cell(row['modeling'])} | {_safe_cell(row.get('notes', ''))} |")
+            lines += ['', '完整选择与实际 kernel 匹配覆盖率见 result.json 的 model_metadata.feature_plan。支持特性表示存在资源/时序模型，不表示已验证提速或精度保持。']
+        speculative = result.get('model_metadata', {}).get('speculative_decode')
+        if speculative:
+            lines += ['', f"投机解码轮次：{speculative['round_count']}；每序列实际输出 token：{speculative['committed_tokens_per_sequence']}；"
+                      f"验证 token：{speculative['verified_tokens_per_sequence']}。接受数来自 `{speculative['acceptance_mode']}`。",
+                      '', '同一轮提交的 token 共用模型完成时间，零轮内间隔不代表客户端观测的逐 token 延迟；该路径并非 DSpark 的算法/质量复现。']
         lines += ['', '## 性能与约束', '', '| 指标 | 数值 |', '|---|---:|']
         labels = {'duration_s': '总执行时间 / s', 'step_time_s': '平均训练步时间 / s', 'ttft_s': '执行 TTFT / s', 'tpot_s': '批内最大平均 TPOT / s', 'throughput_tokens_s': '聚合吞吐 / tokens/s', 'input_throughput_tokens_s': '输入吞吐 / tokens/s', 'throughput_per_replica_tokens_s': '每副本吞吐 / tokens/s'}
         for key, label in labels.items():

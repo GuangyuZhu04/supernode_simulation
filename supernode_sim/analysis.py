@@ -16,13 +16,33 @@ from .topology import Topology
 from .calibration import apply_kernel_profiles
 from .components import inventory_summary
 from .memory_breakdown import build_memory_breakdown
+from .features import build_feature_plan
+
+
+def model_fidelity(config: Config, calibration: dict) -> dict:
+    """Report matched kernel evidence without claiming serving validation."""
+    performance = lambda counts: 'partially_kernel_calibrated' if counts['matched_events'] else 'uncalibrated'
+    return {
+        'parameter_capacity': 'shape_derived' if config.model.architecture else 'declared_budget',
+        'activation_capacity': 'analytical_kernel_layout',
+        'hardware_performance': performance(calibration),
+        'hardware_performance_by_phase': {phase: performance(counts)
+            for phase, counts in calibration['by_phase'].items()},
+        'timing_scope': ('fixed_batch_model_execution' if config.workload.scenario == 'inference'
+                         else 'training_execution'),
+        'serving_performance': 'not_validated' if config.workload.scenario == 'inference' else 'not_applicable',
+        'distributed_muon': 'not_implemented' if config.execution.optimizer.kind == 'muon' else 'not_applicable',
+    }
 
 
 def compile_graph(config: Config | dict) -> Graph:
     spec = config if isinstance(config, Config) else Config.model_validate(config)
     data = spec.model_dump()
     topology = Topology(data['hardware'], data['execution']['precision'])
-    if spec.model.architecture is not None:
+    if spec.execution.features.speculative_decode.enabled:
+        from .speculative import build_speculative
+        graph = build_speculative(data, topology)
+    elif spec.model.architecture is not None:
         from .structured import build_structured
         graph = build_structured(data, topology)
     elif spec.workload.scenario == 'training':
@@ -50,14 +70,10 @@ def compile_graph(config: Config | dict) -> Graph:
     assumptions.extend(spec.assumptions)
     if spec.execution.precision.communication in ('fp8', 'int8'):
         assumptions.append('FP8/INT8 activation communication assumes shared static quantization scales; dynamic per-message scale exchange is not modeled. Weight/KV scale storage and offload metadata are counted separately.')
-    graph.metadata['parameterization'] = ('Shape-derived component tensors with analytical execution kernels; no measured allocator/kernel trace.'
+    graph.metadata['parameterization'] = ('Shape-derived component tensors with analytical execution kernels and optional kernel profiles; no measured allocator trace.'
         if spec.model.architecture else 'Declared parameter budgets with coarse layer kernels; component attribution unavailable without model.architecture.')
-    graph.metadata['fidelity'] = {
-        'parameter_capacity': 'shape_derived' if spec.model.architecture else 'declared_budget',
-        'activation_capacity': 'analytical_kernel_layout',
-        'hardware_performance': 'uncalibrated' if not spec.hardware.kernel_profiles else 'partially_kernel_calibrated',
-        'distributed_muon': 'not_implemented' if spec.execution.optimizer.kind == 'muon' else 'not_applicable',
-    }
+    graph.metadata['fidelity'] = model_fidelity(spec, graph.metadata['kernel_calibration'])
+    graph.metadata['feature_plan'] = build_feature_plan(spec, graph.metadata['kernel_calibration'])
     return graph
 
 

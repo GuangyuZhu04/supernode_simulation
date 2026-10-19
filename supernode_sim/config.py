@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator, model_serializer
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator, model_serializer
 
 DType = Literal['fp4', 'fp8', 'fp16', 'bf16', 'fp32', 'int8']
 Positive = float
@@ -48,6 +48,44 @@ class KDASpec(Spec):
     conv_state_tokens: int | None = Field(default=None, ge=0)
 
 
+class SparseAttentionSpec(Spec):
+    q_lora_rank: int = Field(gt=0)
+    head_dim: int = Field(gt=0)
+    rope_head_dim: int = Field(ge=0)
+    o_groups: int = Field(gt=0)
+    o_lora_rank: int = Field(gt=0)
+    window_size: int = Field(gt=0)
+
+    @model_validator(mode='after')
+    def rotary_width(self):
+        if self.rope_head_dim > self.head_dim:
+            raise ValueError('sparse attention rope_head_dim must not exceed head_dim')
+        return self
+
+
+class CSASpec(SparseAttentionSpec):
+    compress_ratio: Literal[4] = 4
+    index_num_heads: int = Field(gt=0)
+    index_head_dim: int = Field(gt=0)
+    index_topk: int = Field(gt=0)
+
+    @model_validator(mode='after')
+    def index_width(self):
+        if self.index_head_dim < self.rope_head_dim:
+            raise ValueError('CSA index_head_dim must be at least rope_head_dim')
+        return self
+
+
+class HCASpec(SparseAttentionSpec):
+    compress_ratio: int = Field(default=128, gt=1)
+
+    @model_validator(mode='after')
+    def nonoverlapping_ratio(self):
+        if self.compress_ratio == 4:
+            raise ValueError('HCA compress_ratio=4 is unsupported; use CSA for the overlapping ratio-4 layout')
+        return self
+
+
 class MoESpec(Spec):
     num_experts: int = Field(default=1, gt=0)
     top_k: int = Field(default=1, gt=0)
@@ -63,16 +101,28 @@ class MoESpec(Spec):
 class ArchitectureSpec(Spec):
     vocab_size: int = Field(gt=0)
     tie_embeddings: bool = False
-    attention_by_layer: list[Literal['MLA', 'KDA', 'MHA', 'GQA', 'MQA']]
+    attention_by_layer: list[Literal['MLA', 'KDA', 'MHA', 'GQA', 'MQA', 'CSA', 'HCA']]
     ffn_by_layer: list[Literal['Dense', 'MoE']]
     mla: MLASpec = Field(default_factory=MLASpec)
     kda: KDASpec = Field(default_factory=KDASpec)
+    csa: CSASpec | None = None
+    hca: HCASpec | None = None
     moe: MoESpec | None = None
     dense_intermediate_dim: int | None = Field(default=None, gt=0)
     linear_bias: bool = False
     norm_bias: bool = False
     final_norm: bool = True
     attnres_block_size: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode='after')
+    def sparse_dimensions(self):
+        for kind in ('CSA', 'HCA'):
+            if kind in self.attention_by_layer:
+                if getattr(self, kind.lower()) is None:
+                    raise ValueError(f'{kind} layers require explicit architecture.{kind.lower()} dimensions')
+                if self.linear_bias or self.norm_bias:
+                    raise ValueError('CSA/HCA currently require linear_bias=false and norm_bias=false')
+        return self
 
 
 class ModelSpec(Spec):
@@ -199,7 +249,9 @@ class ExplicitLink(Spec):
 class KernelProfile(Spec):
     flops: float = Field(ge=0)
     memory_bytes: float = Field(ge=0)
-    duration_s: float = Field(gt=0)
+    duration_s: float = Field(gt=0, description='Solo kernel service time, excluding startup_s.')
+    startup_s: float | None = Field(default=None, ge=0,
+        description='Optional measured event startup; replaces rather than adds to existing startup.')
     dtype: DType | None = None
     phase: str | None = None
 
@@ -306,6 +358,65 @@ class EngramSpec(Spec):
         return self
 
 
+class SpeculativeCostSpec(Spec):
+    flops: float = Field(default=0, ge=0)
+    memory_bytes: float = Field(default=0, ge=0)
+    duration_s: float | None = Field(default=None, gt=0)
+    startup_s: float = Field(default=0, ge=0)
+    compute_dtype: Literal['fp8', 'fp16', 'bf16', 'fp32'] | None = None
+    source: Source = Field(default_factory=Source)
+
+    @model_validator(mode='after')
+    def supplied_cost(self):
+        if self.duration_s is None and self.flops == 0 and self.memory_bytes == 0:
+            raise ValueError('speculative cost requires positive duration_s, flops or memory_bytes')
+        return self
+
+
+class SpeculativeDraftSpec(Spec):
+    cost: SpeculativeCostSpec
+    cost_unit: Literal['per_step', 'per_round'] = 'per_step'
+    prefilled: StrictBool = False
+    prefill_cost: SpeculativeCostSpec | None = None
+    resident_bytes_per_rank: float = Field(gt=0,
+        description='Complete draft weights, KV and runtime residency per participating rank for this scenario.')
+    workspace_bytes_per_rank: float = Field(default=0, ge=0)
+
+    @model_validator(mode='after')
+    def explicit_prefill_boundary(self):
+        if self.prefilled and self.prefill_cost is not None:
+            raise ValueError('draft.prefilled and draft.prefill_cost are mutually exclusive')
+        return self
+
+
+class SpeculativeDecodeSpec(Spec):
+    enabled: StrictBool = False
+    method: Literal['dspark', 'generic'] = 'dspark'
+    draft_tokens: int = Field(default=7, ge=1)
+    accepted_lengths: list[int] = Field(default_factory=list)
+    accepted_length: int | None = Field(default=None, ge=1)
+    acceptance_source: Source = Field(default_factory=Source)
+    draft: SpeculativeDraftSpec | None = None
+    commit_cost: SpeculativeCostSpec | None = None
+    replay_cost: SpeculativeCostSpec | None = None
+    snapshot_bytes_per_rank: float = Field(default=0, ge=0,
+        description='Extra temporary snapshot storage beyond automatic target recurrent/compression-state snapshots.')
+
+    @model_validator(mode='after')
+    def acceptance_and_draft(self):
+        if any(value < 1 or value > self.draft_tokens + 1 for value in self.accepted_lengths):
+            raise ValueError('accepted_lengths must contain committed token counts in [1, draft_tokens + 1], including bonus tokens')
+        if self.accepted_length is not None and self.accepted_length > self.draft_tokens + 1:
+            raise ValueError('accepted_length must not exceed draft_tokens + 1')
+        if self.accepted_lengths and self.accepted_length is not None:
+            raise ValueError('use accepted_lengths or accepted_length, not both')
+        if self.enabled and (self.draft is None or not (self.accepted_lengths or self.accepted_length is not None)):
+            raise ValueError('enabled speculative_decode requires draft cost/residency and accepted_lengths or accepted_length')
+        if self.enabled and not self.draft.prefilled and self.draft.prefill_cost is None:
+            raise ValueError('enabled speculative_decode requires draft.prefill_cost or explicit draft.prefilled=true; draft prompt preparation cannot be free')
+        return self
+
+
 class FeatureSpec(Spec):
     optimizer_offload: bool = False
     activation_checkpointing: bool = False
@@ -318,6 +429,7 @@ class FeatureSpec(Spec):
     kv_scale_block: int = Field(default=128, gt=0)
     extra_weight_copy_dtype: DType | None = None
     engram: EngramSpec = Field(default_factory=EngramSpec)
+    speculative_decode: SpeculativeDecodeSpec = Field(default_factory=SpeculativeDecodeSpec)
 
 
 class ExecutionSpec(Spec):
@@ -343,6 +455,59 @@ class ParallelCandidate(Spec):
     dp: int = Field(default=1, gt=0)
     fsdp: int = Field(default=1, gt=0)
     rank_order: list[int] = Field(default_factory=list)
+
+
+class KVOffloadSelection(Spec):
+    location: Literal['none', 'host', 'remote'] = 'none'
+    fraction: float = Field(default=1, ge=0, le=1)
+    page_tokens: int = Field(default=16, gt=0)
+    page_entry_bytes: int = Field(default=8, gt=0)
+
+
+class FSDPSelection(Spec):
+    degree: int = Field(default=1, gt=0)
+    reshard_after_forward: StrictBool = True
+    sync_each_microbatch: StrictBool = False
+    prefetch: StrictBool = False
+
+
+class ParallelismSelection(Spec):
+    tp: int = Field(default=1, gt=0)
+    pp: int = Field(default=1, gt=0)
+    ep: int = Field(default=1, gt=0)
+    dp: int = Field(default=1, gt=0)
+    rank_order: list[int] = Field(default_factory=list)
+
+
+class QuantizationSelection(Spec):
+    weight_scale_block: int = Field(default=128, gt=0)
+    kv_scale_block: int = Field(default=128, gt=0)
+    scale_bytes: int = Field(default=4, gt=0)
+    extra_weight_copy_dtype: DType | None = None
+
+
+class AttentionSelection(Spec):
+    attention_by_layer: list[Literal['MLA', 'KDA', 'MHA', 'GQA', 'MQA', 'CSA', 'HCA']] | None = None
+    mla: MLASpec | None = None
+    kda: KDASpec | None = None
+    csa: CSASpec | None = None
+    hca: HCASpec | None = None
+
+
+class FeatureSelectionSpec(Spec):
+    precision: PrecisionSpec | None = None
+    activation_checkpointing: StrictBool | None = None
+    optimizer_offload: StrictBool | None = None
+    kv_offload: KVOffloadSelection | None = None
+    sequence_parallel: StrictBool | None = None
+    fsdp: FSDPSelection | None = None
+    parallelism: ParallelismSelection | None = None
+    optimizer: OptimizerSpec | None = None
+    engram: EngramSpec | None = None
+    quantization: QuantizationSelection | None = None
+    attention: AttentionSelection | None = None
+    speculative_decode: SpeculativeDecodeSpec | None = None
+    kernel_profiles: dict[str, list[KernelProfile]] | None = None
 
 
 class TargetSpec(Spec):
@@ -375,6 +540,16 @@ class Config(Spec):
     sources: dict[str, Source] = Field(default_factory=lambda: {'*': Source()})
     assumptions: list[str] = Field(default_factory=list)
     calibration: str | None = None
+    features: FeatureSelectionSpec | None = Field(default=None, exclude=True,
+        description='Optional feature input expanded into canonical execution/model/hardware fields; omitted from resolved output.')
+
+    @model_validator(mode='before')
+    @classmethod
+    def expand_feature_selection(cls, data):
+        if isinstance(data, dict) and data.get('features') is not None:
+            from .features import resolve_feature_input
+            return resolve_feature_input(data)
+        return data
 
     @model_validator(mode='after')
     def consistency(self):
@@ -408,6 +583,18 @@ class Config(Spec):
                 raise ValueError('Shape-derived attention requires num_heads divisible by TP')
             if 'KDA' in m.architecture.attention_by_layer and m.architecture.kda.num_heads % e.tp:
                 raise ValueError('Shape-derived KDA heads must be divisible by TP')
+            for kind in ('CSA', 'HCA'):
+                if kind not in m.architecture.attention_by_layer:
+                    continue
+                sparse = getattr(m.architecture, kind.lower())
+                if sparse is None:
+                    raise ValueError(f'{kind} layers require explicit architecture.{kind.lower()} dimensions')
+                if m.architecture.linear_bias or m.architecture.norm_bias:
+                    raise ValueError('CSA/HCA currently require linear_bias=false and norm_bias=false')
+                if m.num_heads % sparse.o_groups or sparse.o_groups % e.tp:
+                    raise ValueError(f'{kind} requires num_heads divisible by o_groups and o_groups divisible by TP')
+                if kind == 'CSA' and sparse.index_num_heads % e.tp:
+                    raise ValueError('CSA index_num_heads must be divisible by TP')
         if e.pp > m.layers:
             raise ValueError('pp must not exceed model.layers')
         if m.num_experts % e.ep:
@@ -417,6 +604,26 @@ class Config(Spec):
         if e.precision.compute not in h.npu.flops:
             raise ValueError('NPU profile must specify FLOPs for the selected compute dtype')
         f = e.features
+        if m.architecture and any(kind in ('CSA', 'HCA') for kind in m.architecture.attention_by_layer):
+            if e.precision.kv != e.precision.compute:
+                raise ValueError('CSA/HCA currently require KV dtype equal to compute dtype; mixed-precision sparse cache conversion is not modeled')
+            if f.kv_offload != 'none':
+                raise ValueError('CSA/HCA currently require kv_offload=none; sparse window/pool offload is not modeled')
+        speculative = f.speculative_decode
+        if speculative.enabled:
+            if self.workload.scenario != 'inference' or m.architecture is None:
+                raise ValueError('speculative_decode currently requires structured inference')
+            if e.dp != 1 or e.pp != 1:
+                raise ValueError('speculative_decode currently requires DP=PP=1')
+            if len(set(self.workload.input_lengths)) != 1 or len(set(self.workload.output_lengths)) != 1:
+                raise ValueError('speculative_decode currently requires uniform input and output lengths')
+            if min(self.workload.output_lengths) < 2 or self.workload.batch_size % e.ep:
+                raise ValueError('speculative_decode requires output lengths >=2 and batch_size divisible by EP')
+            if f.kv_offload != 'none':
+                raise ValueError('speculative_decode currently requires kv_offload=none; block verification offload is not modeled')
+            for cost in (speculative.draft.cost, speculative.draft.prefill_cost, speculative.commit_cost, speculative.replay_cost):
+                if cost is not None and cost.compute_dtype is not None and cost.compute_dtype not in h.npu.flops:
+                    raise ValueError('NPU profile must specify FLOPs for speculative cost compute_dtype')
         if f.kv_offload == 'remote' or (f.engram.enabled and f.engram.location == 'remote'):
             if not h.remote.enabled:
                 raise ValueError('remote memory feature requires hardware.remote.enabled')
@@ -459,7 +666,7 @@ def deep_merge(base: dict, patch: dict) -> dict:
     return result
 
 
-def load_config(path: str | Path) -> Config:
+def load_config(path: str | Path, features: str | Path | dict | None = None) -> Config:
     path = Path(path)
     data = read_data(path)
     if data.get('calibration'):
@@ -469,6 +676,10 @@ def load_config(path: str | Path) -> Config:
             raise ValueError('calibration accepts hardware overrides and source only')
         data['hardware'] = deep_merge(data.get('hardware', {}), calibration.get('hardware', {}))
         data.setdefault('sources', {})['hardware.calibration'] = calibration.get('source', {'status': 'user', 'description': 'External calibration overrides', 'uri': str(source)})
+    if features is not None:
+        from .features import merge_feature_selections
+        supplied = read_data(features) if isinstance(features, (str, Path)) else features
+        data['features'] = merge_feature_selections(data.get('features'), supplied)
     return Config.model_validate(data)
 
 

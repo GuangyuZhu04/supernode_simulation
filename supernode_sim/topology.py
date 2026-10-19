@@ -337,7 +337,7 @@ class Topology:
                                            "algorithm": "pairwise" if kind == "all_to_all_v" else "ring",
                                            "communicator": list(ranks), "round": step})
                     allocations = tuple(Allocation(f"{eid}.{role}", self.memory_for(node), amount,
-                                                   "communication_buffer", self.precision.get("communication", "fp16"))
+                                                   "communication_buffer", (metadata or {}).get("buffer_dtype", self.precision.get("communication", "fp16")))
                                         for role, node in (("send", src), ("recv", dst)))
                     event.allocs = allocations
                     event.releases = tuple(alloc.id for alloc in allocations)

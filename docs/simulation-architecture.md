@@ -2,7 +2,7 @@
 
 系统以 `supernode-modeling` skill 为交互入口，以 `supernode_sim` 为数值内核，将模型、负载、并行策略与 SU/SO 拓扑统一编译为资源事件图，分析存储、计算、通信需求及 SLO。整体采用“Skill 编排 + 严格配置 + 统一中间表示 + 解析下界 / 离散事件执行 + 可追溯报告”的分层架构。
 
-设计基线：当前仓库实现；更新日期：2026-10-09；引擎版本：`0.1.0`；配置与结果 schema：`1.0`。适用读者为模型与网络架构分析人员、仿真引擎开发者和 Skill 维护者。第 11 节列出演进建议，其余章节描述当前能力及使用约束。
+设计基线：当前仓库实现；更新日期：2026-10-19；引擎版本：`0.1.0`；配置与结果 schema：`1.0`。适用读者为模型与网络架构分析人员、仿真引擎开发者和 Skill 维护者。第 11 节列出演进建议，其余章节描述当前能力及使用约束。
 
 配套文件：[函数级仿真流程图](simulation-function-flows.md)。图中区分真实函数调用、函数内部控制流和运行时事件依赖；各张图也提供独立 `.mmd` 源文件。
 
@@ -26,7 +26,11 @@
 | 支持复现与校准 | 解析后配置、来源、假设、版本和输出明细 | 数值由代码执行，Skill 解释实际输出 |
 | 支持按模块扩展 | 统一 Graph、组件公式、拓扑映射和报告接口 | 新能力进入引擎与对应验证点 |
 
-原始需求中的 Agentic Serving、PD 分离、投机推理和 expert offload 尚未形成当前执行模型；不能把需求草稿中的特性列表视为已实现能力。当前推理分析针对固定 batch，训练分析针对声明的训练步与执行策略。
+原始需求中的 Agentic Serving、PD 分离和 expert offload 尚未形成当前执行模型。投机推理现支持显式成本与接受数驱动的同步 batch 轮次模型，不复现具体 DSpark 算法。当前推理分析针对固定 batch，训练分析针对声明的训练步与执行策略。
+
+可选特性输入采用顶层 `features` 或 CLI `--features`：`features.resolve_feature_input` 在严格配置验证前展开为 canonical 字段，重复字段冲突会报错，resolved config 不保留输入简写。`feature_catalog` 给出能力清单，`build_feature_plan` 写入结果和报告。完整字段及可重跑小示例见 [features 说明](../skills/supernode-modeling/references/features.md)。
+
+`sparse_attention.py` 实现 CSA/HCA 参数之外的 attention、indexer、压缩、选择及状态模型，`components.py` 提供相应参数/activation/保存状态，`structured.py` 将其映射至计算、HBM、TP collective 和生命周期。`speculative.py` 提供草稿准备、draft/verify/accept/replay/commit 计划，借助 `Builder.inference` 的轮次 hook 构图，再使用统一 `analysis`/`engine` 执行。普通图支持该投机路径；streaming 当前明确拒绝。该路径支持等长同步 batch、DP=PP=1，不含在线请求调度或完整 V4 的 mHC/indexer 辅助训练目标。
 
 ### 1.2 核心概念
 
@@ -391,7 +395,7 @@ python -m supernode_sim simulate examples/demo_inference.yaml -o outputs/demo-in
 | 新报表视图 | memory_breakdown / report；保持并发峰值的可加性口径 |
 | 新 Skill 分析场景 | SKILL.md 与 references；数值规则仍应进入引擎和测试 |
 
-当前限制包括：无 PD 分离、投机推理、expert offload、连续请求排队/P99、包级与周期级模拟。原生 Clos/Fat-tree 模板使用简化单 spine；拓扑子 skill 编译器支持配置多个 spine 及上联共享约束，但仍使用确定性单路径，不模拟 ECMP。MoE 默认均匀路由，稀疏 decode 权重读取按期望触达专家估算。缓存/MTE 输出是工作集和搬运需求，不可直接解释为精确 L1/L2/L3 容量或硬件通道数。
+当前限制包括：无 PD 分离、expert offload、连续请求排队/P99、包级与周期级模拟；投机仅有输入接受数的同步轮次模型。原生 Clos/Fat-tree 模板使用简化单 spine；拓扑子 skill 编译器支持配置多个 spine 及上联共享约束，但仍使用确定性单路径，不模拟 ECMP。MoE 默认均匀路由，稀疏 decode 权重读取按期望触达专家估算。缓存/MTE 输出是工作集和搬运需求，不可直接解释为精确 L1/L2/L3 容量或硬件通道数。
 
 配置显式拒绝的组合还包括：无 architecture 的 Muon、结构化 FSDP lookahead prefetch、跨 PP 的 tied embedding 和 AttnRes、非权重状态使用 FP4。MLA compressed/expanded 改变容量和访存模型，不表示两种实际 kernel 均已校准。
 
@@ -424,7 +428,7 @@ python -m supernode_sim simulate examples/demo_inference.yaml -o outputs/demo-in
 | P1 | kernel 与 collective 校准完善 | 保留实测工作量、环境与来源，建立独占服务时间及共享资源情形的校准案例 |
 | P2 | 大图事件压缩或流式执行 | 优化 ring 展开与常驻记录规模，以小图等价性验证容量、时序和流量守恒 |
 | P2 | 服务化任务管理 | 在现有 Python API 外封装任务状态、独立 worker、产物与取消机制，保留底层配置契约 |
-| P3 | 动态 serving 与新优化特性 | 新增请求到达、连续 batching、PD / 投机 / expert offload 的事件语义，再扩展指标与搜索 |
+| P3 | 动态 serving 与新优化特性 | 新增请求到达、连续 batching、PD / expert offload，扩展投机变长请求与实测接受分布，再扩展指标与搜索 |
 
 新执行特性应先确定张量和通信语义，再补配置、事件依赖、分配 / 释放、指标和校准验证。新增 SLO 或剪枝规则需说明其时间窗口，并验证是必要条件；不能仅在报告中添加名称就视为实现。
 

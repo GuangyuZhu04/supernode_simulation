@@ -8,6 +8,10 @@
 
 这是预加载权重后的固定 batch 执行：完成的序列退出 decode，但没有新请求到达，不模拟 continuous batching、服务排队或冷启动权重加载。
 
+默认逐 token autoregressive decode；可通过 [features](features.md) 选择 `speculative_decode` 的 draft/verify/commit 轮次模型。该模式要求同步等长 batch、DP=PP=1、显式草稿成本/状态与接受数，不预测接受概率或输出正确性。普通图支持，streaming 显式拒绝。
+
+需要与真机 TTFT/TPOT 对齐时先读 [runtime-calibration.md](runtime-calibration.md)，统一客户端/引擎边界、batch/并发、统计窗口与软件路径。用户写 TPOP 时明确按 TPOT 理解。Kimi K3 的 DSpark 公开性能点见 [kimi-k3-runtime-evidence.md](kimi-k3-runtime-evidence.md)，不将投机吞吐折算值当作本引擎普通 decode 的实测。
+
 - TTFT：执行开始到首个输出 token 完成；报告中聚合 TTFT 取批内序列的最大值。
 - TPOT：每序列首 token 之后的平均完成间隔；聚合值取这些序列平均值的最大值，并保留逐 token 间隔。
 - `throughput_tokens_s` 为所有 DP 副本输出 tokens/s；输入吞吐另报，分母均为整次执行时间。
@@ -19,9 +23,13 @@
 
 混合 MLA/KDA 使用 `model.architecture.attention_by_layer`，不对全部层套用同一个 `attention_kind`。KDA 保存序列长度无关的 recurrent matrix 和短卷积状态，MLA 才按序列长度增加 latent KV。Kimi K3 参数和精度样例见 [ascend950-kimi-k3.md](ascend950-kimi-k3.md)，按组件输出见 [memory-breakdown.md](memory-breakdown.md)。
 
+结构化路径还支持显式 `CSA`/`HCA` 及对应维度。它们按滑窗、序列压缩池、CSA indexer/top-k 和压缩状态建模，不是 `latent` 的别名。当前 KV 与 compute dtype 必须相同且不支持 sparse KV offload；具体限制见 [attention feature](features.md#attentioncsahcakda-显式结构)。通用 HF 导入不会自动复原完整 V4，不能仅改模型名称。
+
 `execution.precision.kv` 决定元素字节数；`execution.features.kv_page_tokens`, `kv_page_entry_bytes`, `kv_scale_block`, `scale_bytes` 决定分页和 FP8/int8 元数据。逻辑容量、分页填充、page table、scale 分开核算。
 
 `execution.features.kv_offload` 为 `none/host/remote`，`kv_offload_fraction` 为卸载比例。`remote` 要求 `hardware.remote.enabled: true`。KV 增长按增量申请存储，decode 读取仍活跃序列的缓存；取回缓冲需要保持到使用它的 kernel 完成。
+
+decode 的“KV 命中率”须区分跨请求 prefix reuse、设备 KV 页驻留和 L2 等硬件缓存。现有 offload fraction 是静态放置比例，不是动态 page hit rate；prefix caching、抢占/淘汰/重算及 L2 命中当前没有建模。HBM 中已有的 KV 仍占读带宽；不能给所有 decode 时间统一乘 `(1-hit_rate)`。MLA KV 与 KDA recurrent/conv state 分开分析，详见 [三种缓存问题](runtime-calibration.md#decode-中的三种缓存问题)。
 
 ## n-gram / Engram
 

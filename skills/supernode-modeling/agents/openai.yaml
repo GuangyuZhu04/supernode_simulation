@@ -1,4 +1,4 @@
 interface:
   display_name: "超节点资源与通信建模"
-  short_description: "输入SO域与SU/SO拓扑，生成网络并建模训练推理的资源及SLO可行性"
-  default_prompt: "使用 $supernode-modeling 分析我的模型、硬件、scale-out域、SU/SO拓扑和负载，按需从自然语言生成拓扑，再计算资源需求与通信瓶颈。"
+  short_description: "选择训练推理加速特性，建模SU/SO资源、DSpark及稀疏attention"
+  default_prompt: "使用 $supernode-modeling 按我的模型、硬件、拓扑和负载选择可选features，比较资源与TTFT/TPOT，并说明实测校准和支持边界。"

@@ -20,6 +20,8 @@ class StreamingInferenceTests(unittest.TestCase):
                 self.assertAlmostEqual(actual['simulation'][key].get(resource, 0), expected[key].get(resource, 0),
                     delta=max(1e-7, abs(expected[key].get(resource, 0)) * 1e-10), msg=(key, resource))
         if expected['status'] == 'feasible':
+            self.assertEqual(actual['model_metadata']['kernel_calibration'], graph.metadata['kernel_calibration'])
+            self.assertEqual(actual['model_metadata']['fidelity'], graph.metadata['fidelity'])
             metrics = execution_metrics(config, graph, expected)
             for metric in ('ttft_s', 'tpot_s'):
                 self.assertAlmostEqual(actual['metrics'][metric], metrics[metric], places=12)
@@ -120,6 +122,33 @@ class StreamingInferenceTests(unittest.TestCase):
         prefill = run_streaming(config, phase='prefill')
         self.assertAlmostEqual(prefill['metrics']['ttft_s'], expected['metrics']['ttft_s'], places=12)
         self.assertIsNone(prefill['metrics']['tpot_s'])
+
+    def test_kernel_startup_and_coverage_match_full_graph_and_cache(self):
+        patch = {'workload': {'scenario': 'inference', 'output_length': 3},
+                 'hardware': {'npu_count': 2, 'su_size': 2}, 'execution': {'tp': 2}}
+        graph = compile_graph(configuration(patch))
+        event = next(e for e in graph.events if e.metadata.get('kernel') == 'kda'
+                     and e.metadata.get('phase') == 'prefill')
+        key = next(key for key in event.work if '.compute' in key)
+        node = key.split('.')[0]
+        patch['hardware']['kernel_profiles'] = {'kda': [{
+            'flops': event.work[key], 'memory_bytes': event.work[node + '.hbm'],
+            'duration_s': 0.01, 'startup_s': 0.002, 'dtype': 'fp16', 'phase': 'prefill'}]}
+        config, _, expected = self.compare(patch)
+        cache = {}
+        run_streaming(config, cache=cache)
+        cached = run_streaming(config, cache=cache)
+        self.assertTrue(any(row['timing_cache_hit'] for row in cached['chunks']))
+        self.assertEqual(cached['metrics'], expected['metrics'])
+        self.assertEqual(cached['model_metadata']['kernel_calibration'], expected['model_metadata']['kernel_calibration'])
+        prefill = run_streaming(config, phase='prefill')
+        decode = run_streaming(config, phase='decode')
+        self.assertIsNone(decode['metrics']['ttft_s'])
+        self.assertIsNone(prefill['metrics']['tpot_s'])
+        self.assertEqual(decode['model_metadata']['fidelity']['hardware_performance'], 'uncalibrated')
+        self.assertNotIn('prefill', decode['model_metadata']['kernel_calibration']['by_phase'])
+        self.assertEqual(prefill['model_metadata']['kernel_calibration']['matched_events'],
+                         expected['model_metadata']['kernel_calibration']['matched_events'])
 
     def test_sequence_parallel_components_and_seeded_decode_match_full_graph(self):
         config, _, all_result = self.compare({'workload': {'scenario': 'inference', 'output_length': 3},

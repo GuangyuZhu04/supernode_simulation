@@ -1,0 +1,38 @@
+# Deliberately incomplete alone: supply synthetic-attention-features.yaml via --features.
+# The attention layer map belongs exclusively to that feature input to avoid conflicts.
+schema_version: '1.0'
+model:
+  name: synthetic-CSA-HCA-KDA-hypothesis
+  layers: 3
+  hidden_dim: 16
+  num_heads: 4
+  kv_heads: 2
+  head_dim: 4
+  architecture:
+    vocab_size: 32
+    ffn_by_layer: [Dense, Dense, Dense]
+    dense_intermediate_dim: 32
+hardware:
+  name: synthetic-small-device-not-a-product
+  npu_count: 1
+  su_size: 1
+  npus_per_host: 1
+  npu:
+    hbm_bytes: 67108864
+    hbm_Bps: 1000000000
+    flops: {fp16: 1000000000, bf16: 1000000000, fp32: 100000000}
+    efficiency: 1
+    runtime_bytes: 65536
+    workspace_bytes: 4096
+workload:
+  scenario: inference
+  batch_size: 1
+  input_length: 16
+  output_length: 4
+sources:
+  '*':
+    status: assumed
+    description: Synthetic three-layer architecture hypothesis and synthetic device; no real K3/V4/950DT performance claim.
+assumptions:
+  - The CSA/HCA/KDA combination changes model architecture and has no asserted quality equivalence to a baseline.
+  - HCA compression ratio 8 is a small synthetic setting, not a claim about any published model.
