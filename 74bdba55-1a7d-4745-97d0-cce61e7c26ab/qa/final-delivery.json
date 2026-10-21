@@ -1,0 +1,24 @@
+{
+  "delivered": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\presentations\\kimi-k3-10t-brief-20261020-v2.pptx",
+  "sha256": "adbeedf63e514aca3fc9ec1a5c63e5c3efebce54952dd9756ec7b1286419b395",
+  "bytes": 115901,
+  "slides": 6,
+  "original_slides_preserved": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "new_latency_slide": 6,
+  "original_content_parts_byte_identical": 53,
+  "original_five_slides_pixel_identical": true,
+  "source_pptx_unmodified": true,
+  "latency_values_checked": 60,
+  "full_precision_stage_sums_checked": 12,
+  "svg_syntax_layout_red_notes": "passed; zero errors/warnings",
+  "native_editable_shapes": true,
+  "new_slide_speaker_notes": true,
+  "native_office_render": "WPS Presentation, read-only,1600x900; new slide inspected and original five compared pixelwise",
+  "preview": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\presentations\\kimi-k3-10t-brief-20261020-v2-latency.png"
+}

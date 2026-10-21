@@ -1,0 +1,107 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="微软雅黑">
+  <g id="background"><rect x="0" y="0" width="1280" height="720" fill="#FFFFFF" /></g>
+  <g id="page-header">
+    <text x="50" y="50" font-size="28" font-weight="bold" fill="#C00000">10T 推理需同时满足显存峰值、HBM 带宽与低时延互联</text>
+    <text x="50" y="77" font-size="12" fill="#666666">02 基线集群要求 · 原并行配置的资源锚点；1M、batch=1、top-32、output=2</text>
+  </g>
+  <g id="core-band">
+    <rect x="50" y="96" width="1180" height="62" rx="4" fill="#FFF1EF" stroke="#C00000" stroke-width="1.5" />
+    <g transform="translate(70.0, 115.0) scale(1.375)" fill="#C00000">
+    <path d="M8.16923 2.00234C8.11301 2.00078 8.0566 2 8 2C4.68629 2 2 4.68629 2 8C2 11.3137 4.68629 14 8 14C11.3137 14 14 11.3137 14 8C14 7.9434 13.9992 7.88699 13.9977 7.83077L15.7642 6.06422C15.9182 6.68407 16 7.33249 16 8C16 12.4183 12.4183 16 8 16C3.58172 16 0 12.4183 0 8C0 3.58172 3.58172 0 8 0C8.66751 0 9.31593 0.0817526 9.93578 0.235791L8.16923 2.00234Z" />
+    <path d="M4 7.99996C4 6.13612 5.27477 4.57002 7 4.12598V6.26752C6.4022 6.61333 6 7.25968 6 7.99996C6 9.10453 6.89543 9.99996 8 9.99996C8.74028 9.99996 9.38663 9.59776 9.73244 8.99996H11.874C11.4299 10.7252 9.86384 12 8 12C5.79086 12 4 10.2091 4 7.99996Z" />
+    <path d="M14 2L13 0L10 3V4.58579L7.79289 6.79289L9.20711 8.20711L11.4142 6H13L16 3L14 2Z" />
+  </g><text x="104" y="132" font-size="15" font-weight="bold" fill="#C00000">核心思想</text>
+    <line x1="180" y1="110" x2="180" y2="146" stroke="#F1B4B7" stroke-width="1" />
+    <text x="200" y="132" font-size="15" font-weight="bold" fill="#1D1D1A"><tspan fill="#C00000">1024 卡 TP32×EP32</tspan>，SP32共用TP；PP=DP=1为基线，最新并行扫描见后两页</text>
+  </g>
+  <g id="memory-requirement">
+    <rect x="50" y="172" width="380" height="360" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1" />
+    <rect x="50" y="172" width="380" height="40" fill="#F2F2F2" />
+    <g transform="translate(69.0, 182.0) scale(1.25)" fill="#C00000">
+    <path d="M13.1371 6.91018C13.4184 6.7695 13.7123 6.59981 14 6.40001V8C14 9.65685 11.3137 11 8 11C4.68629 11 2 9.65685 2 8V6.40001C2.28772 6.59981 2.58158 6.7695 2.86293 6.91018C4.28096 7.61919 6.09998 8 8 8C9.90002 8 11.719 7.61919 13.1371 6.91018Z" />
+    <path d="M2 11.4V13C2 14.6569 4.68629 16 8 16C11.3137 16 14 14.6569 14 13V11.4C13.7123 11.5998 13.4184 11.7695 13.1371 11.9102C11.719 12.6192 9.90002 13 8 13C6.09998 13 4.28096 12.6192 2.86293 11.9102C2.58158 11.7695 2.28772 11.5998 2 11.4Z" />
+    <path d="M8 0C11.3137 0 14 1.34315 14 3C14 4.65685 11.3137 6 8 6C4.68629 6 2 4.65685 2 3C2 1.34315 4.68629 0 8 0Z" />
+  </g><text x="101" y="198" font-size="15" font-weight="bold" fill="#1D1D1A">显存：按物理副本与阶段峰值预算</text>
+    <text x="70" y="271" font-size="42" font-weight="bold" fill="#C00000">61.44<tspan font-size="15" fill="#1D1D1A"> GB/卡</tspan></text>
+    <text x="70" y="298" font-size="15" fill="#1D1D1A">F 完整请求的每卡显存峰值</text>
+    <line x1="70" y1="318" x2="410" y2="318" stroke="#D9D9D9" stroke-width="1" />
+    <text x="70" y="346" font-size="12" fill="#1D1D1A">逻辑 FP8 权重</text>
+    <text x="410" y="346" text-anchor="end" font-size="15" font-weight="bold" fill="#1D1D1A">10.17 TB</text>
+    <line x1="70" y1="359" x2="410" y2="359" stroke="#D9D9D9" stroke-width="1" />
+    <text x="70" y="387" font-size="12" fill="#1D1D1A">集群物理权重 + scale</text>
+    <text x="410" y="387" text-anchor="end" font-size="15" font-weight="bold" fill="#1D1D1A">19.88 TB</text>
+    <line x1="70" y1="400" x2="410" y2="400" stroke="#D9D9D9" stroke-width="1" />
+    <text x="70" y="428" font-size="12" fill="#1D1D1A">每卡 runtime + workspace</text>
+    <text x="410" y="450" text-anchor="end" font-size="15" font-weight="bold" fill="#1D1D1A">8 GB + 256 MB</text>
+    <text x="70" y="491" font-size="15" font-weight="bold" fill="#1D1D1A">实际峰值 ≠ 逻辑容量均分</text>
+    <text x="70" y="515" font-size="10.5" fill="#666666">峰值含副本、缓存、临时缓冲及运行时开销</text>
+  </g>
+  <g id="compute-bandwidth-requirement">
+    <rect x="450" y="172" width="380" height="360" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1" />
+    <rect x="450" y="172" width="380" height="40" fill="#F2F2F2" />
+    <g transform="translate(469.0, 182.0) scale(1.25)" fill="#C00000">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 2H0V7H16V2ZM4 4.5C4 5.05228 3.55228 5.5 3 5.5C2.44772 5.5 2 5.05228 2 4.5C2 3.94772 2.44772 3.5 3 3.5C3.55228 3.5 4 3.94772 4 4.5Z" />
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 9H0V14H16V9ZM3 12.5C3.55228 12.5 4 12.0523 4 11.5C4 10.9477 3.55228 10.5 3 10.5C2.44772 10.5 2 10.9477 2 11.5C2 12.0523 2.44772 12.5 3 12.5Z" />
+  </g><text x="501" y="198" font-size="15" font-weight="bold" fill="#1D1D1A">计算与访存：分阶段配置资源</text>
+    <text x="470" y="241" font-size="12" fill="#666666">每卡规格</text>
+    <text x="650" y="241" text-anchor="middle" font-size="12" font-weight="bold" fill="#1D1D1A">950DT</text>
+    <text x="761" y="241" text-anchor="middle" font-size="12" font-weight="bold" fill="#1D1D1A">960DT</text>
+    <line x1="470" y1="252" x2="810" y2="252" stroke="#D9D9D9" stroke-width="1" />
+    <text x="470" y="277" font-size="12" fill="#1D1D1A">HBM 容量</text>
+    <text x="650" y="277" text-anchor="middle" font-size="12" fill="#1D1D1A">144 GB</text>
+    <text x="761" y="277" text-anchor="middle" font-size="12" fill="#1D1D1A">288 GB</text>
+    <line x1="470" y1="289" x2="810" y2="289" stroke="#D9D9D9" stroke-width="1" />
+    <text x="470" y="314" font-size="12" fill="#1D1D1A">HBM 带宽</text>
+    <text x="650" y="314" text-anchor="middle" font-size="12" fill="#1D1D1A">4 TB/s</text>
+    <text x="761" y="314" text-anchor="middle" font-size="12" fill="#1D1D1A">9.6 TB/s</text>
+    <line x1="470" y1="326" x2="810" y2="326" stroke="#D9D9D9" stroke-width="1" />
+    <text x="470" y="351" font-size="12" fill="#1D1D1A">FP8 标称峰值</text>
+    <text x="650" y="351" text-anchor="middle" font-size="12" fill="#1D1D1A">1 PFLOP/s</text>
+    <text x="761" y="351" text-anchor="middle" font-size="12" fill="#1D1D1A">2 PFLOP/s</text>
+    <text x="470" y="375" font-size="10.5" fill="#666666">两平台计算效率均假设 50%</text>
+    <text x="470" y="422" font-size="38" font-weight="bold" fill="#C00000">8.34<tspan font-size="15" fill="#1D1D1A"> TB/步</tspan></text>
+    <text x="470" y="447" font-size="15" fill="#1D1D1A">decode 集群累计 HBM 读写</text>
+    <text x="470" y="483" font-size="12" fill="#1D1D1A">prefill 计算量：1.611 EFLOP</text>
+    <text x="470" y="515" font-size="10.5" fill="#666666">HBM 读写量为累计流量，不是存储容量</text>
+  </g>
+  <g id="network-requirement">
+    <rect x="850" y="172" width="380" height="360" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1" />
+    <rect x="850" y="172" width="380" height="40" fill="#F2F2F2" />
+    <g transform="translate(869.0, 182.0) scale(1.25)" fill="#C00000">
+    <path d="M10 8H9V4.8198L5.15728 4.05126C4.98683 4.01717 4.81343 4 4.63961 4C3.18179 4 2 5.18179 2 6.63961V9H0V6.63961C0 4.07722 2.07722 2 4.63961 2C4.94514 2 5.24992 2.03018 5.54951 2.0901L9 2.7802V0H10L14 4L10 8Z" />
+    <path d="M16 7V9.36039C16 11.9228 13.9228 14 11.3604 14C11.0549 14 10.7501 13.9698 10.4505 13.9099L7 13.2198V16H6L2 12L6 8H7V11.1802L10.8427 11.9487C11.0132 11.9828 11.1866 12 11.3604 12C12.8182 12 14 10.8182 14 9.36039V7H16Z" />
+  </g><text x="901" y="198" font-size="15" font-weight="bold" fill="#1D1D1A">互联：专家分发需要低启动时延</text>
+    <text x="870" y="237" font-size="12" fill="#1D1D1A">1024 卡单逻辑 SU · 非阻塞 · SO=0</text>
+    <text x="1050" y="269" text-anchor="middle" font-size="12" font-weight="bold" fill="#1D1D1A">950DT</text>
+    <text x="1161" y="269" text-anchor="middle" font-size="12" font-weight="bold" fill="#1D1D1A">960DT</text>
+    <line x1="870" y1="280" x2="1210" y2="280" stroke="#D9D9D9" stroke-width="1" />
+    <text x="870" y="303" font-size="12" fill="#1D1D1A">单向带宽</text>
+    <text x="1050" y="303" text-anchor="middle" font-size="12" fill="#1D1D1A">1 TB/s</text>
+    <text x="1161" y="303" text-anchor="middle" font-size="12" fill="#1D1D1A">1.1 TB/s</text>
+    <line x1="870" y1="314" x2="1210" y2="314" stroke="#D9D9D9" stroke-width="1" />
+    <text x="870" y="337" font-size="12" fill="#1D1D1A">启动/传播</text>
+    <text x="1050" y="337" text-anchor="middle" font-size="12" fill="#1D1D1A">2.1 μs</text>
+    <text x="1161" y="337" text-anchor="middle" font-size="12" fill="#1D1D1A">1 μs</text>
+    <text x="870" y="369" font-size="10.5" fill="#666666">两平台互联有效效率均假设 80%</text>
+    <text x="870" y="420" font-size="38" font-weight="bold" fill="#C00000">86% / 87%</text>
+    <text x="870" y="447" font-size="15" fill="#1D1D1A">decode 关键路径的通信启动占比</text>
+    <text x="870" y="483" font-size="12" fill="#1D1D1A">prefill 载荷：772.87 TB</text>
+    <text x="870" y="511" font-size="12" fill="#1D1D1A">decode 载荷：3.31 GB/步</text>
+  </g>
+  <g id="scope-source">
+    <text x="50" y="539" font-size="10.5" fill="#666666">F：SP32 + MLA compressed + FP8 权重/计算/激活/通信/KV；KDA 状态 FP32。1M=1,048,576 token；batch=1、top-32、output=2。</text>
+    <text x="50" y="555" font-size="10.5" fill="#666666">来源：2026-10-19基线报告及配置；2026-10-20并行扫描见第4–5页。硬件、拓扑与效率未实测校准。</text>
+  </g>
+  <g id="highlight-strip">
+    <rect x="50" y="574" width="1180" height="68" rx="4" fill="#F2F2F2" stroke="#D9D9D9" stroke-width="1" />
+    <text x="72" y="601" font-size="15" font-weight="bold" fill="#C00000">本页亮点</text>
+    <text x="180" y="601" font-size="15" fill="#1D1D1A"><tspan fill="#C00000">★</tspan> SP 与压缩、量化共同控制显存峰值</text>
+    <text x="180" y="626" font-size="15" fill="#1D1D1A"><tspan fill="#C00000">★</tspan> decode 优先关注 collective 启动时延与 HBM 服务时间</text>
+  </g>
+  <g id="footer-group">
+    <text x="77" y="683" font-size="10.5" fill="#1D1D1A">2</text>
+    <text x="125" y="683" font-size="10.5" fill="#1D1D1A">Huawei Proprietary - Restricted Distribution</text>
+    <image href="data:image/png;base64,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" x="1070" y="663" width="133" height="28" preserveAspectRatio="xMidYMid meet" />
+  </g>
+</svg>

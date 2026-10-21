@@ -1,0 +1,132 @@
+{
+  "page": 3,
+  "title": "仿真 Skill 将配置编译为资源事件图，评估容量与时延",
+  "speech": "这一页说明仿真结果是怎样产生的。入口是 supernode-modeling 技能工作流，它把用户问题整理为配置并解释结果，真正的数值计算由 supernode_sim 的 Python 引擎完成。第一步先固定模型结构、精度、负载、并行策略、拓扑和目标，给关键字段记录公开、用户、假设或实测来源，并分别检查配置、图连通性和执行约束；自然语言拓扑要先编译成原生链路图。第二步按组件建立权重、注意力状态、激活和工作区账本，再把依赖关系与计算、访存、通信工作量映射到资源事件。一个事件可以同时使用计算与 HBM 资源，采用屋顶线最大项和最大最小公平共享语义，不能把计算与访存耗时简单相加；内存容量则通过准入与生命周期释放单独约束。训练与推理共享这一资源内核，训练还需要梯度与优化器状态。本次使用结构化流式推理，保留性能、流量、阶段资源和并发峰值，而不是据导出明细多少判断仿真精度。第三步输出首词时延、逐词时延、吞吐量、容量失败和瓶颈，再保存解析后的配置、结果与代码指纹以供复跑。反馈环节可以扫描硬件、并行和特性候选，并用实机算子与集合通信数据校准；这里的实机校准是后续工作，本次尚未完成。结果仅对应固定批次，不包含在线请求排队或生产环境第九十九百分位保证，解析下界也不等于可行性证明。",
+  "transition": "方法和边界明确后，下一页直接看最新 kimi-k3-10t 场景的仿真结果及主要瓶颈。",
+  "glossary": [
+    {
+      "term": "Skill",
+      "full": "Skill，技能工作流",
+      "explain": "将用户问题整理为严格配置、调用引擎并解释数值结果的说明与编排层。"
+    },
+    {
+      "term": "supernode-modeling",
+      "full": "supernode-modeling（技能名），超节点建模技能",
+      "explain": "本项目训练和推理资源分析的交互入口，不是独立数值引擎。"
+    },
+    {
+      "term": "supernode_sim",
+      "full": "supernode_sim（Python 包名），超节点仿真引擎",
+      "explain": "完成配置解析、构图、资源执行、指标与报告生成的代码包。"
+    },
+    {
+      "term": "Python",
+      "full": "Python（编程语言名），Python 语言",
+      "explain": "本项目数值仿真内核采用的程序语言。"
+    },
+    {
+      "term": "batch",
+      "full": "Batch，批次",
+      "explain": "在固定并行布局下共同执行的一组请求，本次没有线上动态排队模型。"
+    },
+    {
+      "term": "SU/SO",
+      "full": "Scale-Up / Scale-Out，域内扩展 / 域间扩展",
+      "explain": "描述超节点域内与跨域连接，带宽、延迟、共享与注入限制均需配置。"
+    },
+    {
+      "term": "SLO",
+      "full": "Service Level Objective，服务水平目标",
+      "explain": "对吞吐或时延的目标约束，配置通过不代表执行一定满足目标。"
+    },
+    {
+      "term": "KV",
+      "full": "Key-Value Cache，键值缓存",
+      "explain": "自回归推理保留的注意力键和值状态，其容量与精度、长度及分片策略有关。"
+    },
+    {
+      "term": "KDA",
+      "full": "Kimi Delta Attention，Kimi Delta 注意力",
+      "explain": "页面张量账本覆盖该注意力结构的循环和卷积等状态。"
+    },
+    {
+      "term": "HBM",
+      "full": "High Bandwidth Memory，高带宽内存",
+      "explain": "计算卡上的高带宽内存，其容量和服务带宽分别建模。"
+    },
+    {
+      "term": "TTFT",
+      "full": "Time To First Token，首词时延",
+      "explain": "仿真中完成第一个输出 token 的时间，不包含线上请求队列。"
+    },
+    {
+      "term": "TPOT",
+      "full": "Time Per Output Token，每输出词元时延",
+      "explain": "反映 decode 阶段的输出间隔，不能直接视为生产 P99 指标。"
+    },
+    {
+      "term": "CSV",
+      "full": "Comma-Separated Values，逗号分隔值",
+      "explain": "用于导出结构化指标和组件资源明细的表格数据格式。"
+    },
+    {
+      "term": "JSON",
+      "full": "JavaScript Object Notation，JavaScript 对象表示法",
+      "explain": "用于保存结构化配置、仿真输出和可复现元数据的格式。"
+    },
+    {
+      "term": "P99",
+      "full": "99th Percentile，第九十九百分位",
+      "explain": "生产延迟分布的高分位指标，固定 batch 仿真没有提供这类保证。"
+    },
+    {
+      "term": "kernel",
+      "full": "Compute Kernel，计算内核",
+      "explain": "需要同平台同负载实测来校准的底层算子实现，本次尚未进行实机校准。"
+    },
+    {
+      "term": "Huawei Proprietary - Restricted Distribution",
+      "full": "Huawei Proprietary - Restricted Distribution，华为专有信息与受限分发声明",
+      "explain": "来自用户指定华为风格模板的固定页脚。"
+    }
+  ],
+  "red_notes": [
+    {
+      "quote": "可复现的数值计算",
+      "explain": "依据项目技能与架构说明，正式结果来自 Python 引擎，并通过解析配置、数值输出和代码指纹支持复跑。"
+    },
+    {
+      "quote": "01 输入与严格校验",
+      "explain": "配置、拓扑连通、特性兼容与执行可行性是分开的校验关口，输入合法不代表资源和时延一定满足。"
+    },
+    {
+      "quote": "02 编译与资源竞争",
+      "explain": "将张量、依赖及各类工作量映射到共同资源语义，同时模拟重叠、争用和内存生命周期。"
+    },
+    {
+      "quote": "03 输出与解释复现",
+      "explain": "技能负责读取引擎生成的指标、失败诊断及来源约束，保留配置和代码指纹以便复跑。"
+    },
+    {
+      "quote": "训练/推理共用资源内核",
+      "explain": "两类工作负载共享图与执行资源语义，训练另有梯度和优化器状态，不能直接沿用推理容量。"
+    },
+    {
+      "quote": "本次：结构化流式推理",
+      "explain": "本次 10T 场景采用结构化流式路径保留性能、通信、容量峰值和失败诊断；精简记录不表示忽略了相应资源。"
+    },
+    {
+      "quote": "同一资源语义统一计算、存储与网络",
+      "explain": "结构化组件图、拓扑资源映射与共享执行器统一记录计算、访存、通信及内存准入，来源docs/simulation-architecture.md。"
+    },
+    {
+      "quote": "预测带来源和约束，可复现、可校准",
+      "explain": "严格配置标注参数来源、输出resolved配置与代码指纹，实测kernel profile按工作量匹配，来源仿真Skill与系统架构文档。"
+    }
+  ],
+  "sources": [
+    "skills/supernode-modeling/SKILL.md",
+    "docs/simulation-architecture.md",
+    "skills/supernode-modeling/references/inference.md"
+  ]
+}

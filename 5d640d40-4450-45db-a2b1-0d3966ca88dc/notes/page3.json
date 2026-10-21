@@ -1,0 +1,245 @@
+{
+  "page": 3,
+  "title": "10T 推理需分开预算 HBM 与主机内存，并按阶段校验峰值",
+  "speech": "这一页保留原版材料的显存、算力和互联三条主线，并补上DeepSeek条件记忆的主机内存路径。所有数字以一百零四万八千五百七十六token、1024卡、TP8、EP128、DP1、SP8的AR参考布局为锚点。首先要区分阶段：prefill全局批大小为1时，单卡预留峰值是62.0232GB；decode全局批大小为32时，峰值只有27.3956GB。它们是两个独立阶段的负载口径，不能把后者作为整批32个请求同时prefill的容量证明。prefill批大小8另有78.7364GB记录。峰值包括权重物理副本、最终KV预留、每lane激活arena、通信暂存、8GB运行时和256MB工作区，不能用逻辑参数简单均分来替代。两平台的容量账本一致，但容量上限、HBM带宽、FP8计算速率和SU启动时间不同；效率分别固定为计算50%和互联80%，FP32峰值沿用50TFLOP/s假设。实验把主要矩阵、激活、通信和KV统一为FP8，显式计入router、mHC及norm的FP32工作量。公开参考中的FP4专家和KV只是来源记录，没有凭空换算为性能倍率。Engram的3.4398T逻辑参数另存主机，FP8与每32元素一个scale使每DP副本占约3.5473TB；该表按行分片到副本所属主机，而非每台主机都放整表。冷查表经过CPU、DRAM或IOPS、host链路、SU和TP通信，所有流量和启动均入账。扩大DP会复制权重和整张逻辑表，即使副本闲置仍保留容量。这些配置是未校准模型的输入，不是硬件规格实测，也不承诺实际物理布线。",
+  "transition": "明确资源边界后，下一页说明如何将新架构接入已有仿真内核并校验结果。",
+  "glossary": [
+    {
+      "term": "10T",
+      "full": "10 Trillion，十万亿参数",
+      "explain": "本实验名义骨干参数规模，实际审计为10.1225T。"
+    },
+    {
+      "term": "mHC",
+      "full": "Manifold-constrained Hyper-Connections，流形约束超连接",
+      "explain": "以四路残差流及显式FP32操作建模的跨层连接。"
+    },
+    {
+      "term": "Engram",
+      "full": "（组件名）条件记忆模块",
+      "explain": "从主机侧ngram表查找并传回选中行。"
+    },
+    {
+      "term": "KV",
+      "full": "Key/Value cache，键值缓存",
+      "explain": "推理中驻留的注意力历史状态。"
+    },
+    {
+      "term": "ngram",
+      "full": "N-gram，N元词组",
+      "explain": "本实验条件记忆表的索引组织方式。"
+    },
+    {
+      "term": "AR",
+      "full": "Autoregressive decoding，自回归解码",
+      "explain": "每轮提交一个输出token的基线。"
+    },
+    {
+      "term": "TP",
+      "full": "Tensor Parallelism，张量并行",
+      "explain": "对注意力头、专家中间维等张量分片。"
+    },
+    {
+      "term": "EP",
+      "full": "Expert Parallelism，专家并行",
+      "explain": "在不同rank间分布专家权重。"
+    },
+    {
+      "term": "DP",
+      "full": "Data Parallelism，数据并行",
+      "explain": "在独立权重副本上分配已存在的全局请求。"
+    },
+    {
+      "term": "SP",
+      "full": "Sequence Parallelism，序列并行",
+      "explain": "与TP共用卡，分片pointwise和残差等token状态。"
+    },
+    {
+      "term": "HBM",
+      "full": "High Bandwidth Memory，高带宽内存",
+      "explain": "NPU卡上存储，容量和带宽分别约束。"
+    },
+    {
+      "term": "DRAM",
+      "full": "Dynamic Random Access Memory，动态随机存取存储器",
+      "explain": "主机内存，用于分片存放Engram表。"
+    },
+    {
+      "term": "FP8",
+      "full": "8-bit Floating Point，8位浮点",
+      "explain": "主对照的权重、计算、激活、通信和KV精度。"
+    },
+    {
+      "term": "FP4",
+      "full": "4-bit Floating Point，4位浮点",
+      "explain": "公开参考采用的部分存储格式，本实验未假设其加速倍率。"
+    },
+    {
+      "term": "FP32",
+      "full": "32-bit Floating Point，32位浮点",
+      "explain": "router、mHC、norm等显式标量运算精度。"
+    },
+    {
+      "term": "SU",
+      "full": "Scale Up，域内互联",
+      "explain": "单逻辑1024卡无阻塞互联及端点注入模型。"
+    },
+    {
+      "term": "SO",
+      "full": "Scale Out，域间互联",
+      "explain": "本实验普通通信不经过此路径。"
+    },
+    {
+      "term": "IOPS",
+      "full": "Input/Output Operations Per Second，每秒输入输出操作数",
+      "explain": "主机查表随机访问能力的约束。"
+    },
+    {
+      "term": "TTFT",
+      "full": "Time To First Token，首token时间",
+      "explain": "本稿统一单独标示prefill全局bs=1的执行时间。"
+    },
+    {
+      "term": "bs",
+      "full": "Batch Size，批大小",
+      "explain": "decode为全局同时参与序列数；TTFT的prefill批次另列。"
+    },
+    {
+      "term": "prefill",
+      "full": "Prompt Prefill，提示词预填充",
+      "explain": "含编码器bulk、解码器KV投影及有界replay。"
+    },
+    {
+      "term": "decode",
+      "full": "Autoregressive Decode，自回归生成",
+      "explain": "生成阶段；可选择AR或DSpark轮调度。"
+    },
+    {
+      "term": "TFLOP",
+      "full": "Tera Floating Point Operations，万亿次浮点运算",
+      "explain": "10的12次方次浮点运算。"
+    },
+    {
+      "term": "PFLOP/s",
+      "full": "Peta FLOPs Per Second，每秒千万亿次浮点运算",
+      "explain": "硬件名义计算速率。"
+    },
+    {
+      "term": "GB",
+      "full": "Gigabyte，十进制吉字节",
+      "explain": "本稿GB=10^9字节。"
+    },
+    {
+      "term": "TB",
+      "full": "Terabyte，十进制太字节",
+      "explain": "本稿TB=10^12字节。"
+    },
+    {
+      "term": "MB",
+      "full": "Megabyte，十进制兆字节",
+      "explain": "本稿MB=10^6字节。"
+    },
+    {
+      "term": "T",
+      "full": "Trillion，万亿",
+      "explain": "在参数计数中为10^12个参数。"
+    },
+    {
+      "term": "μs",
+      "full": "Microsecond，微秒",
+      "explain": "10^-6秒。"
+    },
+    {
+      "term": "s",
+      "full": "Second，秒",
+      "explain": "时延单位。"
+    },
+    {
+      "term": "1M",
+      "full": "1,048,576 Tokens，一百万级词元上下文",
+      "explain": "本稿1M采用二进制长度。"
+    },
+    {
+      "term": "950DT",
+      "full": "（硬件配置名）Ascend 950DT",
+      "explain": "本实验采用的144GB、4TB/s、1PFLOP/s假设配置。"
+    },
+    {
+      "term": "960DT",
+      "full": "（硬件配置名）Ascend 960DT",
+      "explain": "本实验采用的288GB、9.6TB/s、2PFLOP/s假设配置。"
+    },
+    {
+      "term": "CSV",
+      "full": "Comma-Separated Values，逗号分隔数据",
+      "explain": "全量结构化结果格式。"
+    },
+    {
+      "term": "JSON",
+      "full": "JavaScript Object Notation，结构化对象格式",
+      "explain": "模型、实验与验证账本格式。"
+    },
+    {
+      "term": "Huawei Proprietary - Restricted Distribution",
+      "full": "华为专有资料—限制分发",
+      "explain": "沿用用户要求的华为模板固定页脚。"
+    },
+    {
+      "term": "scale",
+      "full": "Quantization Scale，量化缩放因子",
+      "explain": "随FP8权重、KV和Engram表存储的额外字节。"
+    },
+    {
+      "term": "router",
+      "full": "Expert Router，专家路由器",
+      "explain": "以FP32计算显式路由工作量。"
+    },
+    {
+      "term": "norm",
+      "full": "Normalization，归一化",
+      "explain": "本实验显式计入FP32归一化计算。"
+    },
+    {
+      "term": "host link",
+      "full": "Host Link，主机到加速卡链路",
+      "explain": "64GB/s名义带宽、85%效率与2μs启动的继承假设。"
+    },
+    {
+      "term": "cache",
+      "full": "Cache，缓存",
+      "explain": "主场景不假设Engram查表缓存命中。"
+    }
+  ],
+  "red_notes": [
+    {
+      "quote": "prefill 峰值高于 decode",
+      "explain": "summary.csv参考布局记录prefill bs1峰值62.023152704GB、decode bs32峰值27.395639616GB；负载不同，分别展示。"
+    },
+    {
+      "quote": "62.02",
+      "explain": "prefill.csv中参考布局、1M、AR、全局bs1的每卡峰值；不是decode容量。"
+    },
+    {
+      "quote": "27.40",
+      "explain": "summary.csv中参考布局、1M、AR、全局bs32的decode阶段每卡峰值。"
+    },
+    {
+      "quote": "主对照统一 FP8",
+      "explain": "experiment.json规定矩阵存储/计算/激活/通信/KV统一FP8，FP32操作另计。"
+    },
+    {
+      "quote": "Engram：每副本主机驻留",
+      "explain": "methodology.md定义每DP副本完整ngram表，按行分散在副本所属主机。"
+    },
+    {
+      "quote": "3.5473",
+      "explain": "3.4398T查表参数按FP8和每32元素1字节scale计算为3.54729375TB，每DP副本一份。"
+    }
+  ],
+  "sources": [
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/experiment.json",
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/summary.csv",
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/prefill.csv",
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/methodology.md"
+  ]
+}

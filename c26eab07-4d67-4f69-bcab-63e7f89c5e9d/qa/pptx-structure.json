@@ -1,0 +1,39 @@
+{
+  "slide_count": 4,
+  "notes_count": 4,
+  "slides": [
+    {
+      "page": 1,
+      "text_count": 46,
+      "shape_count": 65,
+      "groups": 9,
+      "animations": 0,
+      "transitions": 0
+    },
+    {
+      "page": 2,
+      "text_count": 60,
+      "shape_count": 83,
+      "groups": 12,
+      "animations": 0,
+      "transitions": 0
+    },
+    {
+      "page": 3,
+      "text_count": 48,
+      "shape_count": 91,
+      "groups": 14,
+      "animations": 0,
+      "transitions": 0
+    },
+    {
+      "page": 4,
+      "text_count": 64,
+      "shape_count": 91,
+      "groups": 8,
+      "animations": 0,
+      "transitions": 0
+    }
+  ],
+  "sha256": "5c452941eb8be39f6991df7ffb561f7b91a6fbb5972cab96e97d3e185df2a6a0"
+}

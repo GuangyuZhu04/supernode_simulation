@@ -1,0 +1,19 @@
+{
+  "input_sha256": "5c452941eb8be39f6991df7ffb561f7b91a6fbb5972cab96e97d3e185df2a6a0",
+  "authoring_source_identical": true,
+  "simulation_files": {
+    "summary.json": "8804f05d2ca2fa3aafa5b217bdd256676196ecc6ac331bc4280aa752b50d0bc7",
+    "recommendations.json": "1c795ea26d17673bb8a5be154e9822787d594098be0c7799a87ea1b495887aa8",
+    "verification.json": "ae34d7bd35ee7c22ed6ea97f859883eed571dd3a8a95725874e6ee0d94c7dcc9"
+  },
+  "selected_cases": [
+    "950dt-1M-tp32-ep32-dp1-sp32-g32",
+    "950dt-1M-tp32-ep8-dp4-sp32-g32",
+    "950dt-1M-tp16-ep16-dp4-sp16-g32",
+    "960dt-1M-tp32-ep32-dp1-sp32-g32",
+    "960dt-1M-tp32-ep4-dp8-sp32-g32",
+    "960dt-1M-tp8-ep8-dp16-sp8-g32"
+  ],
+  "source_slides": 4,
+  "target_slides": 5
+}

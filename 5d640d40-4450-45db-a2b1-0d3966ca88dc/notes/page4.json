@@ -1,0 +1,243 @@
+{
+  "page": 4,
+  "title": "新增架构用独立解析模块接入原生资源内核，结果可追溯",
+  "speech": "这一页承接原版材料的仿真Skill流程，但需要把本次适配范围讲清楚。DeepSeek的CED、CSA2、mHC、Engram和三层DSpark通过独立的解析模块编译为阶段图，调用冻结的supernode_sim原生Graph、Event、Allocation、Resource以及engine.simulate，没有把这些尚未进入通用streaming接口的特性写成通用API已原生支持。输入包括逐矩阵结构、精度、1024卡拓扑和固定全局batch；DP仅分摊已有请求，活跃副本数量不超过全局batch。扫描包含45个并行候选、四种二进制上下文和六档decode batch，TP16与TP32因为保留output groups=8而明确标为不兼容。各组件按barrier串行；计算与HBM在单个kernel内共同约束，只把时间归给主导资源，通信每轮同时受端点和启动约束。仿真使用资源封装缩约相同速率的rank组，仍保留全物理工作量；封装中代表性工作量不能被误认成全卡流量。17组校验核对小规模原生通信图、异构计算、DP主机独立、整数路由守恒、缓存owner、投机状态和容量失败等。全量共有15120行decode，7560行可行、3528行容量不可行、4032行结构不兼容，另有1440行prefill。这些行包括AR和六档条件提交数，不是15120次不同模型训练或独立硬件实测。失败项保留空时延，不能在图表中当成零延迟。prefill按全局bs1和bs8另列，decode批次扫描不改写首token的含义。输入、原始阶段结果、代码指纹、矩阵审计及六类资源时延账本均可追溯。验证证明了方程、加和与缩约一致性，并未证明实际kernel精度、学习路由、接收率、排队、动态批处理或P99；下一步仍需要实机校准。",
+  "transition": "在统一的硬件和负载口径下，下一页比较参考布局与解码优先布局的收益及代价。",
+  "glossary": [
+    {
+      "term": "Flash",
+      "full": "（产品名）DeepSeek-V4.1-Flash",
+      "explain": "公开架构参考；与本材料合成Pro-10T规模分开。"
+    },
+    {
+      "term": "CED",
+      "full": "Causal Encoder-Decoder，因果编码器—解码器",
+      "explain": "批量prompt先经过编码器，再投影解码器全局KV。"
+    },
+    {
+      "term": "CSA2",
+      "full": "Compressed Sparse Attention 2，第二代压缩稀疏注意力",
+      "explain": "跨层共享KV和索引，并复用稀疏位置。"
+    },
+    {
+      "term": "mHC",
+      "full": "Manifold-constrained Hyper-Connections，流形约束超连接",
+      "explain": "以四路残差流及显式FP32操作建模的跨层连接。"
+    },
+    {
+      "term": "Engram",
+      "full": "（组件名）条件记忆模块",
+      "explain": "从主机侧ngram表查找并传回选中行。"
+    },
+    {
+      "term": "DSpark",
+      "full": "（机制名）DeepSeek DSpark",
+      "explain": "三层草稿网络并行提出五个位置，主模型验证六个query。"
+    },
+    {
+      "term": "KV",
+      "full": "Key/Value cache，键值缓存",
+      "explain": "推理中驻留的注意力历史状态。"
+    },
+    {
+      "term": "TP",
+      "full": "Tensor Parallelism，张量并行",
+      "explain": "对注意力头、专家中间维等张量分片。"
+    },
+    {
+      "term": "EP",
+      "full": "Expert Parallelism，专家并行",
+      "explain": "在不同rank间分布专家权重。"
+    },
+    {
+      "term": "DP",
+      "full": "Data Parallelism，数据并行",
+      "explain": "在独立权重副本上分配已存在的全局请求。"
+    },
+    {
+      "term": "SP",
+      "full": "Sequence Parallelism，序列并行",
+      "explain": "与TP共用卡，分片pointwise和残差等token状态。"
+    },
+    {
+      "term": "PP",
+      "full": "Pipeline Parallelism，流水线并行",
+      "explain": "本实验固定PP=1。"
+    },
+    {
+      "term": "HBM",
+      "full": "High Bandwidth Memory，高带宽内存",
+      "explain": "NPU卡上存储，容量和带宽分别约束。"
+    },
+    {
+      "term": "FP8",
+      "full": "8-bit Floating Point，8位浮点",
+      "explain": "主对照的权重、计算、激活、通信和KV精度。"
+    },
+    {
+      "term": "FP32",
+      "full": "32-bit Floating Point，32位浮点",
+      "explain": "router、mHC、norm等显式标量运算精度。"
+    },
+    {
+      "term": "TTFT",
+      "full": "Time To First Token，首token时间",
+      "explain": "本稿统一单独标示prefill全局bs=1的执行时间。"
+    },
+    {
+      "term": "P99",
+      "full": "99th Percentile，99百分位",
+      "explain": "本模型未模拟请求排队与尾时延。"
+    },
+    {
+      "term": "bs",
+      "full": "Batch Size，批大小",
+      "explain": "decode为全局同时参与序列数；TTFT的prefill批次另列。"
+    },
+    {
+      "term": "batch",
+      "full": "Batch Size，批大小",
+      "explain": "在相应阶段同时处理的序列数量。"
+    },
+    {
+      "term": "prefill",
+      "full": "Prompt Prefill，提示词预填充",
+      "explain": "含编码器bulk、解码器KV投影及有界replay。"
+    },
+    {
+      "term": "decode",
+      "full": "Autoregressive Decode，自回归生成",
+      "explain": "生成阶段；可选择AR或DSpark轮调度。"
+    },
+    {
+      "term": "rank",
+      "full": "Parallel Rank，并行进程编号",
+      "explain": "模型中独立资源端点编号。"
+    },
+    {
+      "term": "owner",
+      "full": "Cache Owner，缓存持有层",
+      "explain": "仅指定层生成并驻留共享全局KV/index。"
+    },
+    {
+      "term": "FLOPs",
+      "full": "Floating Point Operations，浮点运算次数",
+      "explain": "工作量而非利用率或时延。"
+    },
+    {
+      "term": "supernode_sim",
+      "full": "（软件名）超节点流量仿真引擎",
+      "explain": "本次使用冻结的原生资源和调度语义。"
+    },
+    {
+      "term": "CSV",
+      "full": "Comma-Separated Values，逗号分隔数据",
+      "explain": "全量结构化结果格式。"
+    },
+    {
+      "term": "JSON",
+      "full": "JavaScript Object Notation，结构化对象格式",
+      "explain": "模型、实验与验证账本格式。"
+    },
+    {
+      "term": "SHA256",
+      "full": "Secure Hash Algorithm 256-bit，256位安全散列",
+      "explain": "源文件固定版本及审计指纹。"
+    },
+    {
+      "term": "Huawei Proprietary - Restricted Distribution",
+      "full": "华为专有资料—限制分发",
+      "explain": "沿用用户要求的华为模板固定页脚。"
+    },
+    {
+      "term": "roofline",
+      "full": "Roofline Model，屋顶线模型",
+      "explain": "同一矩阵阶段以计算和HBM服务时间中的较慢者约束完成。"
+    },
+    {
+      "term": "collective",
+      "full": "Collective Communication，集合通信",
+      "explain": "本实验ring/pairwise轮次、载荷和启动均显式计入。"
+    },
+    {
+      "term": "min",
+      "full": "Minimum，最小值函数",
+      "explain": "活跃DP副本数是DP数量与全局batch的较小值。"
+    },
+    {
+      "term": "output groups",
+      "full": "Output Projection Groups，输出投影分组",
+      "explain": "保留8组结构导致TP16/32不兼容。"
+    },
+    {
+      "term": "bytes",
+      "full": "Bytes，字节数",
+      "explain": "物理内存和链路账本的流量单位。"
+    },
+    {
+      "term": "null",
+      "full": "Null Value，空值",
+      "explain": "不可行结果未执行或没有有效时延，不能当作零。"
+    },
+    {
+      "term": "kernel",
+      "full": "Compute Kernel，计算内核",
+      "explain": "本实验未用实测kernel启动或吞吐profile校准。"
+    },
+    {
+      "term": "profile",
+      "full": "Measured Performance Profile，实测性能档案",
+      "explain": "用于把解析模型校准到真实算子的测量资料。"
+    },
+    {
+      "term": "batching",
+      "full": "Batching，请求批处理",
+      "explain": "动态请求合批尚未纳入模型。"
+    }
+  ],
+  "red_notes": [
+    {
+      "quote": "17 组不变量验证",
+      "explain": "verification.json记录17组结构和原生内核缩约核对，范围不是硬件性能准确度。"
+    },
+    {
+      "quote": "17",
+      "explain": "verification.json的count=17，覆盖张量、容量、通信及状态账本。"
+    },
+    {
+      "quote": "性能精度仍待实机校准",
+      "explain": "methodology.md明确未使用kernel实测profile，没有性能误差承诺。"
+    },
+    {
+      "quote": "15,120",
+      "explain": "summary.csv行数，包含AR和DSpark的六个条件C值；不是独立实测次数。"
+    },
+    {
+      "quote": "1,440",
+      "explain": "prefill.csv独立行数，prefill全局批次为1和8。"
+    },
+    {
+      "quote": "固定全局负载，不以新增请求制造 DP 收益",
+      "explain": "experiment.json规定active_DP=min(DP,global_batch)，吞吐按实际已给定batch计算。"
+    },
+    {
+      "quote": "7,560",
+      "explain": "result-verification.json和summary.csv状态计数中的可行decode行。"
+    },
+    {
+      "quote": "3,528",
+      "explain": "summary.csv中容量不满足当前预留策略的decode行；时延为空。"
+    },
+    {
+      "quote": "4,032",
+      "explain": "summary.csv中TP16/32与output groups=8不兼容的decode行。"
+    }
+  ],
+  "sources": [
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/methodology.md",
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/verification.json",
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/result-verification.json",
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/provenance.json",
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/experiment.json"
+  ]
+}

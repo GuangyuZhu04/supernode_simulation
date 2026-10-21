@@ -1,0 +1,25 @@
+{
+  "source": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\presentations\\kimi-k3-10t-brief-20261020-v2.pptx",
+  "source_sha256": "adbeedf63e514aca3fc9ec1a5c63e5c3efebce54952dd9756ec7b1286419b395",
+  "inputs": [
+    {
+      "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\kimi-k3-10t-1m-acceleration-20261019\\parallelism-20261020\\summary.csv",
+      "sha256": "68940b17f6369de111de09d68b309b6934fc3796daafc8adf92f69ae2fc20be4"
+    },
+    {
+      "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\kimi-k3-10t-1m-acceleration-20261019\\parallelism-20261020\\verification.json",
+      "sha256": "ae34d7bd35ee7c22ed6ea97f859883eed571dd3a8a95725874e6ee0d94c7dcc9"
+    },
+    {
+      "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\kimi-k3-10t-1m-acceleration-20261019\\decode-batch-20261020\\summary.csv",
+      "sha256": "38be0d53b4d4c6a8d5c4cd7f815fb82f5f402d3ddcddcabdca485fe427d7ed3b"
+    },
+    {
+      "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\kimi-k3-10t-1m-acceleration-20261019\\decode-batch-20261020\\verification.json",
+      "sha256": "32cc00caed36f151c587e23c3b8790812cfbd5c0173196980920931a547ac889"
+    }
+  ],
+  "points_checked": 12,
+  "independent_decode_points_matched": 12,
+  "scope": "F / 1M / 1024 cards / TP32 EP32 SP32 PP1 DP1 / top32 / output2"
+}

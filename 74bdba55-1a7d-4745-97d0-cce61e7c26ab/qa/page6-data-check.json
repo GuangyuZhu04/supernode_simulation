@@ -1,0 +1,701 @@
+{
+  "page": 6,
+  "data_source_sha256": "31d05c0c624ac79cafc2fe6d45d159a1e1516c1a716b4e57a549c3d167ab35d2",
+  "speech_cjk_character_count": 407,
+  "table_checks": [
+    {
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "phase": "prefill",
+      "display": [
+        "100.668",
+        "0.496",
+        "30.190",
+        "0.036",
+        "131.391"
+      ],
+      "raw_sum_matches_total": true,
+      "other_residual_below_1e_9_s": true
+    },
+    {
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "phase": "decode",
+      "display": [
+        "0.000",
+        "6.621",
+        "0.129",
+        "36.326",
+        "43.076"
+      ],
+      "raw_sum_matches_total": true,
+      "other_residual_below_1e_9_s": true
+    },
+    {
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "phase": "prefill",
+      "display": [
+        "100.668",
+        "0.496",
+        "27.597",
+        "0.027",
+        "128.789"
+      ],
+      "raw_sum_matches_total": true,
+      "other_residual_below_1e_9_s": true
+    },
+    {
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "phase": "decode",
+      "display": [
+        "0.000",
+        "6.701",
+        "0.127",
+        "27.052",
+        "33.880"
+      ],
+      "raw_sum_matches_total": true,
+      "other_residual_below_1e_9_s": true
+    },
+    {
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "phase": "prefill",
+      "display": [
+        "141.656",
+        "0.989",
+        "29.216",
+        "0.018",
+        "171.879"
+      ],
+      "raw_sum_matches_total": true,
+      "other_residual_below_1e_9_s": true
+    },
+    {
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "phase": "decode",
+      "display": [
+        "0.000",
+        "7.109",
+        "0.075",
+        "17.577",
+        "24.761"
+      ],
+      "raw_sum_matches_total": true,
+      "other_residual_below_1e_9_s": true
+    },
+    {
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "phase": "prefill",
+      "display": [
+        "50.334",
+        "0.207",
+        "27.446",
+        "0.017",
+        "78.004"
+      ],
+      "raw_sum_matches_total": true,
+      "other_residual_below_1e_9_s": true
+    },
+    {
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "phase": "decode",
+      "display": [
+        "0.000",
+        "2.759",
+        "0.118",
+        "17.298",
+        "20.174"
+      ],
+      "raw_sum_matches_total": true,
+      "other_residual_below_1e_9_s": true
+    },
+    {
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "phase": "prefill",
+      "display": [
+        "50.334",
+        "0.207",
+        "21.945",
+        "0.012",
+        "72.498"
+      ],
+      "raw_sum_matches_total": true,
+      "other_residual_below_1e_9_s": true
+    },
+    {
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "phase": "decode",
+      "display": [
+        "0.000",
+        "2.798",
+        "0.112",
+        "12.146",
+        "15.057"
+      ],
+      "raw_sum_matches_total": true,
+      "other_residual_below_1e_9_s": true
+    },
+    {
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "phase": "prefill",
+      "display": [
+        "122.704",
+        "0.823",
+        "24.790",
+        "0.004",
+        "148.320"
+      ],
+      "raw_sum_matches_total": true,
+      "other_residual_below_1e_9_s": true
+    },
+    {
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "phase": "decode",
+      "display": [
+        "0.000",
+        "3.312",
+        "0.042",
+        "3.906",
+        "7.260"
+      ],
+      "raw_sum_matches_total": true,
+      "other_residual_below_1e_9_s": true
+    }
+  ],
+  "bars": [
+    {
+      "phase": "prefill",
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "compute_bound_service_s",
+      "value": 100.6679622764462,
+      "unit": "s",
+      "x": 180,
+      "width": 215.3175859801766,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "hbm_bound_service_s",
+      "value": 0.49647437304799774,
+      "unit": "s",
+      "x": 395.3175859801766,
+      "width": 1.0619035201304396,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "communication_service_s",
+      "value": 30.19013909632011,
+      "unit": "s",
+      "x": 396.37948950030705,
+      "width": 64.57335306712913,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "collective_startup_s",
+      "value": 0.03632580000000001,
+      "unit": "s",
+      "x": 460.95284256743616,
+      "width": 0.07769685000000003,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "component": "compute_bound_service_s",
+      "value": 100.6679622764462,
+      "unit": "s",
+      "x": 180,
+      "width": 215.3175859801766,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "component": "hbm_bound_service_s",
+      "value": 0.49647437304799774,
+      "unit": "s",
+      "x": 395.3175859801766,
+      "width": 1.0619035201304396,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "component": "communication_service_s",
+      "value": 27.597052591360093,
+      "unit": "s",
+      "x": 396.37948950030705,
+      "width": 59.027029153742426,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "component": "collective_startup_s",
+      "value": 0.027052199999999978,
+      "unit": "s",
+      "x": 455.4065186540495,
+      "width": 0.057861649999999945,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "component": "compute_bound_service_s",
+      "value": 141.65623674660435,
+      "unit": "s",
+      "x": 180,
+      "width": 302.9869508191259,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "component": "hbm_bound_service_s",
+      "value": 0.9891896129840009,
+      "unit": "s",
+      "x": 482.9869508191259,
+      "width": 2.1157666722157797,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "component": "communication_service_s",
+      "value": 29.216263507199915,
+      "unit": "s",
+      "x": 485.1027174913417,
+      "width": 62.49034139039981,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "component": "collective_startup_s",
+      "value": 0.01757700000000001,
+      "unit": "s",
+      "x": 547.5930588817415,
+      "width": 0.037595250000000024,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "compute_bound_service_s",
+      "value": 50.3339811382231,
+      "unit": "s",
+      "x": 180,
+      "width": 107.6587929900883,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "hbm_bound_service_s",
+      "value": 0.20686432210333366,
+      "unit": "s",
+      "x": 287.6587929900883,
+      "width": 0.4424598000543526,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "communication_service_s",
+      "value": 27.44558099665434,
+      "unit": "s",
+      "x": 288.1012527901426,
+      "width": 58.703048242844005,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "collective_startup_s",
+      "value": 0.017297999999999914,
+      "unit": "s",
+      "x": 346.8043010329866,
+      "width": 0.036998499999999816,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "component": "compute_bound_service_s",
+      "value": 50.3339811382231,
+      "unit": "s",
+      "x": 180,
+      "width": 107.6587929900883,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "component": "hbm_bound_service_s",
+      "value": 0.20686432210333366,
+      "unit": "s",
+      "x": 287.6587929900883,
+      "width": 0.4424598000543526,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "component": "communication_service_s",
+      "value": 21.945094470981626,
+      "unit": "s",
+      "x": 288.1012527901426,
+      "width": 46.93811872959959,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "component": "collective_startup_s",
+      "value": 0.012145999999999964,
+      "unit": "s",
+      "x": 335.0393715197422,
+      "width": 0.025978944444444364,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "component": "compute_bound_service_s",
+      "value": 122.70420741639376,
+      "unit": "s",
+      "x": 180,
+      "width": 262.4506658628422,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "component": "hbm_bound_service_s",
+      "value": 0.8227583720233312,
+      "unit": "s",
+      "x": 442.4506658628422,
+      "width": 1.7597887401610142,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "component": "communication_service_s",
+      "value": 24.789556858181744,
+      "unit": "s",
+      "x": 444.2104546030032,
+      "width": 53.02210772444428,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "prefill",
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "component": "collective_startup_s",
+      "value": 0.0039059999999999963,
+      "unit": "s",
+      "x": 497.23256232744745,
+      "width": 0.008354499999999992,
+      "scale_max": 180,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "compute_bound_service_s",
+      "value": 0,
+      "unit": "ms",
+      "x": 782,
+      "width": 0.0,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "hbm_bound_service_s",
+      "value": 6.62071025210279,
+      "unit": "ms",
+      "x": 782.0,
+      "width": 56.64385437910165,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "communication_service_s",
+      "value": 0.12943615999988073,
+      "unit": "ms",
+      "x": 838.6438543791016,
+      "width": 1.1073982577767574,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "collective_startup_s",
+      "value": 36.325800000000015,
+      "unit": "ms",
+      "x": 839.7512526368783,
+      "width": 310.7874000000001,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "component": "compute_bound_service_s",
+      "value": 0,
+      "unit": "ms",
+      "x": 782,
+      "width": 0.0,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "component": "hbm_bound_service_s",
+      "value": 6.70112268262313,
+      "unit": "ms",
+      "x": 782.0,
+      "width": 57.33182739577567,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "component": "communication_service_s",
+      "value": 0.12696319999998654,
+      "unit": "ms",
+      "x": 839.3318273957757,
+      "width": 1.086240711110996,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "component": "collective_startup_s",
+      "value": 27.052199999999978,
+      "unit": "ms",
+      "x": 840.4180681068867,
+      "width": 231.4465999999998,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "component": "compute_bound_service_s",
+      "value": 0,
+      "unit": "ms",
+      "x": 782,
+      "width": 0.0,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "component": "hbm_bound_service_s",
+      "value": 7.109476316873142,
+      "unit": "ms",
+      "x": 782.0,
+      "width": 60.825519599914664,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "component": "communication_service_s",
+      "value": 0.07499519999999978,
+      "unit": "ms",
+      "x": 842.8255195999146,
+      "width": 0.6416255999999981,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "component": "collective_startup_s",
+      "value": 17.57700000000001,
+      "unit": "ms",
+      "x": 843.4671451999146,
+      "width": 150.38100000000006,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "compute_bound_service_s",
+      "value": 0,
+      "unit": "ms",
+      "x": 782,
+      "width": 0.0,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "hbm_bound_service_s",
+      "value": 2.758629271709483,
+      "unit": "ms",
+      "x": 782.0,
+      "width": 23.601605991292242,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "communication_service_s",
+      "value": 0.11766923636358836,
+      "unit": "ms",
+      "x": 805.6016059912922,
+      "width": 1.0067256888884784,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "component": "collective_startup_s",
+      "value": 17.297999999999913,
+      "unit": "ms",
+      "x": 806.6083316801806,
+      "width": 147.99399999999926,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "component": "compute_bound_service_s",
+      "value": 0,
+      "unit": "ms",
+      "x": 782,
+      "width": 0.0,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "component": "hbm_bound_service_s",
+      "value": 2.798233320520448,
+      "unit": "ms",
+      "x": 782.0,
+      "width": 23.94044063111939,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "component": "communication_service_s",
+      "value": 0.11242356363633542,
+      "unit": "ms",
+      "x": 805.9404406311194,
+      "width": 0.9618460444442031,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "component": "collective_startup_s",
+      "value": 12.145999999999963,
+      "unit": "ms",
+      "x": 806.9022866755636,
+      "width": 103.91577777777748,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "component": "compute_bound_service_s",
+      "value": 0,
+      "unit": "ms",
+      "x": 782,
+      "width": 0.0,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "component": "hbm_bound_service_s",
+      "value": 3.3118359759615266,
+      "unit": "ms",
+      "x": 782.0,
+      "width": 28.334596683226394,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "component": "communication_service_s",
+      "value": 0.04230749090908682,
+      "unit": "ms",
+      "x": 810.3345966832264,
+      "width": 0.36196408888885395,
+      "scale_max": 45,
+      "plot_width": 385
+    },
+    {
+      "phase": "decode",
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "component": "collective_startup_s",
+      "value": 3.905999999999996,
+      "unit": "ms",
+      "x": 810.6965607721153,
+      "width": 33.41799999999997,
+      "scale_max": 45,
+      "plot_width": 385
+    }
+  ],
+  "decode_zero_width_compute_segments": 6,
+  "other_display_semantics": "Numerical residual <1e-9 seconds per stage; explicitly explained in footnote and notes.",
+  "mutation_scope": [
+    "svg/page6.svg",
+    "notes/page6.json",
+    "qa/page6-red-scan.json",
+    "qa/page6-data-check.json"
+  ]
+}

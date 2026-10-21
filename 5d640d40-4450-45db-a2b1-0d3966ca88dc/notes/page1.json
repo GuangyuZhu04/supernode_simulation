@@ -1,0 +1,192 @@
+{
+  "page": 1,
+  "title": "DeepSeek V4.1-Pro-10T 合成骨干10.12T，查表与草稿另计",
+  "speech": "这一页先明确后续仿真的模型对象。材料中的DeepSeek V4.1 Pro-10T是本地研究用合成结构，公开证据来自锁定版本的Flash配置和参考实现，不能把它称为已发布的Pro模型，也没有训练后质量的证明。结构保留了因果编码器—解码器、第二代压缩稀疏注意力、流形约束超连接和条件记忆机制，再按研究约束扩展深度、隐藏维和专家池。公开Flash配置实际是40层、隐藏维5120、384个路由专家、每token选6个专家；本地结构为64层、隐藏维7168、1792个路由专家、每token选24个专家，专家中间维由2304扩至4096。编码器和解码器各32层，跨层共享状态的持有层由公开结构按相对深度映射，这种映射没有做质量验证。\n\n参数审计采用逐矩阵结构计数。合成骨干为10.1225T，是公开Flash骨干的18.34倍；名义10T只表示骨干规模。两张ngram查表总量3.4398T和三层DSpark草稿额外参数34.7556B均单独列账，从而避免把主机查表容量或草稿驻留误计入骨干。公开Flash与合成结构均按同一审计定义对照，表中的公开参数也是配置推导结果，而不是重新下载或测量权重文件。\n\n计算侧则用非lookup活跃参数描述主体工作：prefill为76.11B，decode为155.10B。这两个数字不是activation内存大小，也不是每阶段全部执行成本；prefill的有限解码器重放与末位置输出头没有进入bulk活跃锚点，但仍在仿真中真实执行。共享专家、窗口长度、输出分组和四路残差等机制保留，其中输出分组为8，后续也会约束可兼容的张量并行候选。后续所有时延和容量结论只对应这组明确的合成结构与硬件假设。本页把公开来源与合成推演并列展示，是为了让评审能够沿参数定义复核容量与工作量，并为后续比较布局、上下文和批量提供稳定基准，不能据此推断相同任务质量或业务收益。",
+  "transition": "接下来把这些保留机制展开成可计算的阶段与资源路径，说明为什么不能只凭活跃参数估算时延。",
+  "glossary": [
+    {
+      "term": "DeepSeek",
+      "full": "（公司名）深度求索",
+      "explain": "本材料所采用的公开架构参考来源。"
+    },
+    {
+      "term": "V4.1",
+      "full": "Version 4.1，4.1版本",
+      "explain": "指本地锁定的DeepSeek-V4.1-Flash公开资料版本。"
+    },
+    {
+      "term": "Flash",
+      "full": "（产品名）DeepSeek-V4.1-Flash",
+      "explain": "公开架构参考；与本材料合成Pro-10T规模分开。"
+    },
+    {
+      "term": "Pro-10T",
+      "full": "（研究配置名）合成Pro万亿级结构",
+      "explain": "由Flash机制推演的研究配置，不是公开Pro规格。"
+    },
+    {
+      "term": "10T",
+      "full": "10 Trillion，十万亿参数",
+      "explain": "本实验名义骨干参数规模，实际审计为10.1225T。"
+    },
+    {
+      "term": "CED",
+      "full": "Causal Encoder-Decoder，因果编码器—解码器",
+      "explain": "批量prompt先经过编码器，再投影解码器全局KV。"
+    },
+    {
+      "term": "CSA2",
+      "full": "Compressed Sparse Attention 2，第二代压缩稀疏注意力",
+      "explain": "跨层共享KV和索引，并复用稀疏位置。"
+    },
+    {
+      "term": "mHC",
+      "full": "Manifold-constrained Hyper-Connections，流形约束超连接",
+      "explain": "以四路残差流及显式FP32操作建模的跨层连接。"
+    },
+    {
+      "term": "Engram",
+      "full": "（组件名）条件记忆模块",
+      "explain": "从主机侧ngram表查找并传回选中行。"
+    },
+    {
+      "term": "DSpark",
+      "full": "（机制名）DeepSeek DSpark",
+      "explain": "三层草稿网络并行提出五个位置，主模型验证六个query。"
+    },
+    {
+      "term": "SWA",
+      "full": "Sliding Window Attention，滑动窗口注意力",
+      "explain": "本实验窗口长度为128 token。"
+    },
+    {
+      "term": "KV",
+      "full": "Key/Value cache，键值缓存",
+      "explain": "推理中驻留的注意力历史状态。"
+    },
+    {
+      "term": "ngram",
+      "full": "N-gram，N元词组",
+      "explain": "本实验条件记忆表的索引组织方式。"
+    },
+    {
+      "term": "prefill",
+      "full": "Prompt Prefill，提示词预填充",
+      "explain": "含编码器bulk、解码器KV投影及有界replay。"
+    },
+    {
+      "term": "decode",
+      "full": "Autoregressive Decode，自回归生成",
+      "explain": "生成阶段；可选择AR或DSpark轮调度。"
+    },
+    {
+      "term": "token",
+      "full": "Token，词元",
+      "explain": "模型输入输出的基本离散单位。"
+    },
+    {
+      "term": "owner",
+      "full": "Cache Owner，缓存持有层",
+      "explain": "仅指定层生成并驻留共享全局KV/index。"
+    },
+    {
+      "term": "top-24",
+      "full": "Top-24 Expert Routing，24选路由",
+      "explain": "每个token选择24个路由专家。"
+    },
+    {
+      "term": "B",
+      "full": "Billion，十亿",
+      "explain": "在参数计数中为10^9个参数。"
+    },
+    {
+      "term": "T",
+      "full": "Trillion，万亿",
+      "explain": "在参数计数中为10^12个参数。"
+    },
+    {
+      "term": "JSON",
+      "full": "JavaScript Object Notation，结构化对象格式",
+      "explain": "模型、实验与验证账本格式。"
+    },
+    {
+      "term": "Huawei Proprietary - Restricted Distribution",
+      "full": "华为专有资料—限制分发",
+      "explain": "沿用用户要求的华为模板固定页脚。"
+    },
+    {
+      "term": "groups",
+      "full": "Output Projection Groups，输出投影分组",
+      "explain": "保留的输出投影分组数为8，限制本实验兼容的TP配置。"
+    },
+    {
+      "term": "bulk",
+      "full": "Bulk Phase，主体批量阶段",
+      "explain": "活跃参数锚点只统计主体路径中的非lookup参数；额外重放和输出头仍计执行成本。"
+    },
+    {
+      "term": "lookup",
+      "full": "Table Lookup，查表",
+      "explain": "从ngram表按地址读取行，属于条件记忆容量与访存成本。"
+    },
+    {
+      "term": "top-6",
+      "full": "Top-6 Expert Routing，六选专家路由",
+      "explain": "锁定的公开Flash配置每token选择6个路由专家。"
+    },
+    {
+      "term": "Pro",
+      "full": "（研究称谓）Pro结构",
+      "explain": "本材料仅指基于Flash机制的合成研究结构，没有公开Pro规格或权重的证据。"
+    },
+    {
+      "term": "model.json",
+      "full": "Model Configuration JSON，模型配置文件",
+      "explain": "保存本地合成结构、参数与假设的机器可读文件。"
+    },
+    {
+      "term": "revision",
+      "full": "Repository Revision，仓库固定版本",
+      "explain": "公开Flash来源锁定到完整提交标识314113f8a7dadb388215396ba5fbee2c610a04d6。"
+    }
+  ],
+  "red_notes": [
+    {
+      "quote": "保留计算骨架，分开核算规模",
+      "explain": "计算骨架取自锁定的Flash参考，深度、维度和专家数由本地model.json推演，参数口径以architecture-audit.json审计为准。"
+    },
+    {
+      "quote": "公开 Flash 审计 → 本地合成 Pro-10T",
+      "explain": "左列依据Flash官方配置及本地结构审计，右列是合成研究配置，两者不是官方产品版本等价对照。"
+    },
+    {
+      "quote": "10.1225T",
+      "explain": "architecture-audit.json逐矩阵计数得到骨干10,122,503,097,216个参数，名义10T与实际计数的差异为1.225%。"
+    },
+    {
+      "quote": "3.4398T",
+      "explain": "model.json中两张ngram表合计3,439,800,000,000个参数，作为主机查表容量单独核算，不计入名义10T。"
+    },
+    {
+      "quote": "34.7556B",
+      "explain": "architecture-audit.json给出DSpark额外34,755,581,154个参数，已排除共享主模型embedding与输出头的重复计数。"
+    },
+    {
+      "quote": "76.11B / 155.10B",
+      "explain": "architecture-audit.json定义的非lookup主体活跃参数分别对应prefill与decode；有限重放和输出头虽然不进入bulk锚点，仍执行并计费。"
+    },
+    {
+      "quote": "18.34倍",
+      "explain": "由合成骨干参数除以同一审计定义下的Flash骨干参数计算，仅表达参数容量倍率，不表示模型质量或实机速度倍率。"
+    }
+  ],
+  "sources": [
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\architecture-audit.json",
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\model.json",
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\methodology.md",
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\sources\\config.json",
+    "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\sources\\manifest.json",
+    "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/blob/314113f8a7dadb388215396ba5fbee2c610a04d6/config.json",
+    "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/blob/314113f8a7dadb388215396ba5fbee2c610a04d6/inference/model.py"
+  ]
+}

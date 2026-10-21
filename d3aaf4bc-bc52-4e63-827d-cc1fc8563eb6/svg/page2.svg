@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="微软雅黑, Arial, sans-serif">
+  <g id="background"><rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/></g>
+  <g id="page-header">
+    <text x="50" y="50" font-size="28" font-weight="bold" fill="#C00000">10T 推理需同时满足显存峰值、HBM 带宽与低时延互联</text>
+    <text x="50" y="77" font-size="12" fill="#666666">02 基线集群要求 · 1M、top-32、output=2；显存扫描 batch=1–32，计算与互联指标保持 batch=1</text>
+  </g>
+  <g id="core-band">
+    <rect x="50" y="96" width="1180" height="62" rx="4" fill="#FFF1EF" stroke="#C00000" stroke-width="1.5"/>
+    <use data-icon="chunk-filled/target-arrow" x="70" y="115" width="22" height="22" fill="#C00000"/>
+    <text x="104" y="132" font-size="15" font-weight="bold" fill="#C00000">核心思想</text>
+    <line x1="180" y1="110" x2="180" y2="146" stroke="#F1B4B7" stroke-width="1"/>
+    <text x="200" y="132" font-size="15" font-weight="bold" fill="#1D1D1A"><tspan fill="#C00000">1024 卡 TP32×EP32</tspan>，SP32共用TP；PP=DP=1为基线，其他并行布局见第4–5页</text>
+  </g>
+  <g id="memory-requirement">
+    <rect x="50" y="172" width="380" height="360" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1"/>
+    <rect x="50" y="172" width="380" height="40" fill="#F2F2F2"/>
+    <use data-icon="chunk-filled/database" x="69" y="182" width="20" height="20" fill="#C00000"/>
+    <text x="101" y="198" font-size="15" font-weight="bold" fill="#1D1D1A">显存：区分 prefill 与 decode</text>
+    <text x="70" y="235" font-size="12" fill="#1D1D1A">1M · 单卡阶段峰值（GB）</text>
+    <text x="70" y="254" font-size="10.5" fill="#666666">F 组合；950DT / 960DT 数值相同</text>
+    <text x="118" y="279" text-anchor="middle" font-size="12" font-weight="bold" fill="#1D1D1A">batch size</text>
+    <text x="247" y="279" text-anchor="middle" font-size="12" font-weight="bold" fill="#1D1D1A">Prefill</text>
+    <text x="360" y="279" text-anchor="middle" font-size="12" font-weight="bold" fill="#1D1D1A">Decode</text>
+    <line x1="70" y1="290" x2="410" y2="290" stroke="#BFBFBF" stroke-width="1"/>
+    <text x="118" y="311" text-anchor="middle" font-size="15" fill="#1D1D1A">1</text>
+    <text x="247" y="311" text-anchor="middle" font-size="15" fill="#1D1D1A">61.44</text>
+    <text x="360" y="311" text-anchor="middle" font-size="15" fill="#1D1D1A">42.64</text>
+    <line x1="70" y1="319" x2="410" y2="319" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="118" y="337" text-anchor="middle" font-size="15" fill="#1D1D1A">2</text>
+    <text x="247" y="337" text-anchor="middle" font-size="15" fill="#1D1D1A">61.44</text>
+    <text x="360" y="337" text-anchor="middle" font-size="15" fill="#1D1D1A">42.64</text>
+    <line x1="70" y1="345" x2="410" y2="345" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="118" y="363" text-anchor="middle" font-size="15" fill="#1D1D1A">4</text>
+    <text x="247" y="363" text-anchor="middle" font-size="15" fill="#1D1D1A">61.44</text>
+    <text x="360" y="363" text-anchor="middle" font-size="15" fill="#1D1D1A">42.64</text>
+    <line x1="70" y1="371" x2="410" y2="371" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="118" y="389" text-anchor="middle" font-size="15" fill="#1D1D1A">8</text>
+    <text x="247" y="389" text-anchor="middle" font-size="15" fill="#1D1D1A">61.44</text>
+    <text x="360" y="389" text-anchor="middle" font-size="15" fill="#1D1D1A">42.64</text>
+    <line x1="70" y1="397" x2="410" y2="397" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="118" y="415" text-anchor="middle" font-size="15" fill="#1D1D1A">16</text>
+    <text x="247" y="415" text-anchor="middle" font-size="15" fill="#1D1D1A">61.44</text>
+    <text x="360" y="415" text-anchor="middle" font-size="15" fill="#1D1D1A">42.64</text>
+    <rect x="70" y="423" width="340" height="26" fill="#FFF1EF"/>
+    <text x="118" y="441" text-anchor="middle" font-size="15" font-weight="bold" fill="#1D1D1A">32</text>
+    <text x="247" y="441" text-anchor="middle" font-size="15" font-weight="bold" fill="#C00000">62.67</text>
+    <text x="360" y="441" text-anchor="middle" font-size="15" fill="#1D1D1A">42.64</text>
+    <line x1="70" y1="449" x2="410" y2="449" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="70" y="476" font-size="12" fill="#1D1D1A">集群常驻（TB）</text>
+    <text x="410" y="476" text-anchor="end" font-size="15" font-weight="bold" fill="#C00000">28.81 → 43.67</text>
+    <text x="70" y="497" font-size="10.5" fill="#666666">batch 1→32；输出末端常驻，非各卡峰值之和</text>
+    <text x="70" y="517" font-size="10.5" fill="#666666">batch 指整个 DP 副本的并发序列数</text>
+  </g>
+  <g id="compute-bandwidth-requirement">
+    <rect x="450" y="172" width="380" height="360" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1"/>
+    <rect x="450" y="172" width="380" height="40" fill="#F2F2F2"/>
+    <use data-icon="chunk-filled/server" x="469" y="182" width="20" height="20" fill="#C00000"/>
+    <text x="501" y="198" font-size="15" font-weight="bold" fill="#1D1D1A">计算与访存：分阶段配置资源</text>
+    <text x="470" y="241" font-size="12" fill="#666666">每卡规格</text>
+    <text x="650" y="241" text-anchor="middle" font-size="12" font-weight="bold" fill="#1D1D1A">950DT</text>
+    <text x="761" y="241" text-anchor="middle" font-size="12" font-weight="bold" fill="#1D1D1A">960DT</text>
+    <line x1="470" y1="252" x2="810" y2="252" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="470" y="277" font-size="12" fill="#1D1D1A">HBM 容量</text>
+    <text x="650" y="277" text-anchor="middle" font-size="12" fill="#1D1D1A">144 GB</text>
+    <text x="761" y="277" text-anchor="middle" font-size="12" fill="#1D1D1A">288 GB</text>
+    <line x1="470" y1="289" x2="810" y2="289" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="470" y="314" font-size="12" fill="#1D1D1A">HBM 带宽</text>
+    <text x="650" y="314" text-anchor="middle" font-size="12" fill="#1D1D1A">4 TB/s</text>
+    <text x="761" y="314" text-anchor="middle" font-size="12" fill="#1D1D1A">9.6 TB/s</text>
+    <line x1="470" y1="326" x2="810" y2="326" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="470" y="351" font-size="12" fill="#1D1D1A">FP8 标称峰值</text>
+    <text x="650" y="351" text-anchor="middle" font-size="12" fill="#1D1D1A">1 PFLOP/s</text>
+    <text x="761" y="351" text-anchor="middle" font-size="12" fill="#1D1D1A">2 PFLOP/s</text>
+    <text x="470" y="375" font-size="10.5" fill="#666666">两平台计算效率均假设 50%</text>
+    <text x="470" y="422" font-size="38" font-weight="bold" fill="#C00000">8.34<tspan font-size="15" fill="#1D1D1A"> TB/步</tspan></text>
+    <text x="470" y="447" font-size="15" fill="#1D1D1A">decode 集群累计 HBM 读写</text>
+    <text x="470" y="483" font-size="12" fill="#1D1D1A">prefill 计算量：1.611 EFLOP</text>
+    <text x="470" y="515" font-size="10.5" fill="#666666">HBM 读写量为累计流量，不是存储容量</text>
+  </g>
+  <g id="network-requirement">
+    <rect x="850" y="172" width="380" height="360" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1"/>
+    <rect x="850" y="172" width="380" height="40" fill="#F2F2F2"/>
+    <use data-icon="chunk-filled/arrows-repeat" x="869" y="182" width="20" height="20" fill="#C00000"/>
+    <text x="901" y="198" font-size="15" font-weight="bold" fill="#1D1D1A">互联：专家分发需要低启动时延</text>
+    <text x="870" y="237" font-size="12" fill="#1D1D1A">1024 卡单逻辑 SU · 非阻塞 · SO=0</text>
+    <text x="1050" y="269" text-anchor="middle" font-size="12" font-weight="bold" fill="#1D1D1A">950DT</text>
+    <text x="1161" y="269" text-anchor="middle" font-size="12" font-weight="bold" fill="#1D1D1A">960DT</text>
+    <line x1="870" y1="280" x2="1210" y2="280" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="870" y="303" font-size="12" fill="#1D1D1A">单向带宽</text>
+    <text x="1050" y="303" text-anchor="middle" font-size="12" fill="#1D1D1A">1 TB/s</text>
+    <text x="1161" y="303" text-anchor="middle" font-size="12" fill="#1D1D1A">1.1 TB/s</text>
+    <line x1="870" y1="314" x2="1210" y2="314" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="870" y="337" font-size="12" fill="#1D1D1A">启动/传播</text>
+    <text x="1050" y="337" text-anchor="middle" font-size="12" fill="#1D1D1A">2.1 μs</text>
+    <text x="1161" y="337" text-anchor="middle" font-size="12" fill="#1D1D1A">1 μs</text>
+    <text x="870" y="369" font-size="10.5" fill="#666666">两平台互联有效效率均假设 80%</text>
+    <text x="870" y="420" font-size="38" font-weight="bold" fill="#C00000">86% / 87%</text>
+    <text x="870" y="447" font-size="15" fill="#1D1D1A">decode 关键路径的通信启动占比</text>
+    <text x="870" y="483" font-size="12" fill="#1D1D1A">prefill 载荷：772.87 TB</text>
+    <text x="870" y="511" font-size="12" fill="#1D1D1A">decode 载荷：3.31 GB/步</text>
+  </g>
+  <g id="scope-source">
+    <text x="50" y="545" font-size="10.5" fill="#666666">F：SP32 + MLA compressed + FP8 权重/计算/激活/通信/KV；KDA 状态 FP32。1M=1,048,576 token；GB / TB 均为十进制单位。</text>
+    <text x="50" y="561" font-size="10.5" fill="#666666">来源：2026-10-20 并行扫描与 decode batch 扫描；计算/互联沿用 batch=1 基线。模型预测，硬件、拓扑及效率未实测校准。</text>
+  </g>
+  <g id="highlight-strip">
+    <rect x="50" y="574" width="1180" height="68" rx="4" fill="#F2F2F2" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="72" y="601" font-size="15" font-weight="bold" fill="#C00000">本页亮点</text>
+    <text x="180" y="601" font-size="15" fill="#1D1D1A"><tspan fill="#C00000">★</tspan> batch≤EP32：每个活跃 EP lane 最多 1 条序列，单卡峰值不按 batch 倍增</text>
+    <text x="180" y="626" font-size="15" fill="#1D1D1A"><tspan fill="#C00000">★</tspan> decode 优先关注 collective 启动时延与 HBM 服务时间</text>
+  </g>
+  <g id="footer-group">
+    <text x="77" y="683" font-size="10.5" fill="#1D1D1A">2</text>
+    <text x="125" y="683" font-size="10.5" fill="#1D1D1A">Huawei Proprietary - Restricted Distribution</text>
+    <image href="logo.png" x="1070" y="663" width="133" height="28" preserveAspectRatio="xMidYMid meet"/>
+  </g>
+</svg>

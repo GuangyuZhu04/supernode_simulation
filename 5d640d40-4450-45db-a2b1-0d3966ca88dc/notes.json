@@ -1,0 +1,2669 @@
+{
+  "pages": [
+    {
+      "page": 1,
+      "title": "DeepSeek V4.1-Pro-10T 合成骨干10.12T，查表与草稿另计",
+      "speech": "这一页先明确后续仿真的模型对象。材料中的DeepSeek V4.1 Pro-10T是本地研究用合成结构，公开证据来自锁定版本的Flash配置和参考实现，不能把它称为已发布的Pro模型，也没有训练后质量的证明。结构保留了因果编码器—解码器、第二代压缩稀疏注意力、流形约束超连接和条件记忆机制，再按研究约束扩展深度、隐藏维和专家池。公开Flash配置实际是40层、隐藏维5120、384个路由专家、每token选6个专家；本地结构为64层、隐藏维7168、1792个路由专家、每token选24个专家，专家中间维由2304扩至4096。编码器和解码器各32层，跨层共享状态的持有层由公开结构按相对深度映射，这种映射没有做质量验证。\n\n参数审计采用逐矩阵结构计数。合成骨干为10.1225T，是公开Flash骨干的18.34倍；名义10T只表示骨干规模。两张ngram查表总量3.4398T和三层DSpark草稿额外参数34.7556B均单独列账，从而避免把主机查表容量或草稿驻留误计入骨干。公开Flash与合成结构均按同一审计定义对照，表中的公开参数也是配置推导结果，而不是重新下载或测量权重文件。\n\n计算侧则用非lookup活跃参数描述主体工作：prefill为76.11B，decode为155.10B。这两个数字不是activation内存大小，也不是每阶段全部执行成本；prefill的有限解码器重放与末位置输出头没有进入bulk活跃锚点，但仍在仿真中真实执行。共享专家、窗口长度、输出分组和四路残差等机制保留，其中输出分组为8，后续也会约束可兼容的张量并行候选。后续所有时延和容量结论只对应这组明确的合成结构与硬件假设。本页把公开来源与合成推演并列展示，是为了让评审能够沿参数定义复核容量与工作量，并为后续比较布局、上下文和批量提供稳定基准，不能据此推断相同任务质量或业务收益。",
+      "transition": "接下来把这些保留机制展开成可计算的阶段与资源路径，说明为什么不能只凭活跃参数估算时延。",
+      "glossary": [
+        {
+          "term": "DeepSeek",
+          "full": "（公司名）深度求索",
+          "explain": "本材料所采用的公开架构参考来源。"
+        },
+        {
+          "term": "V4.1",
+          "full": "Version 4.1，4.1版本",
+          "explain": "指本地锁定的DeepSeek-V4.1-Flash公开资料版本。"
+        },
+        {
+          "term": "Flash",
+          "full": "（产品名）DeepSeek-V4.1-Flash",
+          "explain": "公开架构参考；与本材料合成Pro-10T规模分开。"
+        },
+        {
+          "term": "Pro-10T",
+          "full": "（研究配置名）合成Pro万亿级结构",
+          "explain": "由Flash机制推演的研究配置，不是公开Pro规格。"
+        },
+        {
+          "term": "10T",
+          "full": "10 Trillion，十万亿参数",
+          "explain": "本实验名义骨干参数规模，实际审计为10.1225T。"
+        },
+        {
+          "term": "CED",
+          "full": "Causal Encoder-Decoder，因果编码器—解码器",
+          "explain": "批量prompt先经过编码器，再投影解码器全局KV。"
+        },
+        {
+          "term": "CSA2",
+          "full": "Compressed Sparse Attention 2，第二代压缩稀疏注意力",
+          "explain": "跨层共享KV和索引，并复用稀疏位置。"
+        },
+        {
+          "term": "mHC",
+          "full": "Manifold-constrained Hyper-Connections，流形约束超连接",
+          "explain": "以四路残差流及显式FP32操作建模的跨层连接。"
+        },
+        {
+          "term": "Engram",
+          "full": "（组件名）条件记忆模块",
+          "explain": "从主机侧ngram表查找并传回选中行。"
+        },
+        {
+          "term": "DSpark",
+          "full": "（机制名）DeepSeek DSpark",
+          "explain": "三层草稿网络并行提出五个位置，主模型验证六个query。"
+        },
+        {
+          "term": "SWA",
+          "full": "Sliding Window Attention，滑动窗口注意力",
+          "explain": "本实验窗口长度为128 token。"
+        },
+        {
+          "term": "KV",
+          "full": "Key/Value cache，键值缓存",
+          "explain": "推理中驻留的注意力历史状态。"
+        },
+        {
+          "term": "ngram",
+          "full": "N-gram，N元词组",
+          "explain": "本实验条件记忆表的索引组织方式。"
+        },
+        {
+          "term": "prefill",
+          "full": "Prompt Prefill，提示词预填充",
+          "explain": "含编码器bulk、解码器KV投影及有界replay。"
+        },
+        {
+          "term": "decode",
+          "full": "Autoregressive Decode，自回归生成",
+          "explain": "生成阶段；可选择AR或DSpark轮调度。"
+        },
+        {
+          "term": "token",
+          "full": "Token，词元",
+          "explain": "模型输入输出的基本离散单位。"
+        },
+        {
+          "term": "owner",
+          "full": "Cache Owner，缓存持有层",
+          "explain": "仅指定层生成并驻留共享全局KV/index。"
+        },
+        {
+          "term": "top-24",
+          "full": "Top-24 Expert Routing，24选路由",
+          "explain": "每个token选择24个路由专家。"
+        },
+        {
+          "term": "B",
+          "full": "Billion，十亿",
+          "explain": "在参数计数中为10^9个参数。"
+        },
+        {
+          "term": "T",
+          "full": "Trillion，万亿",
+          "explain": "在参数计数中为10^12个参数。"
+        },
+        {
+          "term": "JSON",
+          "full": "JavaScript Object Notation，结构化对象格式",
+          "explain": "模型、实验与验证账本格式。"
+        },
+        {
+          "term": "Huawei Proprietary - Restricted Distribution",
+          "full": "华为专有资料—限制分发",
+          "explain": "沿用用户要求的华为模板固定页脚。"
+        },
+        {
+          "term": "groups",
+          "full": "Output Projection Groups，输出投影分组",
+          "explain": "保留的输出投影分组数为8，限制本实验兼容的TP配置。"
+        },
+        {
+          "term": "bulk",
+          "full": "Bulk Phase，主体批量阶段",
+          "explain": "活跃参数锚点只统计主体路径中的非lookup参数；额外重放和输出头仍计执行成本。"
+        },
+        {
+          "term": "lookup",
+          "full": "Table Lookup，查表",
+          "explain": "从ngram表按地址读取行，属于条件记忆容量与访存成本。"
+        },
+        {
+          "term": "top-6",
+          "full": "Top-6 Expert Routing，六选专家路由",
+          "explain": "锁定的公开Flash配置每token选择6个路由专家。"
+        },
+        {
+          "term": "Pro",
+          "full": "（研究称谓）Pro结构",
+          "explain": "本材料仅指基于Flash机制的合成研究结构，没有公开Pro规格或权重的证据。"
+        },
+        {
+          "term": "model.json",
+          "full": "Model Configuration JSON，模型配置文件",
+          "explain": "保存本地合成结构、参数与假设的机器可读文件。"
+        },
+        {
+          "term": "revision",
+          "full": "Repository Revision，仓库固定版本",
+          "explain": "公开Flash来源锁定到完整提交标识314113f8a7dadb388215396ba5fbee2c610a04d6。"
+        }
+      ],
+      "red_notes": [
+        {
+          "quote": "保留计算骨架，分开核算规模",
+          "explain": "计算骨架取自锁定的Flash参考，深度、维度和专家数由本地model.json推演，参数口径以architecture-audit.json审计为准。"
+        },
+        {
+          "quote": "公开 Flash 审计 → 本地合成 Pro-10T",
+          "explain": "左列依据Flash官方配置及本地结构审计，右列是合成研究配置，两者不是官方产品版本等价对照。"
+        },
+        {
+          "quote": "10.1225T",
+          "explain": "architecture-audit.json逐矩阵计数得到骨干10,122,503,097,216个参数，名义10T与实际计数的差异为1.225%。"
+        },
+        {
+          "quote": "3.4398T",
+          "explain": "model.json中两张ngram表合计3,439,800,000,000个参数，作为主机查表容量单独核算，不计入名义10T。"
+        },
+        {
+          "quote": "34.7556B",
+          "explain": "architecture-audit.json给出DSpark额外34,755,581,154个参数，已排除共享主模型embedding与输出头的重复计数。"
+        },
+        {
+          "quote": "76.11B / 155.10B",
+          "explain": "architecture-audit.json定义的非lookup主体活跃参数分别对应prefill与decode；有限重放和输出头虽然不进入bulk锚点，仍执行并计费。"
+        },
+        {
+          "quote": "18.34倍",
+          "explain": "由合成骨干参数除以同一审计定义下的Flash骨干参数计算，仅表达参数容量倍率，不表示模型质量或实机速度倍率。"
+        }
+      ],
+      "sources": [
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\architecture-audit.json",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\model.json",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\methodology.md",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\sources\\config.json",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\sources\\manifest.json",
+        "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/blob/314113f8a7dadb388215396ba5fbee2c610a04d6/config.json",
+        "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/blob/314113f8a7dadb388215396ba5fbee2c610a04d6/inference/model.py"
+      ]
+    },
+    {
+      "page": 2,
+      "title": "CED、CSA2 与 Engram 改写资源路径，阶段成本逐项计入",
+      "speech": "这一页解释三个机制如何进入仿真，而不是用总参数或活跃参数乘上一个经验系数。左侧CED首先让全量提示词只经过32层编码器，然后将编码器最终状态投影成解码器的全局键值缓存。它仍要让末尾128个token完整重放32层解码器，以建立各层滑动窗口状态并产生首token。因此首token时间包含这段有界重放、索引和输出头，不能把旧模型的首token时延直接除以二。启用DSpark时，初始预填充还包含草稿网络末窗口的种子状态，具体成本在后页分开解释。\n\n中间CSA2只有4个全局KV持有层和8个索引持有层，按Full、Reindex、Reuse三种模式生成或复用状态。这些位置由公开Flash层位映射到合成结构，缓存共享质量没有实测。初级索引面对全历史打分，每个分块都先跨张量并行分片进行FP32全归约，再执行top-512选择，不能让各分片各自选top-k后假装等价。后续解码器索引限定在16,384个候选位置。这里提前聚集候选后再打分是本地仿真的优化执行假设；锁定的公开参考实现采用全量打分后屏蔽。因此PPT把这种策略直接标为假设，不将其包装成已验证实现性能。\n\n右侧Engram的ngram表采用FP8值和每32元素一字节scale，每个数据并行副本共3.5473TB。表按行分片放到该副本所属主机，而不是每主机重复一整份。主场景是冷查表，没有缓存命中或免费预取重叠。请求从原主机哈希出地址，经过主机到设备、域内互联与设备到主机到达持有行的主机，查到的行再通过主机链路返回并在张量并行组内分发。本地直达不会重复计域内传输。CPU、主机DRAM带宽与随机访问、主机链路、互联及设备字节均单独入账，图中压缩了路由细节但没有省略成本。这些机制共同说明，参数规模决定一部分容量，最终时延还取决于阶段顺序、状态驻留和每条数据路径。",
+      "transition": "明确资源路径后，再看同一1024卡硬件输入下的容量准入，区分预填充峰值与生成峰值。",
+      "glossary": [
+        {
+          "term": "Flash",
+          "full": "（产品名）DeepSeek-V4.1-Flash",
+          "explain": "公开架构参考；与本材料合成Pro-10T规模分开。"
+        },
+        {
+          "term": "Pro-10T",
+          "full": "（研究配置名）合成Pro万亿级结构",
+          "explain": "由Flash机制推演的研究配置，不是公开Pro规格。"
+        },
+        {
+          "term": "10T",
+          "full": "10 Trillion，十万亿参数",
+          "explain": "本实验名义骨干参数规模，实际审计为10.1225T。"
+        },
+        {
+          "term": "CED",
+          "full": "Causal Encoder-Decoder，因果编码器—解码器",
+          "explain": "批量prompt先经过编码器，再投影解码器全局KV。"
+        },
+        {
+          "term": "CSA2",
+          "full": "Compressed Sparse Attention 2，第二代压缩稀疏注意力",
+          "explain": "跨层共享KV和索引，并复用稀疏位置。"
+        },
+        {
+          "term": "Engram",
+          "full": "（组件名）条件记忆模块",
+          "explain": "从主机侧ngram表查找并传回选中行。"
+        },
+        {
+          "term": "SWA",
+          "full": "Sliding Window Attention，滑动窗口注意力",
+          "explain": "本实验窗口长度为128 token。"
+        },
+        {
+          "term": "KV",
+          "full": "Key/Value cache，键值缓存",
+          "explain": "推理中驻留的注意力历史状态。"
+        },
+        {
+          "term": "Full",
+          "full": "Full Mode，完整模式",
+          "explain": "生成共享KV/index，并计算稀疏索引的层模式。"
+        },
+        {
+          "term": "Reindex",
+          "full": "Reindex Mode，重索引模式",
+          "explain": "复用共享KV并重新计算索引。"
+        },
+        {
+          "term": "Reuse",
+          "full": "Reuse Mode，复用模式",
+          "explain": "复用已有KV及稀疏位置。"
+        },
+        {
+          "term": "ngram",
+          "full": "N-gram，N元词组",
+          "explain": "本实验条件记忆表的索引组织方式。"
+        },
+        {
+          "term": "TP",
+          "full": "Tensor Parallelism，张量并行",
+          "explain": "对注意力头、专家中间维等张量分片。"
+        },
+        {
+          "term": "DP",
+          "full": "Data Parallelism，数据并行",
+          "explain": "在独立权重副本上分配已存在的全局请求。"
+        },
+        {
+          "term": "DRAM",
+          "full": "Dynamic Random Access Memory，动态随机存取存储器",
+          "explain": "主机内存，用于分片存放Engram表。"
+        },
+        {
+          "term": "CPU",
+          "full": "Central Processing Unit，中央处理器",
+          "explain": "执行hash与主机侧处理成本。"
+        },
+        {
+          "term": "FP8",
+          "full": "8-bit Floating Point，8位浮点",
+          "explain": "主对照的权重、计算、激活、通信和KV精度。"
+        },
+        {
+          "term": "FP4",
+          "full": "4-bit Floating Point，4位浮点",
+          "explain": "公开参考采用的部分存储格式，本实验未假设其加速倍率。"
+        },
+        {
+          "term": "FP32",
+          "full": "32-bit Floating Point，32位浮点",
+          "explain": "router、mHC、norm等显式标量运算精度。"
+        },
+        {
+          "term": "SU",
+          "full": "Scale Up，域内互联",
+          "explain": "单逻辑1024卡无阻塞互联及端点注入模型。"
+        },
+        {
+          "term": "H2D",
+          "full": "Host to Device，主机到设备传输",
+          "explain": "主机内存与加速卡间传输方向。"
+        },
+        {
+          "term": "D2H",
+          "full": "Device to Host，设备到主机传输",
+          "explain": "加速卡回传主机内存的方向。"
+        },
+        {
+          "term": "IOPS",
+          "full": "Input/Output Operations Per Second，每秒输入输出操作数",
+          "explain": "主机查表随机访问能力的约束。"
+        },
+        {
+          "term": "TTFT",
+          "full": "Time To First Token，首token时间",
+          "explain": "本稿统一单独标示prefill全局bs=1的执行时间。"
+        },
+        {
+          "term": "token",
+          "full": "Token，词元",
+          "explain": "模型输入输出的基本离散单位。"
+        },
+        {
+          "term": "owner",
+          "full": "Cache Owner，缓存持有层",
+          "explain": "仅指定层生成并驻留共享全局KV/index。"
+        },
+        {
+          "term": "top-512",
+          "full": "Top-512 Sparse Index，512项稀疏索引",
+          "explain": "每层稀疏注意力索引选中位置数量。"
+        },
+        {
+          "term": "TB",
+          "full": "Terabyte，十进制太字节",
+          "explain": "本稿TB=10^12字节。"
+        },
+        {
+          "term": "T",
+          "full": "Trillion，万亿",
+          "explain": "在参数计数中为10^12个参数。"
+        },
+        {
+          "term": "JSON",
+          "full": "JavaScript Object Notation，结构化对象格式",
+          "explain": "模型、实验与验证账本格式。"
+        },
+        {
+          "term": "Huawei Proprietary - Restricted Distribution",
+          "full": "华为专有资料—限制分发",
+          "explain": "沿用用户要求的华为模板固定页脚。"
+        },
+        {
+          "term": "L",
+          "full": "Sequence Length，序列长度",
+          "explain": "图中全量输入提示词的token数量。"
+        },
+        {
+          "term": "tile",
+          "full": "Tiled Computation Block，分块计算单元",
+          "explain": "索引打分以有限工作区内的分块执行，每块归约及启动均计费。"
+        },
+        {
+          "term": "scale",
+          "full": "Quantization Scale，量化缩放因子",
+          "explain": "lookup表按每32个FP8元素保存一个scale字节，计入主机容量。"
+        },
+        {
+          "term": "host link",
+          "full": "Host–Device Link，主机设备链路",
+          "explain": "模型中主机与设备之间的双向传输资源，具有独立带宽和启动开销。"
+        },
+        {
+          "term": "host",
+          "full": "Host，主机",
+          "explain": "持有部分ngram表并处理哈希、查表与设备传输的CPU主机。"
+        },
+        {
+          "term": "methodology.md",
+          "full": "Methodology Document，仿真方法文档",
+          "explain": "给出架构来源、执行阶段、精度、资源路径和不确定性边界。"
+        },
+        {
+          "term": "model.json",
+          "full": "Model Configuration JSON，模型配置文件",
+          "explain": "保存本地合成模型的结构、共享层位与候选索引参数。"
+        },
+        {
+          "term": "inference/model.py",
+          "full": "Reference Inference Model，参考推理模型实现",
+          "explain": "来自锁定Flash仓库，仅作为公开机制证据，未执行下载的代码。"
+        }
+      ],
+      "red_notes": [
+        {
+          "quote": "CED：长提示与有界重放",
+          "explain": "依据methodology.md的CED阶段定义，编码器主体、解码器KV投影、有界重放及输出头依次执行。"
+        },
+        {
+          "quote": "CSA2：共享状态，逐级稀疏",
+          "explain": "公开参考保留跨层共享和三种模式，合成结构映射共享层位；候选提前聚集单列为本地执行假设。"
+        },
+        {
+          "quote": "Engram：主机分片，冷查表计费",
+          "explain": "本实验每DP副本持有一份ngram表并按行分片到所属主机，冷查表路径包含CPU、DRAM、host与SU实际成本。"
+        },
+        {
+          "quote": "阶段成本逐项计费",
+          "explain": "methodology.md按计算、缓存、索引、通信、主机查表和传输显式建模，没有用参数倍率代替新增机制成本。"
+        },
+        {
+          "quote": "128 token",
+          "explain": "model.json的window_size为128，CED用该末窗口完整重放32层解码器以建立SWA和首token状态。"
+        },
+        {
+          "quote": "16,384",
+          "explain": "model.json设置candidate_topk_blocks=2048、candidate_block_size=8，乘积为16384；提前聚集候选是仿真优化假设。"
+        },
+        {
+          "quote": "3.5473",
+          "explain": "由ngram参数3,439,800,000,000乘以FP8每元素1字节及1/32 scale开销得到每DP副本3.54729375TB，不是每主机一份。"
+        },
+        {
+          "quote": "成本全部保留",
+          "explain": "bulk活跃参数口径没有包括有限重放与末位置输出头，但执行图包含这些阶段，TTFT并非仅编码器主体耗时。"
+        },
+        {
+          "quote": "仿真假设",
+          "explain": "公开PyTorch参考先全量打分再屏蔽，本地采用候选提前聚集；此假设与层位映射、FP8统一精度一起限定结果适用范围。"
+        }
+      ],
+      "sources": [
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\methodology.md",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\model.json",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\sources\\inference\\model.py",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\sources\\inference\\engram.py",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\sources\\config.json",
+        "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/blob/314113f8a7dadb388215396ba5fbee2c610a04d6/config.json",
+        "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/blob/314113f8a7dadb388215396ba5fbee2c610a04d6/inference/model.py"
+      ]
+    },
+    {
+      "page": 3,
+      "title": "10T 推理需分开预算 HBM 与主机内存，并按阶段校验峰值",
+      "speech": "这一页保留原版材料的显存、算力和互联三条主线，并补上DeepSeek条件记忆的主机内存路径。所有数字以一百零四万八千五百七十六token、1024卡、TP8、EP128、DP1、SP8的AR参考布局为锚点。首先要区分阶段：prefill全局批大小为1时，单卡预留峰值是62.0232GB；decode全局批大小为32时，峰值只有27.3956GB。它们是两个独立阶段的负载口径，不能把后者作为整批32个请求同时prefill的容量证明。prefill批大小8另有78.7364GB记录。峰值包括权重物理副本、最终KV预留、每lane激活arena、通信暂存、8GB运行时和256MB工作区，不能用逻辑参数简单均分来替代。两平台的容量账本一致，但容量上限、HBM带宽、FP8计算速率和SU启动时间不同；效率分别固定为计算50%和互联80%，FP32峰值沿用50TFLOP/s假设。实验把主要矩阵、激活、通信和KV统一为FP8，显式计入router、mHC及norm的FP32工作量。公开参考中的FP4专家和KV只是来源记录，没有凭空换算为性能倍率。Engram的3.4398T逻辑参数另存主机，FP8与每32元素一个scale使每DP副本占约3.5473TB；该表按行分片到副本所属主机，而非每台主机都放整表。冷查表经过CPU、DRAM或IOPS、host链路、SU和TP通信，所有流量和启动均入账。扩大DP会复制权重和整张逻辑表，即使副本闲置仍保留容量。这些配置是未校准模型的输入，不是硬件规格实测，也不承诺实际物理布线。",
+      "transition": "明确资源边界后，下一页说明如何将新架构接入已有仿真内核并校验结果。",
+      "glossary": [
+        {
+          "term": "10T",
+          "full": "10 Trillion，十万亿参数",
+          "explain": "本实验名义骨干参数规模，实际审计为10.1225T。"
+        },
+        {
+          "term": "mHC",
+          "full": "Manifold-constrained Hyper-Connections，流形约束超连接",
+          "explain": "以四路残差流及显式FP32操作建模的跨层连接。"
+        },
+        {
+          "term": "Engram",
+          "full": "（组件名）条件记忆模块",
+          "explain": "从主机侧ngram表查找并传回选中行。"
+        },
+        {
+          "term": "KV",
+          "full": "Key/Value cache，键值缓存",
+          "explain": "推理中驻留的注意力历史状态。"
+        },
+        {
+          "term": "ngram",
+          "full": "N-gram，N元词组",
+          "explain": "本实验条件记忆表的索引组织方式。"
+        },
+        {
+          "term": "AR",
+          "full": "Autoregressive decoding，自回归解码",
+          "explain": "每轮提交一个输出token的基线。"
+        },
+        {
+          "term": "TP",
+          "full": "Tensor Parallelism，张量并行",
+          "explain": "对注意力头、专家中间维等张量分片。"
+        },
+        {
+          "term": "EP",
+          "full": "Expert Parallelism，专家并行",
+          "explain": "在不同rank间分布专家权重。"
+        },
+        {
+          "term": "DP",
+          "full": "Data Parallelism，数据并行",
+          "explain": "在独立权重副本上分配已存在的全局请求。"
+        },
+        {
+          "term": "SP",
+          "full": "Sequence Parallelism，序列并行",
+          "explain": "与TP共用卡，分片pointwise和残差等token状态。"
+        },
+        {
+          "term": "HBM",
+          "full": "High Bandwidth Memory，高带宽内存",
+          "explain": "NPU卡上存储，容量和带宽分别约束。"
+        },
+        {
+          "term": "DRAM",
+          "full": "Dynamic Random Access Memory，动态随机存取存储器",
+          "explain": "主机内存，用于分片存放Engram表。"
+        },
+        {
+          "term": "FP8",
+          "full": "8-bit Floating Point，8位浮点",
+          "explain": "主对照的权重、计算、激活、通信和KV精度。"
+        },
+        {
+          "term": "FP4",
+          "full": "4-bit Floating Point，4位浮点",
+          "explain": "公开参考采用的部分存储格式，本实验未假设其加速倍率。"
+        },
+        {
+          "term": "FP32",
+          "full": "32-bit Floating Point，32位浮点",
+          "explain": "router、mHC、norm等显式标量运算精度。"
+        },
+        {
+          "term": "SU",
+          "full": "Scale Up，域内互联",
+          "explain": "单逻辑1024卡无阻塞互联及端点注入模型。"
+        },
+        {
+          "term": "SO",
+          "full": "Scale Out，域间互联",
+          "explain": "本实验普通通信不经过此路径。"
+        },
+        {
+          "term": "IOPS",
+          "full": "Input/Output Operations Per Second，每秒输入输出操作数",
+          "explain": "主机查表随机访问能力的约束。"
+        },
+        {
+          "term": "TTFT",
+          "full": "Time To First Token，首token时间",
+          "explain": "本稿统一单独标示prefill全局bs=1的执行时间。"
+        },
+        {
+          "term": "bs",
+          "full": "Batch Size，批大小",
+          "explain": "decode为全局同时参与序列数；TTFT的prefill批次另列。"
+        },
+        {
+          "term": "prefill",
+          "full": "Prompt Prefill，提示词预填充",
+          "explain": "含编码器bulk、解码器KV投影及有界replay。"
+        },
+        {
+          "term": "decode",
+          "full": "Autoregressive Decode，自回归生成",
+          "explain": "生成阶段；可选择AR或DSpark轮调度。"
+        },
+        {
+          "term": "TFLOP",
+          "full": "Tera Floating Point Operations，万亿次浮点运算",
+          "explain": "10的12次方次浮点运算。"
+        },
+        {
+          "term": "PFLOP/s",
+          "full": "Peta FLOPs Per Second，每秒千万亿次浮点运算",
+          "explain": "硬件名义计算速率。"
+        },
+        {
+          "term": "GB",
+          "full": "Gigabyte，十进制吉字节",
+          "explain": "本稿GB=10^9字节。"
+        },
+        {
+          "term": "TB",
+          "full": "Terabyte，十进制太字节",
+          "explain": "本稿TB=10^12字节。"
+        },
+        {
+          "term": "MB",
+          "full": "Megabyte，十进制兆字节",
+          "explain": "本稿MB=10^6字节。"
+        },
+        {
+          "term": "T",
+          "full": "Trillion，万亿",
+          "explain": "在参数计数中为10^12个参数。"
+        },
+        {
+          "term": "μs",
+          "full": "Microsecond，微秒",
+          "explain": "10^-6秒。"
+        },
+        {
+          "term": "s",
+          "full": "Second，秒",
+          "explain": "时延单位。"
+        },
+        {
+          "term": "1M",
+          "full": "1,048,576 Tokens，一百万级词元上下文",
+          "explain": "本稿1M采用二进制长度。"
+        },
+        {
+          "term": "950DT",
+          "full": "（硬件配置名）Ascend 950DT",
+          "explain": "本实验采用的144GB、4TB/s、1PFLOP/s假设配置。"
+        },
+        {
+          "term": "960DT",
+          "full": "（硬件配置名）Ascend 960DT",
+          "explain": "本实验采用的288GB、9.6TB/s、2PFLOP/s假设配置。"
+        },
+        {
+          "term": "CSV",
+          "full": "Comma-Separated Values，逗号分隔数据",
+          "explain": "全量结构化结果格式。"
+        },
+        {
+          "term": "JSON",
+          "full": "JavaScript Object Notation，结构化对象格式",
+          "explain": "模型、实验与验证账本格式。"
+        },
+        {
+          "term": "Huawei Proprietary - Restricted Distribution",
+          "full": "华为专有资料—限制分发",
+          "explain": "沿用用户要求的华为模板固定页脚。"
+        },
+        {
+          "term": "scale",
+          "full": "Quantization Scale，量化缩放因子",
+          "explain": "随FP8权重、KV和Engram表存储的额外字节。"
+        },
+        {
+          "term": "router",
+          "full": "Expert Router，专家路由器",
+          "explain": "以FP32计算显式路由工作量。"
+        },
+        {
+          "term": "norm",
+          "full": "Normalization，归一化",
+          "explain": "本实验显式计入FP32归一化计算。"
+        },
+        {
+          "term": "host link",
+          "full": "Host Link，主机到加速卡链路",
+          "explain": "64GB/s名义带宽、85%效率与2μs启动的继承假设。"
+        },
+        {
+          "term": "cache",
+          "full": "Cache，缓存",
+          "explain": "主场景不假设Engram查表缓存命中。"
+        }
+      ],
+      "red_notes": [
+        {
+          "quote": "prefill 峰值高于 decode",
+          "explain": "summary.csv参考布局记录prefill bs1峰值62.023152704GB、decode bs32峰值27.395639616GB；负载不同，分别展示。"
+        },
+        {
+          "quote": "62.02",
+          "explain": "prefill.csv中参考布局、1M、AR、全局bs1的每卡峰值；不是decode容量。"
+        },
+        {
+          "quote": "27.40",
+          "explain": "summary.csv中参考布局、1M、AR、全局bs32的decode阶段每卡峰值。"
+        },
+        {
+          "quote": "主对照统一 FP8",
+          "explain": "experiment.json规定矩阵存储/计算/激活/通信/KV统一FP8，FP32操作另计。"
+        },
+        {
+          "quote": "Engram：每副本主机驻留",
+          "explain": "methodology.md定义每DP副本完整ngram表，按行分散在副本所属主机。"
+        },
+        {
+          "quote": "3.5473",
+          "explain": "3.4398T查表参数按FP8和每32元素1字节scale计算为3.54729375TB，每DP副本一份。"
+        }
+      ],
+      "sources": [
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/experiment.json",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/summary.csv",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/prefill.csv",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/methodology.md"
+      ]
+    },
+    {
+      "page": 4,
+      "title": "新增架构用独立解析模块接入原生资源内核，结果可追溯",
+      "speech": "这一页承接原版材料的仿真Skill流程，但需要把本次适配范围讲清楚。DeepSeek的CED、CSA2、mHC、Engram和三层DSpark通过独立的解析模块编译为阶段图，调用冻结的supernode_sim原生Graph、Event、Allocation、Resource以及engine.simulate，没有把这些尚未进入通用streaming接口的特性写成通用API已原生支持。输入包括逐矩阵结构、精度、1024卡拓扑和固定全局batch；DP仅分摊已有请求，活跃副本数量不超过全局batch。扫描包含45个并行候选、四种二进制上下文和六档decode batch，TP16与TP32因为保留output groups=8而明确标为不兼容。各组件按barrier串行；计算与HBM在单个kernel内共同约束，只把时间归给主导资源，通信每轮同时受端点和启动约束。仿真使用资源封装缩约相同速率的rank组，仍保留全物理工作量；封装中代表性工作量不能被误认成全卡流量。17组校验核对小规模原生通信图、异构计算、DP主机独立、整数路由守恒、缓存owner、投机状态和容量失败等。全量共有15120行decode，7560行可行、3528行容量不可行、4032行结构不兼容，另有1440行prefill。这些行包括AR和六档条件提交数，不是15120次不同模型训练或独立硬件实测。失败项保留空时延，不能在图表中当成零延迟。prefill按全局bs1和bs8另列，decode批次扫描不改写首token的含义。输入、原始阶段结果、代码指纹、矩阵审计及六类资源时延账本均可追溯。验证证明了方程、加和与缩约一致性，并未证明实际kernel精度、学习路由、接收率、排队、动态批处理或P99；下一步仍需要实机校准。",
+      "transition": "在统一的硬件和负载口径下，下一页比较参考布局与解码优先布局的收益及代价。",
+      "glossary": [
+        {
+          "term": "Flash",
+          "full": "（产品名）DeepSeek-V4.1-Flash",
+          "explain": "公开架构参考；与本材料合成Pro-10T规模分开。"
+        },
+        {
+          "term": "CED",
+          "full": "Causal Encoder-Decoder，因果编码器—解码器",
+          "explain": "批量prompt先经过编码器，再投影解码器全局KV。"
+        },
+        {
+          "term": "CSA2",
+          "full": "Compressed Sparse Attention 2，第二代压缩稀疏注意力",
+          "explain": "跨层共享KV和索引，并复用稀疏位置。"
+        },
+        {
+          "term": "mHC",
+          "full": "Manifold-constrained Hyper-Connections，流形约束超连接",
+          "explain": "以四路残差流及显式FP32操作建模的跨层连接。"
+        },
+        {
+          "term": "Engram",
+          "full": "（组件名）条件记忆模块",
+          "explain": "从主机侧ngram表查找并传回选中行。"
+        },
+        {
+          "term": "DSpark",
+          "full": "（机制名）DeepSeek DSpark",
+          "explain": "三层草稿网络并行提出五个位置，主模型验证六个query。"
+        },
+        {
+          "term": "KV",
+          "full": "Key/Value cache，键值缓存",
+          "explain": "推理中驻留的注意力历史状态。"
+        },
+        {
+          "term": "TP",
+          "full": "Tensor Parallelism，张量并行",
+          "explain": "对注意力头、专家中间维等张量分片。"
+        },
+        {
+          "term": "EP",
+          "full": "Expert Parallelism，专家并行",
+          "explain": "在不同rank间分布专家权重。"
+        },
+        {
+          "term": "DP",
+          "full": "Data Parallelism，数据并行",
+          "explain": "在独立权重副本上分配已存在的全局请求。"
+        },
+        {
+          "term": "SP",
+          "full": "Sequence Parallelism，序列并行",
+          "explain": "与TP共用卡，分片pointwise和残差等token状态。"
+        },
+        {
+          "term": "PP",
+          "full": "Pipeline Parallelism，流水线并行",
+          "explain": "本实验固定PP=1。"
+        },
+        {
+          "term": "HBM",
+          "full": "High Bandwidth Memory，高带宽内存",
+          "explain": "NPU卡上存储，容量和带宽分别约束。"
+        },
+        {
+          "term": "FP8",
+          "full": "8-bit Floating Point，8位浮点",
+          "explain": "主对照的权重、计算、激活、通信和KV精度。"
+        },
+        {
+          "term": "FP32",
+          "full": "32-bit Floating Point，32位浮点",
+          "explain": "router、mHC、norm等显式标量运算精度。"
+        },
+        {
+          "term": "TTFT",
+          "full": "Time To First Token，首token时间",
+          "explain": "本稿统一单独标示prefill全局bs=1的执行时间。"
+        },
+        {
+          "term": "P99",
+          "full": "99th Percentile，99百分位",
+          "explain": "本模型未模拟请求排队与尾时延。"
+        },
+        {
+          "term": "bs",
+          "full": "Batch Size，批大小",
+          "explain": "decode为全局同时参与序列数；TTFT的prefill批次另列。"
+        },
+        {
+          "term": "batch",
+          "full": "Batch Size，批大小",
+          "explain": "在相应阶段同时处理的序列数量。"
+        },
+        {
+          "term": "prefill",
+          "full": "Prompt Prefill，提示词预填充",
+          "explain": "含编码器bulk、解码器KV投影及有界replay。"
+        },
+        {
+          "term": "decode",
+          "full": "Autoregressive Decode，自回归生成",
+          "explain": "生成阶段；可选择AR或DSpark轮调度。"
+        },
+        {
+          "term": "rank",
+          "full": "Parallel Rank，并行进程编号",
+          "explain": "模型中独立资源端点编号。"
+        },
+        {
+          "term": "owner",
+          "full": "Cache Owner，缓存持有层",
+          "explain": "仅指定层生成并驻留共享全局KV/index。"
+        },
+        {
+          "term": "FLOPs",
+          "full": "Floating Point Operations，浮点运算次数",
+          "explain": "工作量而非利用率或时延。"
+        },
+        {
+          "term": "supernode_sim",
+          "full": "（软件名）超节点流量仿真引擎",
+          "explain": "本次使用冻结的原生资源和调度语义。"
+        },
+        {
+          "term": "CSV",
+          "full": "Comma-Separated Values，逗号分隔数据",
+          "explain": "全量结构化结果格式。"
+        },
+        {
+          "term": "JSON",
+          "full": "JavaScript Object Notation，结构化对象格式",
+          "explain": "模型、实验与验证账本格式。"
+        },
+        {
+          "term": "SHA256",
+          "full": "Secure Hash Algorithm 256-bit，256位安全散列",
+          "explain": "源文件固定版本及审计指纹。"
+        },
+        {
+          "term": "Huawei Proprietary - Restricted Distribution",
+          "full": "华为专有资料—限制分发",
+          "explain": "沿用用户要求的华为模板固定页脚。"
+        },
+        {
+          "term": "roofline",
+          "full": "Roofline Model，屋顶线模型",
+          "explain": "同一矩阵阶段以计算和HBM服务时间中的较慢者约束完成。"
+        },
+        {
+          "term": "collective",
+          "full": "Collective Communication，集合通信",
+          "explain": "本实验ring/pairwise轮次、载荷和启动均显式计入。"
+        },
+        {
+          "term": "min",
+          "full": "Minimum，最小值函数",
+          "explain": "活跃DP副本数是DP数量与全局batch的较小值。"
+        },
+        {
+          "term": "output groups",
+          "full": "Output Projection Groups，输出投影分组",
+          "explain": "保留8组结构导致TP16/32不兼容。"
+        },
+        {
+          "term": "bytes",
+          "full": "Bytes，字节数",
+          "explain": "物理内存和链路账本的流量单位。"
+        },
+        {
+          "term": "null",
+          "full": "Null Value，空值",
+          "explain": "不可行结果未执行或没有有效时延，不能当作零。"
+        },
+        {
+          "term": "kernel",
+          "full": "Compute Kernel，计算内核",
+          "explain": "本实验未用实测kernel启动或吞吐profile校准。"
+        },
+        {
+          "term": "profile",
+          "full": "Measured Performance Profile，实测性能档案",
+          "explain": "用于把解析模型校准到真实算子的测量资料。"
+        },
+        {
+          "term": "batching",
+          "full": "Batching，请求批处理",
+          "explain": "动态请求合批尚未纳入模型。"
+        }
+      ],
+      "red_notes": [
+        {
+          "quote": "17 组不变量验证",
+          "explain": "verification.json记录17组结构和原生内核缩约核对，范围不是硬件性能准确度。"
+        },
+        {
+          "quote": "17",
+          "explain": "verification.json的count=17，覆盖张量、容量、通信及状态账本。"
+        },
+        {
+          "quote": "性能精度仍待实机校准",
+          "explain": "methodology.md明确未使用kernel实测profile，没有性能误差承诺。"
+        },
+        {
+          "quote": "15,120",
+          "explain": "summary.csv行数，包含AR和DSpark的六个条件C值；不是独立实测次数。"
+        },
+        {
+          "quote": "1,440",
+          "explain": "prefill.csv独立行数，prefill全局批次为1和8。"
+        },
+        {
+          "quote": "固定全局负载，不以新增请求制造 DP 收益",
+          "explain": "experiment.json规定active_DP=min(DP,global_batch)，吞吐按实际已给定batch计算。"
+        },
+        {
+          "quote": "7,560",
+          "explain": "result-verification.json和summary.csv状态计数中的可行decode行。"
+        },
+        {
+          "quote": "3,528",
+          "explain": "summary.csv中容量不满足当前预留策略的decode行；时延为空。"
+        },
+        {
+          "quote": "4,032",
+          "explain": "summary.csv中TP16/32与output groups=8不兼容的decode行。"
+        }
+      ],
+      "sources": [
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/methodology.md",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/verification.json",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/result-verification.json",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/provenance.json",
+        "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020/experiment.json"
+      ]
+    },
+    {
+      "page": 5,
+      "title": "调整并行组合可提升 1M 吞吐，代价是 TTFT 与驻留容量增加",
+      "speech": "本页只讨论普通自回归基线。四组结果使用同一合成结构、统一八位浮点口径、相同一百万级上下文和全局三十二条生成序列，变化的是并行布局。表中首词时间专门来自单请求预填充，生成时延和吞吐来自三十二条序列的生成阶段，二者没有混成整批预热指标。两平台参考布局都是张量并行八、专家并行一百二十八、数据并行一。950DT 把专家并行缩到 32、数据副本增加到 4 后，每输出词时延由 46.35 降至 19.63 毫秒，吞吐由 690.41 升至 1630.34 词元每秒。960DT 的优选布局为 4/16/16/4，相应吞吐从 1455.95 升至 6260.90，提升 +330.0%。缩小专家组减少了分发与归并的串行通信轮数；已有请求又能填充多个互不争用的数据副本，因此这是真实固定负载下的布局收益。不过，优选目标只针对生成时延，并不代表请求全程更快。950DT 与 960DT 的单请求首词时间分别增加 +1.7% 和 +25.8%。预填充只有一个活跃数据副本，增加副本不会自动加速该请求；缩小张量或专家组还会增大目标卡承担的工作与权重驻留。容量也必须分阶段核对：950DT 优选的预填充与生成峰值分别为 98.30 和 57.02 吉字节每卡；960DT 对应为 248.38 和 177.84。这说明只看生成峰值会明显低估预填充压力。即使两阶段分别通过容量准入，也只证明单请求预填充以及指定生成批次可行，不能推出三十二请求同时预填充的端到端保证。右侧条形图共用同一横轴，避免不同尺度放大视觉差异。若增加首词时间不得退化的约束，推荐表返回的仍是参考布局，当前扫描没有找到同时改进生成时延的替代方案。所有结果都是锁定配置与调度假设后的解析预测，尚未用真机测量校准。",
+      "transition": "接下来保持这些生成优选布局不变，观察上下文与批大小的敏感性，再用物理工作账本解释吞吐和驻留的不同变化。",
+      "glossary": [
+        {
+          "term": "ngram",
+          "full": "N-gram，N元词组",
+          "explain": "本实验条件记忆表的索引组织方式。"
+        },
+        {
+          "term": "AR",
+          "full": "Autoregressive decoding，自回归解码",
+          "explain": "每轮提交一个输出token的基线。"
+        },
+        {
+          "term": "TP",
+          "full": "Tensor Parallelism，张量并行",
+          "explain": "对注意力头、专家中间维等张量分片。"
+        },
+        {
+          "term": "EP",
+          "full": "Expert Parallelism，专家并行",
+          "explain": "在不同rank间分布专家权重。"
+        },
+        {
+          "term": "DP",
+          "full": "Data Parallelism，数据并行",
+          "explain": "在独立权重副本上分配已存在的全局请求。"
+        },
+        {
+          "term": "SP",
+          "full": "Sequence Parallelism，序列并行",
+          "explain": "与TP共用卡，分片pointwise和残差等token状态。"
+        },
+        {
+          "term": "HBM",
+          "full": "High Bandwidth Memory，高带宽内存",
+          "explain": "NPU卡上存储，容量和带宽分别约束。"
+        },
+        {
+          "term": "FP8",
+          "full": "8-bit Floating Point，8位浮点",
+          "explain": "主对照的权重、计算、激活、通信和KV精度。"
+        },
+        {
+          "term": "TTFT",
+          "full": "Time To First Token，首token时间",
+          "explain": "本稿统一单独标示prefill全局bs=1的执行时间。"
+        },
+        {
+          "term": "TPOT",
+          "full": "Time Per Output Token，每输出token时间",
+          "explain": "AR为轮时延；DSpark为轮时延除以提交数C。"
+        },
+        {
+          "term": "bs",
+          "full": "Batch Size，批大小",
+          "explain": "decode为全局同时参与序列数；TTFT的prefill批次另列。"
+        },
+        {
+          "term": "batch",
+          "full": "Batch Size，批大小",
+          "explain": "在相应阶段同时处理的序列数量。"
+        },
+        {
+          "term": "prefill",
+          "full": "Prompt Prefill，提示词预填充",
+          "explain": "含编码器bulk、解码器KV投影及有界replay。"
+        },
+        {
+          "term": "decode",
+          "full": "Autoregressive Decode，自回归生成",
+          "explain": "生成阶段；可选择AR或DSpark轮调度。"
+        },
+        {
+          "term": "token",
+          "full": "Token，词元",
+          "explain": "模型输入输出的基本离散单位。"
+        },
+        {
+          "term": "tokens/s",
+          "full": "Tokens Per Second，每秒词元数",
+          "explain": "global batch乘C除以轮时延的系统输出吞吐。"
+        },
+        {
+          "term": "GB",
+          "full": "Gigabyte，十进制吉字节",
+          "explain": "本稿GB=10^9字节。"
+        },
+        {
+          "term": "ms",
+          "full": "Millisecond，毫秒",
+          "explain": "10^-3秒。"
+        },
+        {
+          "term": "s",
+          "full": "Second，秒",
+          "explain": "时延单位。"
+        },
+        {
+          "term": "1M",
+          "full": "1,048,576 Tokens，一百万级词元上下文",
+          "explain": "本稿1M采用二进制长度。"
+        },
+        {
+          "term": "950DT",
+          "full": "（硬件配置名）Ascend 950DT",
+          "explain": "本实验采用的144GB、4TB/s、1PFLOP/s假设配置。"
+        },
+        {
+          "term": "960DT",
+          "full": "（硬件配置名）Ascend 960DT",
+          "explain": "本实验采用的288GB、9.6TB/s、2PFLOP/s假设配置。"
+        },
+        {
+          "term": "CSV",
+          "full": "Comma-Separated Values，逗号分隔数据",
+          "explain": "全量结构化结果格式。"
+        },
+        {
+          "term": "Huawei Proprietary - Restricted Distribution",
+          "full": "华为专有资料—限制分发",
+          "explain": "沿用用户要求的华为模板固定页脚。"
+        },
+        {
+          "term": "global",
+          "full": "Global Batch，全局批次",
+          "explain": "全系统已有的同时生成序列数，不是每个 DP 副本新增的负载。"
+        }
+      ],
+      "red_notes": [
+        {
+          "quote": "19.63",
+          "explain": "950DT 在 1M、AR、全局 decode bs32、布局 8/32/4/8 下的TPOT为 19.63 ms，来自 summary.csv。"
+        },
+        {
+          "quote": "1630.34",
+          "explain": "950DT 在 1M、AR、全局 decode bs32、布局 8/32/4/8 下的全系统输出吞吐为 1630.34 tokens/s，来自 summary.csv。"
+        },
+        {
+          "quote": "5.11",
+          "explain": "960DT 在 1M、AR、全局 decode bs32、布局 4/16/16/4 下的TPOT为 5.11 ms，来自 summary.csv。"
+        },
+        {
+          "quote": "6260.90",
+          "explain": "960DT 在 1M、AR、全局 decode bs32、布局 4/16/16/4 下的全系统输出吞吐为 6260.90 tokens/s，来自 summary.csv。"
+        },
+        {
+          "quote": "+136.1%",
+          "explain": "950DT 同平台同负载的吞吐提升，按最小 TPOT 布局吞吐除以参考布局吞吐再减一计算；未使用跨平台或增加请求数来形成增益。"
+        },
+        {
+          "quote": "+1.7%",
+          "explain": "950DT 单请求 prefill TTFT 的增加比例，按优选布局 TTFT 除以参考布局 TTFT 再减一计算。"
+        },
+        {
+          "quote": "+330.0%",
+          "explain": "960DT 同平台同负载的吞吐提升，按最小 TPOT 布局吞吐除以参考布局吞吐再减一计算；未使用跨平台或增加请求数来形成增益。"
+        },
+        {
+          "quote": "+25.8%",
+          "explain": "960DT 单请求 prefill TTFT 的增加比例，按优选布局 TTFT 除以参考布局 TTFT 再减一计算。"
+        },
+        {
+          "quote": "57.7% / 76.7%",
+          "explain": "950DT / 960DT 的 AR TPOT 降幅，分别按一减去优选 TPOT 与参考 TPOT 的比值计算。"
+        },
+        {
+          "quote": "红色吞吐条",
+          "explain": "右图红条代表各平台扫描内最小 TPOT 布局，灰条代表 TP8/EP128/DP1/SP8 参考布局，两平台均使用同一 0–7000 tokens/s 横轴。"
+        }
+      ],
+      "sources": [
+        {
+          "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\summary.csv",
+          "sha256": "d436067588616b5bb77da49cb2b1fff8961fc4193e2205d86dfe167adef791b6"
+        },
+        {
+          "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\prefill.csv",
+          "sha256": "e2a3e0be9166ebe9c322db560e183d8a8e89d105e0127d49dbc30978133f9ae6"
+        },
+        {
+          "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\recommendations.csv",
+          "sha256": "a5c21061549d2ab8db452324109175478d405bb893a7fc955154f9bb0714f163"
+        },
+        {
+          "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\methodology.md",
+          "sha256": "6b035d649c7c485e829e90d92213197076ab1983a41a8f851c813d6f62878eb7"
+        },
+        {
+          "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\experiment.json",
+          "sha256": "8a8a928c33746a74f4bfdcef2db12909d34f3c8bd51d873087d193b12e62b121"
+        }
+      ]
+    },
+    {
+      "page": 6,
+      "title": "长上下文主要拉高 TTFT，小 batch 使 DP 副本闲置",
+      "speech": "本页固定前页选出的生成优选布局，只改变上下文长度或已有生成请求数，不在每个点重新搜索布局。左表覆盖两平台各四个上下文长度，首词时间和预填充显存来自单请求预填充，生成时延、吞吐和生成显存则对应全局三十二条序列。从十三万级扩展到一百万级，上下文恰好增加 8 倍，950DT 与 960DT 的首词时间分别变为 10.28 倍与 9.72 倍；生成时延只增加 6.1% 与 5.4%。这与因果编码器处理全部提示词、稀疏生成只读取部分历史的结构差异一致，但首词时间并非按长度简单线性外推。预填充显存峰值随长度增长也更显著，因此表中继续分列两个阶段，避免把生成峰值当成请求容量上界。右图只扫描一百万级上下文，横轴六档批次采用等间距离散刻度，每个点标出全系统吞吐。数据并行不会创造新请求；活跃副本数等于副本总数与已有批次的较小者。在单请求下，950DT 的 4 个副本只有一个工作，闲置 3 个；960DT 的 16 个副本闲置 15 个。批次填充副本的区间内，每个活跃副本本地批次保持一，时延基本不变而全局吞吐随请求数上升；副本填满后，本地工作增加，增长不再严格线性。下表把时延解释进一步落到物理工作量。预填充浮点运算只列八位矩阵部分，生成浮点运算包含八位和三十二位操作；两者在表头与注释中明确区分，不能拿单位不同的数直接相除。互联字节是实际物理传输总量，生成显存字节是每轮访问量，均不是容量占用。最后一列才是全体数据副本的词组表常驻内存，闲置副本也计入，因此其值随副本数增长，不能从活跃副本数反推总驻留。950DT 优选共驻留 14.189 太字节，960DT 优选为 56.757 太字节。表内工作量来自执行阶段账本而非缩约资源包络，独立舍入仅服务展示。以上敏感性仍受固定路由、无计算通信重叠等假设约束，阶段可行与吞吐预测不构成请求到达、整批预热和在线排队的服务保证。",
+      "transition": "在普通自回归的布局与负载边界明确后，再检查三层草稿机制的额外成本，以及每轮实际提交数量对收益门槛的影响。",
+      "glossary": [
+        {
+          "term": "ngram",
+          "full": "N-gram，N元词组",
+          "explain": "本实验条件记忆表的索引组织方式。"
+        },
+        {
+          "term": "TP",
+          "full": "Tensor Parallelism，张量并行",
+          "explain": "对注意力头、专家中间维等张量分片。"
+        },
+        {
+          "term": "EP",
+          "full": "Expert Parallelism，专家并行",
+          "explain": "在不同rank间分布专家权重。"
+        },
+        {
+          "term": "DP",
+          "full": "Data Parallelism，数据并行",
+          "explain": "在独立权重副本上分配已存在的全局请求。"
+        },
+        {
+          "term": "SP",
+          "full": "Sequence Parallelism，序列并行",
+          "explain": "与TP共用卡，分片pointwise和残差等token状态。"
+        },
+        {
+          "term": "HBM",
+          "full": "High Bandwidth Memory，高带宽内存",
+          "explain": "NPU卡上存储，容量和带宽分别约束。"
+        },
+        {
+          "term": "DRAM",
+          "full": "Dynamic Random Access Memory，动态随机存取存储器",
+          "explain": "主机内存，用于分片存放Engram表。"
+        },
+        {
+          "term": "FP8",
+          "full": "8-bit Floating Point，8位浮点",
+          "explain": "主对照的权重、计算、激活、通信和KV精度。"
+        },
+        {
+          "term": "FP32",
+          "full": "32-bit Floating Point，32位浮点",
+          "explain": "router、mHC、norm等显式标量运算精度。"
+        },
+        {
+          "term": "SU",
+          "full": "Scale Up，域内互联",
+          "explain": "单逻辑1024卡无阻塞互联及端点注入模型。"
+        },
+        {
+          "term": "TTFT",
+          "full": "Time To First Token，首token时间",
+          "explain": "本稿统一单独标示prefill全局bs=1的执行时间。"
+        },
+        {
+          "term": "TPOT",
+          "full": "Time Per Output Token，每输出token时间",
+          "explain": "AR为轮时延；DSpark为轮时延除以提交数C。"
+        },
+        {
+          "term": "bs",
+          "full": "Batch Size，批大小",
+          "explain": "decode为全局同时参与序列数；TTFT的prefill批次另列。"
+        },
+        {
+          "term": "batch",
+          "full": "Batch Size，批大小",
+          "explain": "在相应阶段同时处理的序列数量。"
+        },
+        {
+          "term": "prefill",
+          "full": "Prompt Prefill，提示词预填充",
+          "explain": "含编码器bulk、解码器KV投影及有界replay。"
+        },
+        {
+          "term": "tokens/s",
+          "full": "Tokens Per Second，每秒词元数",
+          "explain": "global batch乘C除以轮时延的系统输出吞吐。"
+        },
+        {
+          "term": "tok/s",
+          "full": "Tokens Per Second，每秒词元数",
+          "explain": "全系统输出吞吐。"
+        },
+        {
+          "term": "EFLOP",
+          "full": "Exa Floating Point Operations，百京次浮点运算",
+          "explain": "10的18次方次浮点运算。"
+        },
+        {
+          "term": "TFLOP",
+          "full": "Tera Floating Point Operations，万亿次浮点运算",
+          "explain": "10的12次方次浮点运算。"
+        },
+        {
+          "term": "GB",
+          "full": "Gigabyte，十进制吉字节",
+          "explain": "本稿GB=10^9字节。"
+        },
+        {
+          "term": "TB",
+          "full": "Terabyte，十进制太字节",
+          "explain": "本稿TB=10^12字节。"
+        },
+        {
+          "term": "ms",
+          "full": "Millisecond，毫秒",
+          "explain": "10^-3秒。"
+        },
+        {
+          "term": "s",
+          "full": "Second，秒",
+          "explain": "时延单位。"
+        },
+        {
+          "term": "1M",
+          "full": "1,048,576 Tokens，一百万级词元上下文",
+          "explain": "本稿1M采用二进制长度。"
+        },
+        {
+          "term": "128k",
+          "full": "131,072 Tokens，十三万级词元",
+          "explain": "本稿k采用二进制长度。"
+        },
+        {
+          "term": "256k",
+          "full": "262,144 Tokens，二十六万级词元",
+          "explain": "本稿k采用二进制长度。"
+        },
+        {
+          "term": "512k",
+          "full": "524,288 Tokens，五十二万级词元",
+          "explain": "本稿k采用二进制长度。"
+        },
+        {
+          "term": "950DT",
+          "full": "（硬件配置名）Ascend 950DT",
+          "explain": "本实验采用的144GB、4TB/s、1PFLOP/s假设配置。"
+        },
+        {
+          "term": "960DT",
+          "full": "（硬件配置名）Ascend 960DT",
+          "explain": "本实验采用的288GB、9.6TB/s、2PFLOP/s假设配置。"
+        },
+        {
+          "term": "CSV",
+          "full": "Comma-Separated Values，逗号分隔数据",
+          "explain": "全量结构化结果格式。"
+        },
+        {
+          "term": "Huawei Proprietary - Restricted Distribution",
+          "full": "华为专有资料—限制分发",
+          "explain": "沿用用户要求的华为模板固定页脚。"
+        }
+      ],
+      "red_notes": [
+        {
+          "quote": "TTFT",
+          "explain": "核心思想强调首词时间对上下文长度的敏感性；此页所有 TTFT 均为 prefill 全局 bs1。"
+        },
+        {
+          "quote": "DP",
+          "explain": "核心思想强调固定副本数由已有请求填充：active DP=min(DP, global batch)，闲置副本仍保留权重和 ngram。"
+        },
+        {
+          "quote": "201.87",
+          "explain": "红色 960DT 曲线在固定布局 4/16/16/4、1M、AR、全局 decode bs1 下的吞吐为 201.87 tokens/s，来自 summary.csv；不是每个点重新选优。"
+        },
+        {
+          "quote": "403.73",
+          "explain": "红色 960DT 曲线在固定布局 4/16/16/4、1M、AR、全局 decode bs2 下的吞吐为 403.73 tokens/s，来自 summary.csv；不是每个点重新选优。"
+        },
+        {
+          "quote": "807.47",
+          "explain": "红色 960DT 曲线在固定布局 4/16/16/4、1M、AR、全局 decode bs4 下的吞吐为 807.47 tokens/s，来自 summary.csv；不是每个点重新选优。"
+        },
+        {
+          "quote": "1614.93",
+          "explain": "红色 960DT 曲线在固定布局 4/16/16/4、1M、AR、全局 decode bs8 下的吞吐为 1614.93 tokens/s，来自 summary.csv；不是每个点重新选优。"
+        },
+        {
+          "quote": "3229.86",
+          "explain": "红色 960DT 曲线在固定布局 4/16/16/4、1M、AR、全局 decode bs16 下的吞吐为 3229.86 tokens/s，来自 summary.csv；不是每个点重新选优。"
+        },
+        {
+          "quote": "6260.90",
+          "explain": "红色 960DT 曲线在固定布局 4/16/16/4、1M、AR、全局 decode bs32 下的吞吐为 6260.90 tokens/s，来自 summary.csv；不是每个点重新选优。"
+        },
+        {
+          "quote": "10.28× / 9.72×",
+          "explain": "分别为固定优选布局下，950DT / 960DT 的 1M 单请求 TTFT 除以 128k 单请求 TTFT；上下文长度之比为 8。"
+        },
+        {
+          "quote": "6.1% / 5.4%",
+          "explain": "分别为固定优选布局下，950DT / 960DT 的 1M 与 128k 的 AR bs32 TPOT 比值减一；批次与布局保持不变。"
+        },
+        {
+          "quote": "3 / 15",
+          "explain": "950DT / 960DT 在固定优选布局、全局 bs1 时闲置的数据副本数；原始 idle_replicas 字段分别为 3 和 15，权重及 ngram 仍驻留。"
+        },
+        {
+          "quote": "红色 960DT 曲线",
+          "explain": "固定 TP4/EP16/DP16/SP4 的 960DT 结果系列；与灰色 950DT 系列共享吞吐纵轴，横轴是 1、2、4、8、16、32 六档离散批次。"
+        }
+      ],
+      "sources": [
+        {
+          "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\summary.csv",
+          "sha256": "d436067588616b5bb77da49cb2b1fff8961fc4193e2205d86dfe167adef791b6"
+        },
+        {
+          "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\prefill.csv",
+          "sha256": "e2a3e0be9166ebe9c322db560e183d8a8e89d105e0127d49dbc30978133f9ae6"
+        },
+        {
+          "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\recommendations.csv",
+          "sha256": "a5c21061549d2ab8db452324109175478d405bb893a7fc955154f9bb0714f163"
+        },
+        {
+          "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\methodology.md",
+          "sha256": "6b035d649c7c485e829e90d92213197076ab1983a41a8f851c813d6f62878eb7"
+        },
+        {
+          "path": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\experiment.json",
+          "sha256": "8a8a928c33746a74f4bfdcef2db12909d34f3c8bd51d873087d193b12e62b121"
+        }
+      ]
+    },
+    {
+      "page": 7,
+      "title": "DSpark 在 C=4 条件下，同布局折算提速 2.95× / 2.58×",
+      "speech": "这一页在固定的 1M 上下文和 decode 全局 batch32 下，单独看 DSpark 带来的条件收益。950DT 固定 TP/EP/DP/SP=8/32/4/8，960DT 固定 4/16/16/4，两者都使用前面已经选出的 AR 最小 TPOT 布局。因而这里的加速比只回答：在相同硬件、负载和布局上，加入草稿机制后，提交多个输出是否足以覆盖额外工作。布局优化的收益已经在前页展示，此处不再重复计入。\n\n执行过程分成三个明确的阶段。第一阶段用 3 层草稿网络同时产生 5 个位置，并执行 5 次马尔可夫串行校正及置信度处理。第二阶段让完整目标网络验证 6 个输入位置，其中也包含当前待处理输入；因此不能把验证成本按五个草稿位置计数。第三阶段进行接受判断和状态提交。全局 KV 可以追加后截断，滑窗和池化状态要保留候选前缀的版本并按提交结果恢复，已验证的目标隐藏态还要投影并追赶草稿窗口。替换或奖励输出尚无对应隐藏态，它作为下一轮输入继续处理，不能免费补出这部分状态。\n\nC=4 时，950DT 的草稿、目标验证、状态提交分别为 1.093315、25.434584、0.089863 ms，合计 26.617762 ms；960DT 对应为 0.283210、7.620857、0.031197 ms，合计 7.935263 ms。状态提交成本虽小却非零，目标验证是主要时间开销。每轮时间除以提交数后，TPOT 为 6.654 和 1.984 ms，同布局 AR 比值分别是 2.95× 和 2.58×。\n\n右表继续把 C 从 1 扫到 6。C=1 时，两平台比值都小于一，新增的草稿和验证工作无法被摊薄；到 C=2 才开始超过同布局 AR。C 表示每轮最终提交的输出数，包含替换或奖励输出，它不是接受率，也不能直接换算成接受概率。本次循环路由是解析工作负载条件，真实文本中的路由相关性、接受情况和模型质量尚未测量。最后区分两个时间概念：round 是一轮成批完成的间隔，TPOT 是将其除以 C 得到的输出服务成本。客户端会如何逐个收到 token，还取决于输出交付和调度；不能把该折算值当成逐 token ITL。",
+      "transition": "下一页回到普通 AR，将 prefill 和 decode 的延迟拆成可加资源项，解释布局优化实际省在哪里、又付出了什么代价。",
+      "glossary": [
+        {
+          "term": "DSpark",
+          "full": "（机制名）DeepSeek DSpark",
+          "explain": "三层草稿网络并行提出五个位置，主模型验证六个query。"
+        },
+        {
+          "term": "KV",
+          "full": "Key/Value cache，键值缓存",
+          "explain": "推理中驻留的注意力历史状态。"
+        },
+        {
+          "term": "AR",
+          "full": "Autoregressive decoding，自回归解码",
+          "explain": "每轮提交一个输出token的基线。"
+        },
+        {
+          "term": "TP",
+          "full": "Tensor Parallelism，张量并行",
+          "explain": "对注意力头、专家中间维等张量分片。"
+        },
+        {
+          "term": "EP",
+          "full": "Expert Parallelism，专家并行",
+          "explain": "在不同rank间分布专家权重。"
+        },
+        {
+          "term": "DP",
+          "full": "Data Parallelism，数据并行",
+          "explain": "在独立权重副本上分配已存在的全局请求。"
+        },
+        {
+          "term": "SP",
+          "full": "Sequence Parallelism，序列并行",
+          "explain": "与TP共用卡，分片pointwise和残差等token状态。"
+        },
+        {
+          "term": "TPOT",
+          "full": "Time Per Output Token，每输出token时间",
+          "explain": "AR为轮时延；DSpark为轮时延除以提交数C。"
+        },
+        {
+          "term": "ITL",
+          "full": "Inter-Token Latency，客户端相邻token到达间隔",
+          "explain": "DSpark的折算TPOT不等同客户端ITL。"
+        },
+        {
+          "term": "bs",
+          "full": "Batch Size，批大小",
+          "explain": "decode为全局同时参与序列数；TTFT的prefill批次另列。"
+        },
+        {
+          "term": "decode",
+          "full": "Autoregressive Decode，自回归生成",
+          "explain": "生成阶段；可选择AR或DSpark轮调度。"
+        },
+        {
+          "term": "draft",
+          "full": "Draft Proposal，草稿提出",
+          "explain": "DSpark三层草稿网络和Markov校正阶段。"
+        },
+        {
+          "term": "verify",
+          "full": "Target Verification，主模型验证",
+          "explain": "主模型对六个输入位置执行完整验证。"
+        },
+        {
+          "term": "commit",
+          "full": "State Commit，状态提交",
+          "explain": "接受并写回状态，包含非零恢复与追赶开销。"
+        },
+        {
+          "term": "ms",
+          "full": "Millisecond，毫秒",
+          "explain": "10^-3秒。"
+        },
+        {
+          "term": "1M",
+          "full": "1,048,576 Tokens，一百万级词元上下文",
+          "explain": "本稿1M采用二进制长度。"
+        },
+        {
+          "term": "C",
+          "full": "Committed Tokens Per Round，每轮提交词元数",
+          "explain": "条件输入C=1至6，包含replacement或bonus，不是接受率。"
+        },
+        {
+          "term": "950DT",
+          "full": "（硬件配置名）Ascend 950DT",
+          "explain": "本实验采用的144GB、4TB/s、1PFLOP/s假设配置。"
+        },
+        {
+          "term": "960DT",
+          "full": "（硬件配置名）Ascend 960DT",
+          "explain": "本实验采用的288GB、9.6TB/s、2PFLOP/s假设配置。"
+        },
+        {
+          "term": "CSV",
+          "full": "Comma-Separated Values，逗号分隔数据",
+          "explain": "全量结构化结果格式。"
+        },
+        {
+          "term": "Huawei Proprietary - Restricted Distribution",
+          "full": "华为专有资料—限制分发",
+          "explain": "沿用用户要求的华为模板固定页脚。"
+        },
+        {
+          "term": "round",
+          "full": "Round，草稿验证提交的一轮",
+          "explain": "包含 draft、target verify 与 state commit，完成后可成批提交 C 个输出。"
+        },
+        {
+          "term": "serving",
+          "full": "Inference Serving，推理在线服务",
+          "explain": "接收请求、调度推理并向客户端交付结果的系统；本实验没有进行真实在线服务校准。"
+        }
+      ],
+      "red_notes": [
+        {
+          "quote": "C≥2",
+          "explain": "summary.csv 的同布局条件扫描中，两平台 C=1 的比值均小于一，C=2 才开始超过 AR。"
+        },
+        {
+          "quote": "收益门槛 C≥2",
+          "explain": "该门槛仅对当前 1M、decode bs32、所选布局与循环路由仿真条件成立。"
+        },
+        {
+          "quote": "2.95×",
+          "explain": "950DT：同布局 AR 19.627832888073 ms / DSpark C=4 6.654440422798 ms，未混入布局改善。"
+        },
+        {
+          "quote": "2.58×",
+          "explain": "960DT：同布局 AR 5.111085152725 ms / DSpark C=4 1.983815872743 ms，未混入布局改善。"
+        },
+        {
+          "quote": "不等于客户端 ITL",
+          "explain": "methodology.md 将 TPOT 定义为 round/C 的折算服务成本，round 是成批输出完成间隔，未建模客户端逐 token 交付。"
+        },
+        {
+          "quote": "C=4",
+          "explain": "这里每轮提交数固定为四，是仿真条件输入，包含替换或奖励输出，不代表实测接受率。"
+        },
+        {
+          "quote": "6.654",
+          "explain": "950DT 的 C=4 轮时间除以四，单位为毫秒；其状态提交成本已经计入。"
+        },
+        {
+          "quote": "1.984",
+          "explain": "960DT 的 C=4 轮时间除以四，单位为毫秒；其状态提交成本已经计入。"
+        },
+        {
+          "quote": "一轮包含完整验证与非零状态提交",
+          "explain": "三阶段成本来自 dspark_round_breakdown.csv；该面板说明本地状态维护没有作为免费操作。"
+        },
+        {
+          "quote": "C=1…6 的条件敏感性：AR 基线 = 1.00×",
+          "explain": "比值以每个平台相同布局的 AR TPOT 为分子，各 C 值是独立的条件输入。"
+        }
+      ],
+      "sources": [
+        "outputs/deepseek-v41-pro-10t-20261020/summary.csv",
+        "outputs/deepseek-v41-pro-10t-20261020/dspark_round_breakdown.csv",
+        "outputs/deepseek-v41-pro-10t-20261020/methodology.md",
+        "outputs/deepseek-v41-pro-10t-20261020/model.json",
+        "input/deck-data.json: dspark_cases / dspark_sensitivity / ar_cases"
+      ],
+      "dspark_stage_costs": [
+        {
+          "chip": "950dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 8,
+          "tp": 8,
+          "sp": 8,
+          "ep": 32,
+          "dp": 4,
+          "active_replicas": 4,
+          "idle_replicas": 0,
+          "layout": "tp8-ep32-dp4-sp8",
+          "mode": "DSpark3",
+          "committed": 4,
+          "ttft_bs1_s": 46.580367489529785,
+          "ttft_bs8_s": 48.123037135960175,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 26.61776169119083,
+          "tpot_ms": 6.654440422797707,
+          "decode_tokens_s": 4808.8190691992595,
+          "hbm_peak_GB": 57.498408432,
+          "hbm_peak_percent": 39.9294503,
+          "host_peak_GB": 110.8529394795,
+          "host_peak_percent": 2.7713234869875003,
+          "weight_GB_per_card": 47.202061456,
+          "cluster_static_HBM_TB": 56.789054930944,
+          "cluster_reserved_HBM_TB": 57.311864297472,
+          "cluster_ngram_DRAM_TB": 14.189175,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 98.772686832,
+          "prefill_bs8_peak_GB": 117.301024752,
+          "decode_TFLOPs_round": 69.141536067072,
+          "SU_GB_round": 96.064645888,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 28.563949436416,
+          "compute_util_percent": 0.596901381082625,
+          "HBM_bandwidth_util_percent": 26.199124286934033,
+          "SU_tx_util_percent": 0.44055700399597997,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "objective": "fastest_decode",
+          "draft_ms": 1.0933147817500002,
+          "verify_ms": 25.43458429244083,
+          "commit_ms": 0.089862617,
+          "speedup_vs_same_layout_AR": 2.9495842837257342,
+          "prefill": {
+            "chip": "950dt",
+            "context": "1M",
+            "global_prefill_batch": 1,
+            "layout": "tp8-ep32-dp4-sp8",
+            "dspark": "True",
+            "status": "feasible",
+            "ttft_s": 46.580367489529785,
+            "active_replicas": 1,
+            "local_batch": 1,
+            "work_scope": "global_batch_across_active_replicas",
+            "execution_status": "executed",
+            "hbm_peak_GB": 98.772686832,
+            "host_peak_GB": 111.0668391915,
+            "cluster_ngram_DRAM_TB": 14.189175,
+            "cluster_reserved_HBM_TB": 61.730599738112,
+            "flops_fp8": 1.744519293614162e+17,
+            "hbm_bytes": 905861009261312.0,
+            "flops_fp32": 1283090544861184.0,
+            "su_payload_bytes": 223466886856704.0,
+            "su_physical_bytes": 223466886856704.0,
+            "collective_rounds": 781680.0,
+            "cpu_flops": 3221225472.0,
+            "dram_bytes": 27783069696.0,
+            "host_payload_bytes": 14092861440.0,
+            "host_physical_bytes": 14092861440.0,
+            "host_lookup_ops": 50331648.0,
+            "latency_hbm_bound_s": 8.553000388943973,
+            "latency_communication_startup_s": 1.6415693999999903,
+            "latency_compute_bound_s": 13.643365967548418,
+            "latency_su_transfer_s": 22.709826447360097,
+            "latency_host_lookup_hash_s": 0.017339252736,
+            "latency_host_transfer_s": 0.015266032941176469,
+            "compute_util_percent": 0.8390812911265881,
+            "HBM_bandwidth_util_percent": 0.4747868788581342
+          },
+          "decode_latency": {
+            "hbm_bound_ms": 2.1344652725000075,
+            "communication_startup_ms": 4.424549999999984,
+            "su_transfer_ms": 0.09475211406249989,
+            "host_lookup_hash_ms": 0.000182304,
+            "host_transfer_ms": 0.00010058823529411764,
+            "compute_bound_ms": 0.00039014400000000004
+          },
+          "request_peak_bs1_GB": 98.772686832
+        },
+        {
+          "chip": "960dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 2,
+          "tp": 4,
+          "sp": 4,
+          "ep": 16,
+          "dp": 16,
+          "active_replicas": 16,
+          "idle_replicas": 0,
+          "layout": "tp4-ep16-dp16-sp4",
+          "mode": "DSpark3",
+          "committed": 4,
+          "ttft_bs1_s": 42.83457724612056,
+          "ttft_bs8_s": 42.83457724612056,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 7.935263490972967,
+          "tpot_ms": 1.9838158727432418,
+          "decode_tokens_s": 16130.529269205847,
+          "hbm_peak_GB": 178.806757624,
+          "hbm_peak_percent": 62.085679730555555,
+          "host_peak_GB": 443.411728542,
+          "host_peak_percent": 11.08529321355,
+          "weight_GB_per_card": 168.50959196,
+          "cluster_static_HBM_TB": 181.00796616704,
+          "cluster_reserved_HBM_TB": 181.269590510592,
+          "cluster_ngram_DRAM_TB": 56.7567,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 249.345973496,
+          "prefill_bs8_peak_GB": 249.345973496,
+          "decode_TFLOPs_round": 67.578603724544,
+          "SU_GB_round": 42.995450112,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 27.655586400768,
+          "compute_util_percent": 1.119814990832832,
+          "HBM_bandwidth_util_percent": 35.45278278149282,
+          "SU_tx_util_percent": 0.6012824374756343,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "objective": "fastest_decode",
+          "draft_ms": 0.2832100186060606,
+          "verify_ms": 7.620856534655392,
+          "commit_ms": 0.03119693771151515,
+          "speedup_vs_same_layout_AR": 2.576390895419938,
+          "prefill": {
+            "chip": "960dt",
+            "context": "1M",
+            "global_prefill_batch": 1,
+            "layout": "tp4-ep16-dp16-sp4",
+            "dspark": "True",
+            "status": "feasible",
+            "ttft_s": 42.83457724612056,
+            "active_replicas": 1,
+            "local_batch": 1,
+            "work_scope": "global_batch_across_active_replicas",
+            "execution_status": "executed",
+            "hbm_peak_GB": 249.345973496,
+            "host_peak_GB": 444.267356766,
+            "cluster_ngram_DRAM_TB": 56.7567,
+            "cluster_reserved_HBM_TB": 183.714961771904,
+            "flops_fp8": 1.7078636214222848e+17,
+            "hbm_bytes": 457986050913024.0,
+            "flops_fp32": 1199798772371456.0,
+            "su_payload_bytes": 100733968515072.0,
+            "su_physical_bytes": 100733968515072.0,
+            "collective_rounds": 335200.0,
+            "cpu_flops": 3221225472.0,
+            "dram_bytes": 27783069696.0,
+            "host_payload_bytes": 14092861440.0,
+            "host_physical_bytes": 14092861440.0,
+            "host_lookup_ops": 50331648.0,
+            "latency_hbm_bound_s": 2.9377875966066638,
+            "latency_communication_startup_s": 0.33521799999999413,
+            "latency_compute_bound_s": 20.047424433946478,
+            "latency_su_transfer_s": 19.410763049890715,
+            "latency_host_lookup_hash_s": 0.06452517273599999,
+            "latency_host_transfer_s": 0.03885899294117647,
+            "compute_util_percent": 0.49878091500162963,
+            "HBM_bandwidth_util_percent": 0.10876435181941144
+          },
+          "decode_latency": {
+            "hbm_bound_ms": 0.9493117105208351,
+            "communication_startup_ms": 0.9569999999999944,
+            "su_transfer_ms": 0.07075306193181806,
+            "compute_bound_ms": 0.006455315820000013,
+            "host_lookup_hash_ms": 0.000184608,
+            "host_transfer_ms": 0.0001111764705882353
+          },
+          "request_peak_bs1_GB": 249.345973496
+        }
+      ],
+      "sensitivity_rows": [
+        {
+          "chip": "950dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 8,
+          "tp": 8,
+          "sp": 8,
+          "ep": 32,
+          "dp": 4,
+          "active_replicas": 4,
+          "idle_replicas": 0,
+          "layout": "tp8-ep32-dp4-sp8",
+          "mode": "DSpark3",
+          "committed": 1,
+          "ttft_bs1_s": 46.580367489529785,
+          "ttft_bs8_s": 48.123037135960175,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 26.617624183190834,
+          "tpot_ms": 26.617624183190834,
+          "decode_tokens_s": 1202.2109779507732,
+          "hbm_peak_GB": 57.498408432,
+          "hbm_peak_percent": 39.9294503,
+          "host_peak_GB": 110.8529394795,
+          "host_peak_percent": 2.7713234869875003,
+          "weight_GB_per_card": 47.202061456,
+          "cluster_static_HBM_TB": 56.789054930944,
+          "cluster_reserved_HBM_TB": 57.311864297472,
+          "cluster_ngram_DRAM_TB": 14.189175,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 98.772686832,
+          "prefill_bs8_peak_GB": 117.301024752,
+          "decode_TFLOPs_round": 68.887798500864,
+          "SU_GB_round": 96.064645888,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 28.563808628224,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "draft_ms": 1.0933147817500002,
+          "verify_ms": 25.43458429244083,
+          "commit_ms": 0.08972510900000003,
+          "compute_util_percent": 0.5950334012455558,
+          "HBM_bandwidth_util_percent": 26.19913048167107,
+          "SU_tx_util_percent": 0.44055927993586425,
+          "speedup_vs_same_layout_AR": 0.7373998803570314
+        },
+        {
+          "chip": "950dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 8,
+          "tp": 8,
+          "sp": 8,
+          "ep": 32,
+          "dp": 4,
+          "active_replicas": 4,
+          "idle_replicas": 0,
+          "layout": "tp8-ep32-dp4-sp8",
+          "mode": "DSpark3",
+          "committed": 2,
+          "ttft_bs1_s": 46.580367489529785,
+          "ttft_bs8_s": 48.123037135960175,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 26.617670019190832,
+          "tpot_ms": 13.308835009595416,
+          "decode_tokens_s": 2404.4178154533142,
+          "hbm_peak_GB": 57.498408432,
+          "hbm_peak_percent": 39.9294503,
+          "host_peak_GB": 110.8529394795,
+          "host_peak_percent": 2.7713234869875003,
+          "weight_GB_per_card": 47.202061456,
+          "cluster_static_HBM_TB": 56.789054930944,
+          "cluster_reserved_HBM_TB": 57.311864297472,
+          "cluster_ngram_DRAM_TB": 14.189175,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 98.772686832,
+          "prefill_bs8_peak_GB": 117.301024752,
+          "decode_TFLOPs_round": 68.9723776896,
+          "SU_GB_round": 96.064645888,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 28.563855564288,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "draft_ms": 1.0933147817500002,
+          "verify_ms": 25.43458429244083,
+          "commit_ms": 0.08977094500000002,
+          "compute_util_percent": 0.5956560633357039,
+          "HBM_bandwidth_util_percent": 26.199128416751613,
+          "SU_tx_util_percent": 0.4405585212866234,
+          "speedup_vs_same_layout_AR": 1.474797221088251
+        },
+        {
+          "chip": "950dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 8,
+          "tp": 8,
+          "sp": 8,
+          "ep": 32,
+          "dp": 4,
+          "active_replicas": 4,
+          "idle_replicas": 0,
+          "layout": "tp8-ep32-dp4-sp8",
+          "mode": "DSpark3",
+          "committed": 3,
+          "ttft_bs1_s": 46.580367489529785,
+          "ttft_bs8_s": 48.123037135960175,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 26.61771585519083,
+          "tpot_ms": 8.872571951730277,
+          "decode_tokens_s": 3606.6205125290135,
+          "hbm_peak_GB": 57.498408432,
+          "hbm_peak_percent": 39.9294503,
+          "host_peak_GB": 110.8529394795,
+          "host_peak_percent": 2.7713234869875003,
+          "weight_GB_per_card": 47.202061456,
+          "cluster_static_HBM_TB": 56.789054930944,
+          "cluster_reserved_HBM_TB": 57.311864297472,
+          "cluster_ngram_DRAM_TB": 14.189175,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 98.772686832,
+          "prefill_bs8_peak_GB": 117.301024752,
+          "decode_TFLOPs_round": 69.056956878336,
+          "SU_GB_round": 96.064645888,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 28.563902500352,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "draft_ms": 1.0933147817500002,
+          "verify_ms": 25.43458429244083,
+          "commit_ms": 0.089816781,
+          "compute_util_percent": 0.5962787232813901,
+          "HBM_bandwidth_util_percent": 26.19912635183927,
+          "SU_tx_util_percent": 0.44055776263999524,
+          "speedup_vs_same_layout_AR": 2.2121920222067786
+        },
+        {
+          "chip": "950dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 8,
+          "tp": 8,
+          "sp": 8,
+          "ep": 32,
+          "dp": 4,
+          "active_replicas": 4,
+          "idle_replicas": 0,
+          "layout": "tp8-ep32-dp4-sp8",
+          "mode": "DSpark3",
+          "committed": 4,
+          "ttft_bs1_s": 46.580367489529785,
+          "ttft_bs8_s": 48.123037135960175,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 26.61776169119083,
+          "tpot_ms": 6.654440422797707,
+          "decode_tokens_s": 4808.8190691992595,
+          "hbm_peak_GB": 57.498408432,
+          "hbm_peak_percent": 39.9294503,
+          "host_peak_GB": 110.8529394795,
+          "host_peak_percent": 2.7713234869875003,
+          "weight_GB_per_card": 47.202061456,
+          "cluster_static_HBM_TB": 56.789054930944,
+          "cluster_reserved_HBM_TB": 57.311864297472,
+          "cluster_ngram_DRAM_TB": 14.189175,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 98.772686832,
+          "prefill_bs8_peak_GB": 117.301024752,
+          "decode_TFLOPs_round": 69.141536067072,
+          "SU_GB_round": 96.064645888,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 28.563949436416,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "draft_ms": 1.0933147817500002,
+          "verify_ms": 25.43458429244083,
+          "commit_ms": 0.089862617,
+          "compute_util_percent": 0.596901381082625,
+          "HBM_bandwidth_util_percent": 26.199124286934033,
+          "SU_tx_util_percent": 0.44055700399597997,
+          "speedup_vs_same_layout_AR": 2.9495842837257342
+        },
+        {
+          "chip": "950dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 8,
+          "tp": 8,
+          "sp": 8,
+          "ep": 32,
+          "dp": 4,
+          "active_replicas": 4,
+          "idle_replicas": 0,
+          "layout": "tp8-ep32-dp4-sp8",
+          "mode": "DSpark3",
+          "committed": 5,
+          "ttft_bs1_s": 46.580367489529785,
+          "ttft_bs8_s": 48.123037135960175,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 26.617807527190834,
+          "tpot_ms": 5.323561505438167,
+          "decode_tokens_s": 6011.013485485442,
+          "hbm_peak_GB": 57.498408432,
+          "hbm_peak_percent": 39.9294503,
+          "host_peak_GB": 110.8529394795,
+          "host_peak_percent": 2.7713234869875003,
+          "weight_GB_per_card": 47.202061456,
+          "cluster_static_HBM_TB": 56.789054930944,
+          "cluster_reserved_HBM_TB": 57.311864297472,
+          "cluster_ngram_DRAM_TB": 14.189175,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 98.772686832,
+          "prefill_bs8_peak_GB": 117.301024752,
+          "decode_TFLOPs_round": 69.226115255808,
+          "SU_GB_round": 96.064645888,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 28.56399637248,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "draft_ms": 1.0933147817500002,
+          "verify_ms": 25.43458429244083,
+          "commit_ms": 0.089908453,
+          "compute_util_percent": 0.5975240367394204,
+          "HBM_bandwidth_util_percent": 26.199122222035907,
+          "SU_tx_util_percent": 0.4405562453545773,
+          "speedup_vs_same_layout_AR": 3.686974005658236
+        },
+        {
+          "chip": "950dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 8,
+          "tp": 8,
+          "sp": 8,
+          "ep": 32,
+          "dp": 4,
+          "active_replicas": 4,
+          "idle_replicas": 0,
+          "layout": "tp8-ep32-dp4-sp8",
+          "mode": "DSpark3",
+          "committed": 6,
+          "ttft_bs1_s": 46.580367489529785,
+          "ttft_bs8_s": 48.123037135960175,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 26.617853363190832,
+          "tpot_ms": 4.436308893865139,
+          "decode_tokens_s": 7213.20376140895,
+          "hbm_peak_GB": 57.498408432,
+          "hbm_peak_percent": 39.9294503,
+          "host_peak_GB": 110.8529394795,
+          "host_peak_percent": 2.7713234869875003,
+          "weight_GB_per_card": 47.202061456,
+          "cluster_static_HBM_TB": 56.789054930944,
+          "cluster_reserved_HBM_TB": 57.311864297472,
+          "cluster_ngram_DRAM_TB": 14.189175,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 98.772686832,
+          "prefill_bs8_peak_GB": 117.301024752,
+          "decode_TFLOPs_round": 69.310694444544,
+          "SU_GB_round": 96.064645888,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 28.564043308544,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "draft_ms": 1.0933147817500002,
+          "verify_ms": 25.43458429244083,
+          "commit_ms": 0.08995428899999999,
+          "compute_util_percent": 0.5981466902517872,
+          "HBM_bandwidth_util_percent": 26.199120157144897,
+          "SU_tx_util_percent": 0.4405554867157876,
+          "speedup_vs_same_layout_AR": 4.424361188017405
+        },
+        {
+          "chip": "960dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 2,
+          "tp": 4,
+          "sp": 4,
+          "ep": 16,
+          "dp": 16,
+          "active_replicas": 16,
+          "idle_replicas": 0,
+          "layout": "tp4-ep16-dp16-sp4",
+          "mode": "DSpark3",
+          "committed": 1,
+          "ttft_bs1_s": 42.83457724612056,
+          "ttft_bs8_s": 42.83457724612056,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 7.935203089052968,
+          "tpot_ms": 7.935203089052968,
+          "decode_tokens_s": 4032.6630132687706,
+          "hbm_peak_GB": 178.806757624,
+          "hbm_peak_percent": 62.085679730555555,
+          "host_peak_GB": 443.411728542,
+          "host_peak_percent": 11.08529321355,
+          "weight_GB_per_card": 168.50959196,
+          "cluster_static_HBM_TB": 181.00796616704,
+          "cluster_reserved_HBM_TB": 181.269590510592,
+          "cluster_ngram_DRAM_TB": 56.7567,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 249.345973496,
+          "prefill_bs8_peak_GB": 249.345973496,
+          "decode_TFLOPs_round": 67.45173494144,
+          "SU_GB_round": 42.995450112,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 27.655515996672,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "draft_ms": 0.2832100186060606,
+          "verify_ms": 7.620856534655392,
+          "commit_ms": 0.031136535791515145,
+          "compute_util_percent": 1.1182463241100256,
+          "HBM_bandwidth_util_percent": 35.45296238983218,
+          "SU_tx_util_percent": 0.6012870143734499,
+          "speedup_vs_same_layout_AR": 0.644102626658196
+        },
+        {
+          "chip": "960dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 2,
+          "tp": 4,
+          "sp": 4,
+          "ep": 16,
+          "dp": 16,
+          "active_replicas": 16,
+          "idle_replicas": 0,
+          "layout": "tp4-ep16-dp16-sp4",
+          "mode": "DSpark3",
+          "committed": 2,
+          "ttft_bs1_s": 42.83457724612056,
+          "ttft_bs8_s": 42.83457724612056,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 7.9352232230263,
+          "tpot_ms": 3.96761161151315,
+          "decode_tokens_s": 8065.30556245549,
+          "hbm_peak_GB": 178.806757624,
+          "hbm_peak_percent": 62.085679730555555,
+          "host_peak_GB": 443.411728542,
+          "host_peak_percent": 11.08529321355,
+          "weight_GB_per_card": 168.50959196,
+          "cluster_static_HBM_TB": 181.00796616704,
+          "cluster_reserved_HBM_TB": 181.269590510592,
+          "cluster_ngram_DRAM_TB": 56.7567,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 249.345973496,
+          "prefill_bs8_peak_GB": 249.345973496,
+          "decode_TFLOPs_round": 67.494024535808,
+          "SU_GB_round": 42.995450112,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 27.655539464704,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "draft_ms": 0.2832100186060606,
+          "verify_ms": 7.620856534655392,
+          "commit_ms": 0.031156669764848478,
+          "compute_util_percent": 1.1187692156710707,
+          "HBM_bandwidth_util_percent": 35.45290252008191,
+          "SU_tx_util_percent": 0.6012854887331028,
+          "speedup_vs_same_layout_AR": 1.2882019847643313
+        },
+        {
+          "chip": "960dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 2,
+          "tp": 4,
+          "sp": 4,
+          "ep": 16,
+          "dp": 16,
+          "active_replicas": 16,
+          "idle_replicas": 0,
+          "layout": "tp4-ep16-dp16-sp4",
+          "mode": "DSpark3",
+          "committed": 3,
+          "ttft_bs1_s": 42.83457724612056,
+          "ttft_bs8_s": 42.83457724612056,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 7.935243356999634,
+          "tpot_ms": 2.645081118999878,
+          "decode_tokens_s": 12097.927647715924,
+          "hbm_peak_GB": 178.806757624,
+          "hbm_peak_percent": 62.085679730555555,
+          "host_peak_GB": 443.411728542,
+          "host_peak_percent": 11.08529321355,
+          "weight_GB_per_card": 168.50959196,
+          "cluster_static_HBM_TB": 181.00796616704,
+          "cluster_reserved_HBM_TB": 181.269590510592,
+          "cluster_ngram_DRAM_TB": 56.7567,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 249.345973496,
+          "prefill_bs8_peak_GB": 249.345973496,
+          "decode_TFLOPs_round": 67.536314130176,
+          "SU_GB_round": 42.995450112,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 27.655562932736,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "draft_ms": 0.2832100186060606,
+          "verify_ms": 7.620856534655392,
+          "commit_ms": 0.03117680373818181,
+          "compute_util_percent": 1.1192921045786661,
+          "HBM_bandwidth_util_percent": 35.45284265063546,
+          "SU_tx_util_percent": 0.6012839631004975,
+          "speedup_vs_same_layout_AR": 1.9322980743432852
+        },
+        {
+          "chip": "960dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 2,
+          "tp": 4,
+          "sp": 4,
+          "ep": 16,
+          "dp": 16,
+          "active_replicas": 16,
+          "idle_replicas": 0,
+          "layout": "tp4-ep16-dp16-sp4",
+          "mode": "DSpark3",
+          "committed": 4,
+          "ttft_bs1_s": 42.83457724612056,
+          "ttft_bs8_s": 42.83457724612056,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 7.935263490972967,
+          "tpot_ms": 1.9838158727432418,
+          "decode_tokens_s": 16130.529269205847,
+          "hbm_peak_GB": 178.806757624,
+          "hbm_peak_percent": 62.085679730555555,
+          "host_peak_GB": 443.411728542,
+          "host_peak_percent": 11.08529321355,
+          "weight_GB_per_card": 168.50959196,
+          "cluster_static_HBM_TB": 181.00796616704,
+          "cluster_reserved_HBM_TB": 181.269590510592,
+          "cluster_ngram_DRAM_TB": 56.7567,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 249.345973496,
+          "prefill_bs8_peak_GB": 249.345973496,
+          "decode_TFLOPs_round": 67.578603724544,
+          "SU_GB_round": 42.995450112,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 27.655586400768,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "draft_ms": 0.2832100186060606,
+          "verify_ms": 7.620856534655392,
+          "commit_ms": 0.03119693771151515,
+          "compute_util_percent": 1.119814990832832,
+          "HBM_bandwidth_util_percent": 35.45278278149282,
+          "SU_tx_util_percent": 0.6012824374756343,
+          "speedup_vs_same_layout_AR": 2.576390895419938
+        },
+        {
+          "chip": "960dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 2,
+          "tp": 4,
+          "sp": 4,
+          "ep": 16,
+          "dp": 16,
+          "active_replicas": 16,
+          "idle_replicas": 0,
+          "layout": "tp4-ep16-dp16-sp4",
+          "mode": "DSpark3",
+          "committed": 5,
+          "ttft_bs1_s": 42.83457724612056,
+          "ttft_bs8_s": 42.83457724612056,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 7.935283624946301,
+          "tpot_ms": 1.5870567249892602,
+          "decode_tokens_s": 20163.110427081017,
+          "hbm_peak_GB": 178.806757624,
+          "hbm_peak_percent": 62.085679730555555,
+          "host_peak_GB": 443.411728542,
+          "host_peak_percent": 11.08529321355,
+          "weight_GB_per_card": 168.50959196,
+          "cluster_static_HBM_TB": 181.00796616704,
+          "cluster_reserved_HBM_TB": 181.269590510592,
+          "cluster_ngram_DRAM_TB": 56.7567,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 249.345973496,
+          "prefill_bs8_peak_GB": 249.345973496,
+          "decode_TFLOPs_round": 67.620893318912,
+          "SU_GB_round": 42.995450112,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 27.6556098688,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "draft_ms": 0.2832100186060606,
+          "verify_ms": 7.620856534655392,
+          "commit_ms": 0.03121707168484849,
+          "compute_util_percent": 1.1203378744335886,
+          "HBM_bandwidth_util_percent": 35.45272291265398,
+          "SU_tx_util_percent": 0.6012809118585127,
+          "speedup_vs_same_layout_AR": 3.220480448019168
+        },
+        {
+          "chip": "960dt",
+          "context": "1M",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "local_batch": 2,
+          "tp": 4,
+          "sp": 4,
+          "ep": 16,
+          "dp": 16,
+          "active_replicas": 16,
+          "idle_replicas": 0,
+          "layout": "tp4-ep16-dp16-sp4",
+          "mode": "DSpark3",
+          "committed": 6,
+          "ttft_bs1_s": 42.83457724612056,
+          "ttft_bs8_s": 42.83457724612056,
+          "prefill_bs1_status": "feasible",
+          "prefill_bs8_status": "feasible",
+          "status": "feasible",
+          "reason": null,
+          "round_ms": 7.935303758919633,
+          "tpot_ms": 1.3225506264866054,
+          "decode_tokens_s": 24195.671121497206,
+          "hbm_peak_GB": 178.806757624,
+          "hbm_peak_percent": 62.085679730555555,
+          "host_peak_GB": 443.411728542,
+          "host_peak_percent": 11.08529321355,
+          "weight_GB_per_card": 168.50959196,
+          "cluster_static_HBM_TB": 181.00796616704,
+          "cluster_reserved_HBM_TB": 181.269590510592,
+          "cluster_ngram_DRAM_TB": 56.7567,
+          "active_replica_cards": 1024,
+          "prefill_bs1_peak_GB": 249.345973496,
+          "prefill_bs8_peak_GB": 249.345973496,
+          "decode_TFLOPs_round": 67.66318291328,
+          "SU_GB_round": 42.995450112,
+          "HOST_GB_round": 0.00258048,
+          "HBM_TB_round": 27.655633336832,
+          "min_committed_to_beat_same_AR": 2,
+          "work_scope": "executed_stage_schedule",
+          "draft_ms": 0.2832100186060606,
+          "verify_ms": 7.620856534655392,
+          "commit_ms": 0.031237205658181822,
+          "compute_util_percent": 1.120860755380956,
+          "HBM_bandwidth_util_percent": 35.45266304411896,
+          "SU_tx_util_percent": 0.6012793862491331,
+          "speedup_vs_same_layout_AR": 3.8645667321658563
+        }
+      ]
+    },
+    {
+      "page": 8,
+      "title": "decode 收益主要来自通信启动减少，prefill 需承担计算代价",
+      "speech": "这一页用相同的四组 AR 结果回答布局优化实际改变了哪类延迟。左边是 1M 单请求 prefill，全局 batch 为一，单位是秒；右边是已经完成预填充后的全局 batch32 自回归 decode，单位是毫秒。上下文相同并不意味着两列代表同一批请求的端到端时间，也不能把单请求首 token 时间视为三十二条请求同时预填充的耗时。每个平台的两行分别是统一参考布局和该平台最小 TPOT 布局。\n\n原始账本有六项可加归因：计算受限、HBM 受限、SU 传输、通信启动、主机查表与哈希、主机传输。图中为节约列宽，把最后两项合并为主机，原始数值完整保留在备注附表。每个矩阵 kernel 同时比较计算和 HBM 的 roofline 时间，只将较慢的一项归入该阶段，二者不会再次相加。不同算子阶段和通信阶段按仿真调度串行累加，因此六项总和等于阶段延迟。组件维度拆解是另一个可加视角，不能再与此处资源归因相加。\n\n先看 decode，950DT 的通信启动由 43.213 ms降到 16.602 ms，净减 26.6112 ms；960DT 由 20.584 降到 3.594 ms，净减 16.990 ms。减少 EP 压低了 dispatch/combine 串行轮数，解释了本轮时延的大部分改善。这不是把全网带宽利用率直接换算成性能；每个端点的注入和每轮启动仍受显式资源约束。\n\n再看 prefill，参考布局的 SU 服务分别占总时间 49.69% 和 60.74%，长上下文索引与通信仍是重要成本。切到 decode 最优布局后，950DT 计算归因从 12.812 增到 13.643 s；960DT 从 9.698 增到 20.047 s。这使总 TTFT 分别上升 1.7% 和 25.8%。单请求只激活一个 DP 副本，更多 DP 不会自动缩短这一个请求；较少并行资源与每目标 rank 的工作变化，会抵消传输和启动的节省。因此应同时约束首 token 时间、decode 服务成本和容量，不能用一个最小 TPOT 结果概括所有目标。本页是条件仿真的资源归因，未进行真机 kernel 校准；表格独立取整会出现尾差，原值的加和检查已经通过。",
+      "transition": "材料至此完成从架构、资源约束、布局扫描到阶段归因的闭环；下一步以真实 kernel、路由和接受情况校准这些条件预测。",
+      "glossary": [
+        {
+          "term": "AR",
+          "full": "Autoregressive decoding，自回归解码",
+          "explain": "每轮提交一个输出token的基线。"
+        },
+        {
+          "term": "TP",
+          "full": "Tensor Parallelism，张量并行",
+          "explain": "对注意力头、专家中间维等张量分片。"
+        },
+        {
+          "term": "EP",
+          "full": "Expert Parallelism，专家并行",
+          "explain": "在不同rank间分布专家权重。"
+        },
+        {
+          "term": "DP",
+          "full": "Data Parallelism，数据并行",
+          "explain": "在独立权重副本上分配已存在的全局请求。"
+        },
+        {
+          "term": "SP",
+          "full": "Sequence Parallelism，序列并行",
+          "explain": "与TP共用卡，分片pointwise和残差等token状态。"
+        },
+        {
+          "term": "HBM",
+          "full": "High Bandwidth Memory，高带宽内存",
+          "explain": "NPU卡上存储，容量和带宽分别约束。"
+        },
+        {
+          "term": "SU",
+          "full": "Scale Up，域内互联",
+          "explain": "单逻辑1024卡无阻塞互联及端点注入模型。"
+        },
+        {
+          "term": "TTFT",
+          "full": "Time To First Token，首token时间",
+          "explain": "本稿统一单独标示prefill全局bs=1的执行时间。"
+        },
+        {
+          "term": "TPOT",
+          "full": "Time Per Output Token，每输出token时间",
+          "explain": "AR为轮时延；DSpark为轮时延除以提交数C。"
+        },
+        {
+          "term": "bs",
+          "full": "Batch Size，批大小",
+          "explain": "decode为全局同时参与序列数；TTFT的prefill批次另列。"
+        },
+        {
+          "term": "prefill",
+          "full": "Prompt Prefill，提示词预填充",
+          "explain": "含编码器bulk、解码器KV投影及有界replay。"
+        },
+        {
+          "term": "decode",
+          "full": "Autoregressive Decode，自回归生成",
+          "explain": "生成阶段；可选择AR或DSpark轮调度。"
+        },
+        {
+          "term": "token",
+          "full": "Token，词元",
+          "explain": "模型输入输出的基本离散单位。"
+        },
+        {
+          "term": "ms",
+          "full": "Millisecond，毫秒",
+          "explain": "10^-3秒。"
+        },
+        {
+          "term": "s",
+          "full": "Second，秒",
+          "explain": "时延单位。"
+        },
+        {
+          "term": "1M",
+          "full": "1,048,576 Tokens，一百万级词元上下文",
+          "explain": "本稿1M采用二进制长度。"
+        },
+        {
+          "term": "950DT",
+          "full": "（硬件配置名）Ascend 950DT",
+          "explain": "本实验采用的144GB、4TB/s、1PFLOP/s假设配置。"
+        },
+        {
+          "term": "960DT",
+          "full": "（硬件配置名）Ascend 960DT",
+          "explain": "本实验采用的288GB、9.6TB/s、2PFLOP/s假设配置。"
+        },
+        {
+          "term": "CSV",
+          "full": "Comma-Separated Values，逗号分隔数据",
+          "explain": "全量结构化结果格式。"
+        },
+        {
+          "term": "Huawei Proprietary - Restricted Distribution",
+          "full": "华为专有资料—限制分发",
+          "explain": "沿用用户要求的华为模板固定页脚。"
+        },
+        {
+          "term": "hash",
+          "full": "Hash，哈希寻址",
+          "explain": "主机按 ngram 索引计算查表地址，算入主机查表与哈希延迟。"
+        },
+        {
+          "term": "kernel",
+          "full": "Compute Kernel，计算内核",
+          "explain": "每个内核按计算与 HBM roofline 较慢者计费，二者不重复归因。"
+        }
+      ],
+      "red_notes": [
+        {
+          "quote": "prefill 计算归因增加",
+          "explain": "prefill.csv 中最小 TPOT 布局的 compute-bound 归因相对参考布局上升，其他资源项不能完全抵消这部分增长。"
+        },
+        {
+          "quote": "26.6112 ms",
+          "explain": "950DT decode bs32：参考通信启动减去最优通信启动，等于 43.2132−16.602=26.6112 ms。"
+        },
+        {
+          "quote": "26.611 ms",
+          "explain": "950DT decode bs32 通信启动净减少值，图内保留三位小数，原值为 26.6112 ms。"
+        },
+        {
+          "quote": "16.990 ms",
+          "explain": "960DT decode bs32：通信启动由 20.584 ms 降至 3.594 ms，净减少 16.990 ms。"
+        },
+        {
+          "quote": "+0.831 s",
+          "explain": "950DT prefill bs1：计算受限归因差为 0.831230790599 s，带来 TTFT 取舍。"
+        },
+        {
+          "quote": "+10.350 s",
+          "explain": "960DT prefill bs1：计算受限归因差为 10.3497572112 s，带来 TTFT 取舍。"
+        },
+        {
+          "quote": "1.7% / 25.8%",
+          "explain": "950DT/960DT 的最小 TPOT 布局 TTFT，相对各自参考布局分别按最优/参考−1 计算。"
+        },
+        {
+          "quote": "prefill bs1｜单请求首 token（s）",
+          "explain": "左图使用独立 prefill 全局 batch1 账本，单位为秒；其六项之和等于 TTFT。"
+        },
+        {
+          "quote": "decode bs32｜AR 单轮（ms）",
+          "explain": "右图使用 1M、AR、decode 全局 batch32 账本，单位为毫秒；AR 每轮提交一个输出。"
+        },
+        {
+          "quote": "46.580",
+          "explain": "950DT 最小 TPOT 布局的 prefill bs1 总时间，单位为秒，六项原始归因加和验证通过。"
+        },
+        {
+          "quote": "19.628",
+          "explain": "950DT 最小 TPOT 布局的 AR decode bs32 单轮时间，单位为毫秒，六项原始归因加和验证通过。"
+        },
+        {
+          "quote": "42.835",
+          "explain": "960DT 最小 TPOT 布局的 prefill bs1 总时间，单位为秒，六项原始归因加和验证通过。"
+        },
+        {
+          "quote": "5.111",
+          "explain": "960DT 最小 TPOT 布局的 AR decode bs32 单轮时间，单位为毫秒，六项原始归因加和验证通过。"
+        }
+      ],
+      "sources": [
+        "outputs/deepseek-v41-pro-10t-20261020/prefill.csv",
+        "outputs/deepseek-v41-pro-10t-20261020/latency_breakdown.csv",
+        "outputs/deepseek-v41-pro-10t-20261020/summary.csv",
+        "outputs/deepseek-v41-pro-10t-20261020/methodology.md",
+        "input/deck-data.json: ar_cases[*].prefill / decode_latency",
+        "原始六项附表｜prefill bs1 950dt reference tp8-ep128-dp1-sp8（s）：compute_bound=12.8120506198；hbm_bound=8.53720271342；su_transfer=22.7527000397；communication_startup=1.6681806；host_lookup_hash=0.005542772736；host_transfer=0.00936779294118；total=45.7850445386",
+        "原始六项附表｜prefill bs1 950dt fastest_decode tp8-ep32-dp4-sp8（s）：compute_bound=13.6432814104；hbm_bound=8.55299620949；su_transfer=22.7098264474；communication_startup=1.6415694；host_lookup_hash=0.017339252736；host_transfer=0.0152660329412；total=46.5802787529",
+        "原始六项附表｜prefill bs1 960dt reference tp8-ep128-dp1-sp8（s）：compute_bound=9.69762450375；hbm_bound=2.86094388942；su_transfer=20.6842727633；communication_startup=0.794378；host_lookup_hash=0.005542772736；host_transfer=0.00936779294118；total=34.0521297222",
+        "原始六项附表｜prefill bs1 960dt fastest_decode tp4-ep16-dp16-sp4（s）：compute_bound=20.047381715；hbm_bound=2.93778616301；su_transfer=19.4107630499；communication_startup=0.335218；host_lookup_hash=0.064525172736；host_transfer=0.0388589929412；total=42.8345330935",
+        "原始六项附表｜decode bs32 950dt reference tp8-ep128-dp1-sp8（ms）：compute_bound=0.000260096；hbm_bound=2.9576343685；su_transfer=0.17797702875；communication_startup=43.2132；host_lookup_hash=0.000121536；host_transfer=6.70588235294e-05；total=46.3492600881",
+        "原始六项附表｜decode bs32 950dt fastest_decode tp8-ep32-dp4-sp8（ms）：compute_bound=0.000260096；hbm_bound=2.9576343685；su_transfer=0.06774982875；communication_startup=16.602；host_lookup_hash=0.000121536；host_transfer=6.70588235294e-05；total=19.6278328881",
+        "原始六项附表｜decode bs32 960dt reference tp8-ep128-dp1-sp8（ms）：compute_bound=0.002766767；hbm_bound=1.2300832275；su_transfer=0.161797298864；communication_startup=20.584；host_lookup_hash=0.000121536；host_transfer=6.70588235294e-05；total=21.9788358882",
+        "原始六项附表｜decode bs32 960dt fastest_decode tp4-ep16-dp16-sp4（ms）：compute_bound=0.00430964876；hbm_bound=1.4595747075；su_transfer=0.0530036068182；communication_startup=3.594；host_lookup_hash=0.000123072；host_transfer=7.41176470588e-05；total=5.11108515273"
+      ],
+      "raw_latency_components": [
+        {
+          "phase": "prefill",
+          "unit": "s",
+          "chip": "950dt",
+          "objective": "reference",
+          "layout": "tp8-ep128-dp1-sp8",
+          "context_tokens": 1048576,
+          "global_batch": 1,
+          "components": {
+            "compute_bound": 12.81205061978111,
+            "hbm_bound": 8.537202713424001,
+            "su_transfer": 22.75270003968008,
+            "communication_startup": 1.6681805999999912,
+            "host_lookup_hash": 0.005542772736,
+            "host_transfer": 0.009367792941176472
+          },
+          "total": 45.78504453856282,
+          "check_sum": 45.78504453856236
+        },
+        {
+          "phase": "prefill",
+          "unit": "s",
+          "chip": "950dt",
+          "objective": "fastest_decode",
+          "layout": "tp8-ep32-dp4-sp8",
+          "context_tokens": 1048576,
+          "global_batch": 1,
+          "components": {
+            "compute_bound": 13.643281410379778,
+            "hbm_bound": 8.55299620948797,
+            "su_transfer": 22.709826447360097,
+            "communication_startup": 1.6415693999999903,
+            "host_lookup_hash": 0.017339252736,
+            "host_transfer": 0.015266032941176469
+          },
+          "total": 46.58027875290514,
+          "check_sum": 46.58027875290501
+        },
+        {
+          "phase": "prefill",
+          "unit": "s",
+          "chip": "960dt",
+          "objective": "reference",
+          "layout": "tp8-ep128-dp1-sp8",
+          "context_tokens": 1048576,
+          "global_batch": 1,
+          "components": {
+            "compute_bound": 9.697624503746534,
+            "hbm_bound": 2.8609438894199886,
+            "su_transfer": 20.684272763345184,
+            "communication_startup": 0.7943779999999899,
+            "host_lookup_hash": 0.005542772736,
+            "host_transfer": 0.009367792941176472
+          },
+          "total": 34.05212972218861,
+          "check_sum": 34.05212972218887
+        },
+        {
+          "phase": "prefill",
+          "unit": "s",
+          "chip": "960dt",
+          "objective": "fastest_decode",
+          "layout": "tp4-ep16-dp16-sp4",
+          "context_tokens": 1048576,
+          "global_batch": 1,
+          "components": {
+            "compute_bound": 20.04738171496024,
+            "hbm_bound": 2.9377861630066637,
+            "su_transfer": 19.410763049890715,
+            "communication_startup": 0.33521799999999413,
+            "host_lookup_hash": 0.06452517273599999,
+            "host_transfer": 0.03885899294117647
+          },
+          "total": 42.83453309353432,
+          "check_sum": 42.83453309353479
+        },
+        {
+          "phase": "decode",
+          "unit": "ms",
+          "chip": "950dt",
+          "objective": "reference",
+          "layout": "tp8-ep128-dp1-sp8",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "components": {
+            "compute_bound": 0.00026009600000000013,
+            "hbm_bound": 2.957634368499984,
+            "su_transfer": 0.1779770287500006,
+            "communication_startup": 43.213199999999944,
+            "host_lookup_hash": 0.00012153599999999998,
+            "host_transfer": 6.705882352941176e-05
+          },
+          "total": 46.349260088073684,
+          "check_sum": 46.34926008807346
+        },
+        {
+          "phase": "decode",
+          "unit": "ms",
+          "chip": "950dt",
+          "objective": "fastest_decode",
+          "layout": "tp8-ep32-dp4-sp8",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "components": {
+            "compute_bound": 0.00026009600000000013,
+            "hbm_bound": 2.957634368499984,
+            "su_transfer": 0.06774982875000025,
+            "communication_startup": 16.60199999999994,
+            "host_lookup_hash": 0.00012153599999999998,
+            "host_transfer": 6.705882352941176e-05
+          },
+          "total": 19.627832888073346,
+          "check_sum": 19.627832888073453
+        },
+        {
+          "phase": "decode",
+          "unit": "ms",
+          "chip": "960dt",
+          "objective": "reference",
+          "layout": "tp8-ep128-dp1-sp8",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "components": {
+            "compute_bound": 0.002766767000000001,
+            "hbm_bound": 1.230083227499999,
+            "su_transfer": 0.1617972988636362,
+            "communication_startup": 20.58400000000001,
+            "host_lookup_hash": 0.00012153599999999998,
+            "host_transfer": 6.705882352941176e-05
+          },
+          "total": 21.978835888187064,
+          "check_sum": 21.978835888187174
+        },
+        {
+          "phase": "decode",
+          "unit": "ms",
+          "chip": "960dt",
+          "objective": "fastest_decode",
+          "layout": "tp4-ep16-dp16-sp4",
+          "context_tokens": 1048576,
+          "global_batch": 32,
+          "components": {
+            "compute_bound": 0.004309648759999999,
+            "hbm_bound": 1.4595747075000005,
+            "su_transfer": 0.05300360681818141,
+            "communication_startup": 3.5939999999999777,
+            "host_lookup_hash": 0.00012307199999999998,
+            "host_transfer": 7.411764705882354e-05
+          },
+          "total": 5.111085152725247,
+          "check_sum": 5.111085152725218
+        }
+      ],
+      "raw_latency_components_order": [
+        "compute_bound",
+        "hbm_bound",
+        "su_transfer",
+        "communication_startup",
+        "host_lookup_hash",
+        "host_transfer"
+      ]
+    }
+  ]
+}

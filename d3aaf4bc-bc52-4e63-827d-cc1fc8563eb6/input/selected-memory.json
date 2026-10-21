@@ -1,0 +1,62 @@
+[
+  {
+    "batch": 1,
+    "prefill_peak_hbm_GB": 61.435794595,
+    "decode_peak_hbm_GB": 42.642575567,
+    "resident_cluster_TB": 28.810017063936,
+    "source_cases": [
+      "950dt-1M-tp32-ep32-dp1-sp32-lb1",
+      "960dt-1M-tp32-ep32-dp1-sp32-lb1"
+    ]
+  },
+  {
+    "batch": 2,
+    "prefill_peak_hbm_GB": 61.435794595,
+    "decode_peak_hbm_GB": 42.642575567,
+    "resident_cluster_TB": 29.289223289856,
+    "source_cases": [
+      "950dt-1M-tp32-ep32-dp1-sp32-lb2",
+      "960dt-1M-tp32-ep32-dp1-sp32-lb2"
+    ]
+  },
+  {
+    "batch": 4,
+    "prefill_peak_hbm_GB": 61.435794595,
+    "decode_peak_hbm_GB": 42.642575567,
+    "resident_cluster_TB": 30.247635741696,
+    "source_cases": [
+      "950dt-1M-tp32-ep32-dp1-sp32-lb4",
+      "960dt-1M-tp32-ep32-dp1-sp32-lb4"
+    ]
+  },
+  {
+    "batch": 8,
+    "prefill_peak_hbm_GB": 61.435794595,
+    "decode_peak_hbm_GB": 42.642575567,
+    "resident_cluster_TB": 32.164460645376,
+    "source_cases": [
+      "950dt-1M-tp32-ep32-dp1-sp32-lb8",
+      "960dt-1M-tp32-ep32-dp1-sp32-lb8"
+    ]
+  },
+  {
+    "batch": 16,
+    "prefill_peak_hbm_GB": 61.435794595,
+    "decode_peak_hbm_GB": 42.642575567,
+    "resident_cluster_TB": 35.998110452736,
+    "source_cases": [
+      "950dt-1M-tp32-ep32-dp1-sp32-lb16",
+      "960dt-1M-tp32-ep32-dp1-sp32-lb16"
+    ]
+  },
+  {
+    "batch": 32,
+    "prefill_peak_hbm_GB": 62.673769635,
+    "decode_peak_hbm_GB": 42.642575567,
+    "resident_cluster_TB": 43.665410067456,
+    "source_cases": [
+      "950dt-1M-tp32-ep32-dp1-sp32-lb32",
+      "960dt-1M-tp32-ep32-dp1-sp32-lb32"
+    ]
+  }
+]

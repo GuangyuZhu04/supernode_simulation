@@ -1,0 +1,212 @@
+{
+  "page": 4,
+  "title": "保留TP32、降低EP，可同时降低时延并提升吞吐",
+  "speech": "这一页把两个平台都固定为1024卡、1M输入和全局32个请求，用相同F精度与加速特性比较六种并行布局。公平比较看的是全局负载，本地批大小会随数据并行副本数变化；SP复用TP的设备，不额外增加卡数。原并行都采用TP/SP32、EP32、DP1。保留TP32、降低EP并增加DP后，950DT的解码吞吐由742.9升到944.5，增幅27.1%；960DT从1586.2升到2125.3，增幅34.0%。两者首词时延还分别从131.39和78.00秒下降到128.79和72.50秒，因此这组方案兼顾首词和解码。它也有资源代价：每卡峰值显存分别提高到112.66和183.46GB，对应容量占比78.2%和63.7%。继续降低TP能把解码推得更快，960DT的解码优先布局达到4407.6个token每秒、间隔7.26毫秒，但首词等待增至148.32秒，显存占比达95.7%。六组均通过完整请求的容量与执行可行性检查。这里的TPOT和吞吐只取输出2个token时的首个decode间隔，不代表长生成稳态或线上P99；没有排队和冷加载，所有数字仍是未经实机校准的模型预测。",
+  "transition": "下一页固定这两组兼顾布局，继续看上下文与批大小变化，并核对扩展数据并行后的集群资源工作量。",
+  "glossary": [
+    {
+      "term": "TP",
+      "full": "Tensor Parallelism，张量并行",
+      "explain": "将单层张量计算分配到多个并行设备；标题TP32指32路张量并行。"
+    },
+    {
+      "term": "SP",
+      "full": "Sequence Parallelism，序列并行",
+      "explain": "对序列相关数据分片，本页与TP共享同一组ranks。"
+    },
+    {
+      "term": "EP",
+      "full": "Expert Parallelism，专家并行",
+      "explain": "将专家模型分配到多个并行设备；本页通过降低EP增加数据并行副本数。"
+    },
+    {
+      "term": "DP",
+      "full": "Data Parallelism，数据并行",
+      "explain": "多个模型副本处理不同请求；全局bs等于活跃副本数乘本地bs。"
+    },
+    {
+      "term": "TP32",
+      "full": "Tensor Parallelism 32，32路张量并行",
+      "explain": "标题强调兼顾方案保留32路张量并行，表中TP/SP一项同时给出TP与SP。"
+    },
+    {
+      "term": "TTFT",
+      "full": "Time to First Token，首词时延",
+      "explain": "从请求开始到首个输出token的模拟时间，不含排队和冷加载。"
+    },
+    {
+      "term": "TPOT",
+      "full": "Time per Output Token，单输出token时间",
+      "explain": "本页取首个decode间隔，不是长生成稳态平均间隔。"
+    },
+    {
+      "term": "decode",
+      "full": "Autoregressive Decoding，自回归解码",
+      "explain": "在上下文状态上生成后续token，本页吞吐来自首个decode间隔。"
+    },
+    {
+      "term": "HBM",
+      "full": "High Bandwidth Memory，高带宽存储器",
+      "explain": "页面给出完整请求每卡实际峰值，以及该峰值对单卡容量的占比。"
+    },
+    {
+      "term": "GB",
+      "full": "Gigabyte，吉字节",
+      "explain": "十进制容量单位，1 GB为10^9字节；两平台容量分别144与288GB。"
+    },
+    {
+      "term": "s",
+      "full": "Second，秒",
+      "explain": "TTFT使用的时间单位。"
+    },
+    {
+      "term": "ms",
+      "full": "Millisecond，毫秒",
+      "explain": "TPOT使用的时间单位，1 ms为0.001秒。"
+    },
+    {
+      "term": "tokens/s",
+      "full": "Tokens per Second，每秒token数",
+      "explain": "decode吞吐单位，按全局完成的token数除以首个decode间隔计算。"
+    },
+    {
+      "term": "tokens",
+      "full": "Tokens，模型标记单元",
+      "explain": "语言模型处理和生成的基本序列单元。"
+    },
+    {
+      "term": "F",
+      "full": "Full Optimization Configuration，完整优化配置（实验标签）",
+      "explain": "本次沿用SP开启、压缩MLA缓存和FP8权重/计算/激活/通信/KV，KDA递归状态保留FP32；SP规模随表中TP变化。"
+    },
+    {
+      "term": "1M",
+      "full": "One Mebi-token Context，约百万token上下文",
+      "explain": "本次1M输入精确为1,048,576个token。"
+    },
+    {
+      "term": "bs",
+      "full": "Batch Size，批大小",
+      "explain": "全局bs32指全平台同时处理32个请求；本地bs指一个活跃DP副本处理的请求数。"
+    },
+    {
+      "term": "bs32",
+      "full": "Batch Size 32，批大小32",
+      "explain": "页眉指定同一全局负载，为全部六组比较共同使用的32个请求。"
+    },
+    {
+      "term": "top32",
+      "full": "Top-32 Expert Selection，前32专家选择",
+      "explain": "沿用本次实验每个token选择32个专家的路由配置。"
+    },
+    {
+      "term": "output2",
+      "full": "Output Length 2，输出长度2",
+      "explain": "每个请求生成2个token，因此只观察到首个decode间隔。"
+    },
+    {
+      "term": "950DT",
+      "full": "950DT（仿真平台名称）",
+      "explain": "使用报告冻结的950DT硬件规格与效率假设，未做实机校准。"
+    },
+    {
+      "term": "960DT",
+      "full": "960DT（仿真平台名称）",
+      "explain": "使用报告冻结的960DT硬件规格与效率假设，未做实机校准。"
+    },
+    {
+      "term": "ranks",
+      "full": "Process Ranks，并行进程编号",
+      "explain": "标识参与并行操作的设备或进程；SP与TP共享rank，不作为独立乘数。"
+    },
+    {
+      "term": "P99",
+      "full": "99th Percentile，99百分位数",
+      "explain": "线上尾时延统计；本页固定batch、无排队，未估算此项。"
+    },
+    {
+      "term": "summary.json",
+      "full": "Summary in JavaScript Object Notation，JSON格式仿真汇总文件",
+      "explain": "保存并行度扫描的结构化结果，是本页六组数据的源文件。"
+    },
+    {
+      "term": "recommendations.json",
+      "full": "Recommendations in JavaScript Object Notation，JSON格式建议文件",
+      "explain": "记录并行度扫描中的推荐布局，供方案选择与数据核对。"
+    },
+    {
+      "term": "Huawei Proprietary - Restricted Distribution",
+      "full": "Huawei Proprietary - Restricted Distribution，华为专有信息，限制传播",
+      "explain": "沿用原稿保密页脚声明。"
+    }
+  ],
+  "red_notes": [
+    {
+      "quote": "+27.1% / +34.0%",
+      "explain": "2026-10-20 summary.json中950dt-1M-tp32-ep8-dp4-sp32-g32与960dt-1M-tp32-ep4-dp8-sp32-g32相对于各平台原并行950dt-1M-tp32-ep32-dp1-sp32-g32与960dt-1M-tp32-ep32-dp1-sp32-g32，首个decode间隔吞吐分别提高27.1%和34.0%，比较均固定1024卡及全局bs32。"
+    },
+    {
+      "quote": "TTFT同步下降",
+      "explain": "同一summary.json中兼顾方案的TTFT由950DT原并行131.39秒降至128.79秒、960DT原并行78.00秒降至72.50秒，说明本次吞吐改善没有牺牲首词时延。"
+    },
+    {
+      "quote": "同负载比较：六组平台/并行组合",
+      "explain": "六行均取2026-10-20 summary.json所列1M、全局bs32、1024卡的完整请求可行点，本地bs随DP变化而不是扩大总请求数。"
+    },
+    {
+      "quote": "decode吞吐",
+      "explain": "表格与横条图使用summary.json的decode_tokens_s字段，表示首个decode间隔的全平台输出速率；两平台图共用0到4500 tokens/s范围。"
+    },
+    {
+      "quote": "128.79",
+      "explain": "2026-10-20 summary.json的950dt-1M-tp32-ep8-dp4-sp32-g32预测为128.79秒，对比950dt-1M-tp32-ep32-dp1-sp32-g32的131.39秒，表示首词时延降低；两点均为1M、全局bs32。"
+    },
+    {
+      "quote": "33.88",
+      "explain": "2026-10-20 summary.json的950dt-1M-tp32-ep8-dp4-sp32-g32预测为33.88毫秒，对比950dt-1M-tp32-ep32-dp1-sp32-g32的43.08毫秒，表示首个decode间隔缩短；两点均为1M、全局bs32。"
+    },
+    {
+      "quote": "944.5",
+      "explain": "2026-10-20 summary.json的950dt-1M-tp32-ep8-dp4-sp32-g32预测为944.5tokens/s，对比950dt-1M-tp32-ep32-dp1-sp32-g32的742.9tokens/s，表示全平台解码吞吐增加；两点均为1M、全局bs32。"
+    },
+    {
+      "quote": "72.50",
+      "explain": "2026-10-20 summary.json的960dt-1M-tp32-ep4-dp8-sp32-g32预测为72.50秒，对比960dt-1M-tp32-ep32-dp1-sp32-g32的78.00秒，表示首词时延降低；两点均为1M、全局bs32。"
+    },
+    {
+      "quote": "15.06",
+      "explain": "2026-10-20 summary.json的960dt-1M-tp32-ep4-dp8-sp32-g32预测为15.06毫秒，对比960dt-1M-tp32-ep32-dp1-sp32-g32的20.17毫秒，表示首个decode间隔缩短；两点均为1M、全局bs32。"
+    },
+    {
+      "quote": "2,125.3",
+      "explain": "2026-10-20 summary.json的960dt-1M-tp32-ep4-dp8-sp32-g32预测为2,125.3tokens/s，对比960dt-1M-tp32-ep32-dp1-sp32-g32的1,586.2tokens/s，表示全平台解码吞吐增加；两点均为1M、全局bs32。"
+    },
+    {
+      "quote": "深红色兼顾时延系列",
+      "explain": "深红条对应summary.json的950dt-1M-tp32-ep8-dp4-sp32-g32与960dt-1M-tp32-ep4-dp8-sp32-g32，吞吐944.5和2,125.3 tokens/s；各自灰色原并行是742.9和1,586.2 tokens/s。"
+    },
+    {
+      "quote": "浅红色解码优先系列",
+      "explain": "浅红条对应summary.json的950dt-1M-tp16-ep16-dp4-sp16-g32与960dt-1M-tp8-ep8-dp16-sp8-g32，吞吐1,292.3和4,407.6 tokens/s，均高于各自原并行，但TTFT增为171.88和148.32秒。"
+    },
+    {
+      "quote": "7.26 ms",
+      "explain": "2026-10-20 summary.json中960dt-1M-tp8-ep8-dp16-sp8-g32的首个decode间隔为7.26毫秒，是本页六组中最低值，相比960DT原并行20.17毫秒明显缩短。"
+    },
+    {
+      "quote": "148.32 s与95.7%",
+      "explain": "同一960dt-1M-tp8-ep8-dp16-sp8-g32的TTFT为148.32秒、每卡峰值275.56GB占288GB的95.7%，相对960DT原并行78.00秒和21.8%体现追求最低TPOT的首词及容量代价。"
+    }
+  ],
+  "sources": [
+    "2026-10-20 · C:/D_disk/Github/supernode_simulation/outputs/kimi-k3-10t-1m-acceleration-20261019/parallelism-20261020/summary.json",
+    "2026-10-20 · C:/D_disk/Github/supernode_simulation/outputs/kimi-k3-10t-1m-acceleration-20261019/parallelism-20261020/recommendations.json",
+    "input/selected-data.json：selected六行与boundaries；所有数字为未经实机校准的F配置模型预测。",
+    "2026-10-20 selected case：950dt-1M-tp32-ep32-dp1-sp32-g32；replica case：950dt-1M-tp32-ep32-dp1-sp32-lb32",
+    "2026-10-20 selected case：950dt-1M-tp32-ep8-dp4-sp32-g32；replica case：950dt-1M-tp32-ep8-dp4-sp32-lb8",
+    "2026-10-20 selected case：950dt-1M-tp16-ep16-dp4-sp16-g32；replica case：950dt-1M-tp16-ep16-dp4-sp16-lb8",
+    "2026-10-20 selected case：960dt-1M-tp32-ep32-dp1-sp32-g32；replica case：960dt-1M-tp32-ep32-dp1-sp32-lb32",
+    "2026-10-20 selected case：960dt-1M-tp32-ep4-dp8-sp32-g32；replica case：960dt-1M-tp32-ep4-dp8-sp32-lb4",
+    "2026-10-20 selected case：960dt-1M-tp8-ep8-dp16-sp8-g32；replica case：960dt-1M-tp8-ep8-dp16-sp8-lb2"
+  ]
+}

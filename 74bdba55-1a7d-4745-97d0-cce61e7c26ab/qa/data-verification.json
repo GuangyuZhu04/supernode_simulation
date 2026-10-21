@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "displayed_component_and_total_values": 60,
+  "native_pptx_values_checked": true,
+  "stage_sums_checked": 12,
+  "raw_sum_max_absolute_error_in_display_units": 4.547473508864641e-13,
+  "source_pptx_unchanged": true,
+  "simulation_files_unchanged": true,
+  "other_categories_retained_and_negligible": true,
+  "units_prefill_s_decode_ms": true
+}

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="微软雅黑, Arial, sans-serif">
+<g id="page-background"><rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/></g>
+<g id="page-header">
+  <text x="50" y="50" font-size="28" fill="#C00000" font-weight="bold">Kimi K3 扩容专家池至 10.17T，保留混合注意力骨架</text>
+  <text x="50" y="77" font-size="12" fill="#666666">01 模型演进 · 以公开 Kimi K3 文本骨干为起点，构造 10T 推理设计</text>
+</g>
+<g id="core-band">
+  <rect x="50" y="96" width="1180" height="62" rx="4" fill="#FFF1EF" stroke="#C00000" stroke-width="1.5"/>
+  <use data-icon="chunk-filled/target-arrow" x="70" y="115" width="22" height="22" fill="#C00000"/>
+  <text x="104" y="132" font-size="15" fill="#C00000" font-weight="bold">核心思想</text>
+  <line x1="180" y1="110" x2="180" y2="146" stroke="#F1B4B7" stroke-width="1"/>
+  <text x="200" y="132" font-size="15" fill="#1D1D1A" font-weight="bold">参数容量扩大约 <tspan fill="#C00000">3.66 倍</tspan>，top-32 每 token 激活 154.4B，仅占总量 <tspan fill="#C00000">1.52%</tspan>。</text>
+</g>
+<g id="retained-architecture">
+  <rect x="50" y="172" width="360" height="360" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1"/>
+  <rect x="50" y="172" width="360" height="38" fill="#F2F2F2"/>
+  <use data-icon="chunk-filled/layers" x="66" y="181" width="20" height="20" fill="#C00000"/>
+  <text x="97" y="197" font-size="15" fill="#1D1D1A" font-weight="bold">保留计算骨架</text>
+  <rect x="66" y="224" width="328" height="62" fill="#F2F2F2" stroke="#D9D9D9" stroke-width="1"/>
+  <text x="82" y="245" font-size="12" fill="#1D1D1A">混合注意力</text>
+  <text x="82" y="271" font-size="15" fill="#1D1D1A" font-weight="bold">93 层：69 KDA + 24 MLA</text>
+  <rect x="66" y="299" width="328" height="62" fill="#F2F2F2" stroke="#D9D9D9" stroke-width="1"/>
+  <text x="82" y="320" font-size="12" fill="#1D1D1A">稀疏前馈</text>
+  <text x="82" y="346" font-size="15" fill="#1D1D1A" font-weight="bold">92 MoE + 1 Dense</text>
+  <rect x="66" y="374" width="328" height="62" fill="#F2F2F2" stroke="#D9D9D9" stroke-width="1"/>
+  <text x="82" y="395" font-size="12" fill="#1D1D1A">跨层残差聚合</text>
+  <text x="82" y="421" font-size="15" fill="#1D1D1A" font-weight="bold">AttnRes</text>
+  <text x="66" y="466" font-size="12" fill="#1D1D1A">隐藏维度 7168 · 潜空间维度 3584</text>
+  <text x="66" y="488" font-size="12" fill="#1D1D1A">专家中间维 3072 · 共享专家 2 个</text>
+  <text x="66" y="514" font-size="12" fill="#666666">扩大路由专家池，同步增加路由器输出维度</text>
+</g>
+<g id="parameter-comparison">
+  <rect x="430" y="172" width="800" height="360" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1"/>
+  <rect x="430" y="172" width="800" height="38" fill="#F2F2F2"/>
+  <use data-icon="chunk-filled/cube" x="446" y="181" width="20" height="20" fill="#C00000"/>
+  <text x="477" y="197" font-size="15" fill="#1D1D1A" font-weight="bold">扩大参数容量，独立设定激活规模</text>
+  <rect x="446" y="222" width="768" height="253" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1"/>
+  <rect x="446" y="222" width="768" height="36" fill="#F2F2F2"/>
+  <rect x="931" y="258" width="283" height="217" fill="#FFF1EF"/>
+  <line x1="676" y1="222" x2="676" y2="475" stroke="#D9D9D9" stroke-width="1"/>
+  <line x1="931" y1="222" x2="931" y2="475" stroke="#D9D9D9" stroke-width="1"/>
+  <line x1="446" y1="258" x2="1214" y2="258" stroke="#D9D9D9" stroke-width="1"/>
+  <line x1="446" y1="331" x2="1214" y2="331" stroke="#D9D9D9" stroke-width="1"/>
+  <line x1="446" y1="379" x2="1214" y2="379" stroke="#D9D9D9" stroke-width="1"/>
+  <line x1="446" y1="427" x2="1214" y2="427" stroke="#D9D9D9" stroke-width="1"/>
+  <text x="461" y="245" font-size="15" fill="#1D1D1A" font-weight="bold">比较维度</text>
+  <text x="804" y="245" text-anchor="middle" font-size="15" fill="#1D1D1A" font-weight="bold">当前 Kimi K3</text>
+  <text x="1072" y="245" text-anchor="middle" font-size="15" fill="#1D1D1A" font-weight="bold">10T 扩容设计</text>
+  <text x="461" y="300" font-size="15" fill="#1D1D1A">结构推导总参数</text>
+  <text x="804" y="308" text-anchor="middle" font-size="38" fill="#1D1D1A" font-weight="bold">2.779T</text>
+  <text x="1072" y="308" text-anchor="middle" font-size="38" fill="#C00000" font-weight="bold">10.171T</text>
+  <text x="461" y="360" font-size="15" fill="#1D1D1A">路由专家 / MoE 层</text>
+  <text x="804" y="360" text-anchor="middle" font-size="15" fill="#1D1D1A">896</text>
+  <text x="1072" y="360" text-anchor="middle" font-size="15" fill="#1D1D1A" font-weight="bold">3328</text>
+  <text x="461" y="408" font-size="15" fill="#1D1D1A">每 token 选择专家</text>
+  <text x="804" y="408" text-anchor="middle" font-size="15" fill="#1D1D1A">top-16</text>
+  <text x="1072" y="408" text-anchor="middle" font-size="15" fill="#1D1D1A" font-weight="bold">top-32</text>
+  <text x="461" y="456" font-size="15" fill="#1D1D1A">结构推导活跃参数</text>
+  <text x="804" y="456" text-anchor="middle" font-size="15" fill="#1D1D1A">104.19B</text>
+  <text x="1072" y="456" text-anchor="middle" font-size="15" fill="#1D1D1A" font-weight="bold">154.41B</text>
+  <text x="446" y="495" font-size="12" fill="#1D1D1A">3328 个专家：沿用早期 EP128 整除约束，向近 10T 规模取整</text>
+  <text x="446" y="516" font-size="12" fill="#1D1D1A">最新实验采用 EP32，每个专家并行分片对应 104 个专家</text>
+</g>
+<g id="source-boundary">
+  <text x="50" y="551" font-size="10.5" fill="#666666">边界：10T 为合成扩容，模型质量未验证；仅文本骨干，不含视觉、投影器和训练 MTP。来源：官方配置快照及 2026-10-19 仿真清单。</text>
+</g>
+<g id="highlight-strip">
+  <rect x="50" y="574" width="1180" height="68" rx="4" fill="#F2F2F2" stroke="#D9D9D9" stroke-width="1"/>
+  <text x="72" y="601" font-size="15" fill="#C00000" font-weight="bold">本页亮点</text>
+  <text x="180" y="601" font-size="15" fill="#1D1D1A">★ 总参数扩大约 <tspan fill="#C00000" font-weight="bold">3.66 倍</tspan>，活跃参数约增加 <tspan fill="#C00000" font-weight="bold">48.2%</tspan>。</text>
+  <text x="180" y="626" font-size="15" fill="#1D1D1A">★ 参数总量决定容量压力，激活规模决定主要计算负载，两者分开设计。</text>
+</g>
+<g id="footer-group">
+  <text x="77" y="683" font-size="10.5" fill="#1D1D1A">1</text>
+  <text x="125" y="683" font-size="10.5" fill="#1D1D1A">Huawei Proprietary - Restricted Distribution</text>
+  <image href="logo.png" x="1070" y="663" width="133" height="28" preserveAspectRatio="xMidYMid meet"/>
+</g>
+</svg>

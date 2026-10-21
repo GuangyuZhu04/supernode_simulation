@@ -1,0 +1,161 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="微软雅黑">
+  <g id="background">
+  <rect x="0" y="0" width="1280" height="720" fill="#FFFFFF" />
+  </g>
+  <g id="page-header">
+  <text x="50" y="50" font-size="28" fill="#C00000" font-weight="bold">保留TP32、降低EP，可同时降低时延并提升吞吐</text>
+  <text x="50" y="77" font-size="12" fill="#666666">04 仿真结果（1/2） · 2026-10-20 · F加速 · 1024卡/平台 · 1M · 全局bs32 · top32 · output2</text>
+  </g>
+  <g id="core-band">
+  <rect x="50" y="96" width="1180" height="62" fill="#FFF1EF" stroke="#C00000" stroke-width="1.5" rx="4" />
+  <g transform="translate(70.0, 115.0) scale(1.375)" fill="#C00000">
+    <path d="M8.16923 2.00234C8.11301 2.00078 8.0566 2 8 2C4.68629 2 2 4.68629 2 8C2 11.3137 4.68629 14 8 14C11.3137 14 14 11.3137 14 8C14 7.9434 13.9992 7.88699 13.9977 7.83077L15.7642 6.06422C15.9182 6.68407 16 7.33249 16 8C16 12.4183 12.4183 16 8 16C3.58172 16 0 12.4183 0 8C0 3.58172 3.58172 0 8 0C8.66751 0 9.31593 0.0817526 9.93578 0.235791L8.16923 2.00234Z" />
+    <path d="M4 7.99996C4 6.13612 5.27477 4.57002 7 4.12598V6.26752C6.4022 6.61333 6 7.25968 6 7.99996C6 9.10453 6.89543 9.99996 8 9.99996C8.74028 9.99996 9.38663 9.59776 9.73244 8.99996H11.874C11.4299 10.7252 9.86384 12 8 12C5.79086 12 4 10.2091 4 7.99996Z" />
+    <path d="M14 2L13 0L10 3V4.58579L7.79289 6.79289L9.20711 8.20711L11.4142 6H13L16 3L14 2Z" />
+  </g><text x="104" y="132" font-size="15" fill="#C00000" font-weight="bold">核心思想</text>
+  <line x1="180" y1="110" x2="180" y2="146" stroke="#D9D9D9" stroke-width="1" />
+  <text x="200" y="132" font-size="15" fill="#1D1D1A" font-weight="bold">兼顾布局decode吞吐<tspan fill="#C00000" font-weight="bold">+27.1% / +34.0%</tspan>，<tspan fill="#C00000" font-weight="bold">TTFT同步下降</tspan>；解码优先有首词时延代价。</text>
+  </g>
+  <g id="parallelism-comparison">
+  <rect x="50" y="172" width="820" height="356" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1" />
+  <rect x="50" y="172" width="820" height="38" fill="#F2F2F2" />
+  <g transform="translate(67.0, 181.0) scale(1.25)" fill="#C00000">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 2H0V7H16V2ZM4 4.5C4 5.05228 3.55228 5.5 3 5.5C2.44772 5.5 2 5.05228 2 4.5C2 3.94772 2.44772 3.5 3 3.5C3.55228 3.5 4 3.94772 4 4.5Z" />
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M16 9H0V14H16V9ZM3 12.5C3.55228 12.5 4 12.0523 4 11.5C4 10.9477 3.55228 10.5 3 10.5C2.44772 10.5 2 10.9477 2 11.5C2 12.0523 2.44772 12.5 3 12.5Z" />
+  </g><text x="99" y="198" font-size="15" fill="#C00000" font-weight="bold">同负载比较：六组平台/并行组合</text>
+  <rect x="65" y="213" width="790" height="31" fill="#F2F2F2" />
+  <text x="77" y="233" font-size="12" fill="#1D1D1A" font-weight="bold">平台 / 策略</text>
+  <text x="221" y="226" font-size="12" fill="#1D1D1A" font-weight="bold">TP/SP,EP,DP</text>
+  <text x="221" y="240" font-size="10.5" fill="#666666">本地bs</text>
+  <text x="370" y="226" font-size="12" fill="#1D1D1A" font-weight="bold">TTFT</text>
+  <text x="370" y="240" font-size="10.5" fill="#666666">s</text>
+  <text x="465" y="226" font-size="12" fill="#1D1D1A" font-weight="bold">TPOT</text>
+  <text x="465" y="240" font-size="10.5" fill="#666666">ms</text>
+  <text x="558" y="226" font-size="12" fill="#1D1D1A" font-weight="bold">decode</text>
+  <text x="558" y="240" font-size="10.5" fill="#666666">tokens/s</text>
+  <text x="687" y="226" font-size="12" fill="#1D1D1A" font-weight="bold">峰值HBM / GB</text>
+  <text x="687" y="240" font-size="10.5" fill="#666666">容量占比</text>
+  <text x="77" y="263" font-size="12" fill="#1D1D1A">950DT · 原并行</text>
+  <text x="221" y="255" font-size="12" fill="#1D1D1A">32/32/1</text>
+  <text x="221" y="271" font-size="12" fill="#1D1D1A">本地 bs 32</text>
+  <text x="370" y="263" font-size="15" fill="#1D1D1A">131.39</text>
+  <text x="465" y="263" font-size="15" fill="#1D1D1A">43.08</text>
+  <text x="558" y="263" font-size="15" fill="#1D1D1A">742.9</text>
+  <text x="687" y="263" font-size="15" fill="#1D1D1A">62.67 / 43.5%</text>
+  <line x1="65" y1="286" x2="855" y2="286" stroke="#D9D9D9" stroke-width="1" />
+  <rect x="65" y="286" width="790" height="42" fill="#FFF1EF" />
+  <text x="77" y="305" font-size="12" fill="#1D1D1A" font-weight="bold">950DT · 兼顾时延</text>
+  <text x="221" y="297" font-size="12" fill="#1D1D1A">32/8/4</text>
+  <text x="221" y="313" font-size="12" fill="#1D1D1A">本地 bs 8</text>
+  <text x="370" y="305" font-size="15" fill="#C00000" font-weight="bold">128.79</text>
+  <text x="465" y="305" font-size="15" fill="#C00000" font-weight="bold">33.88</text>
+  <text x="558" y="305" font-size="15" fill="#C00000" font-weight="bold">944.5</text>
+  <text x="687" y="305" font-size="15" fill="#1D1D1A">112.66 / 78.2%</text>
+  <line x1="65" y1="328" x2="855" y2="328" stroke="#D9D9D9" stroke-width="1" />
+  <text x="77" y="347" font-size="12" fill="#1D1D1A">950DT · 解码优先</text>
+  <text x="221" y="339" font-size="12" fill="#1D1D1A">16/16/4</text>
+  <text x="221" y="355" font-size="12" fill="#1D1D1A">本地 bs 8</text>
+  <text x="370" y="347" font-size="15" fill="#1D1D1A">171.88</text>
+  <text x="465" y="347" font-size="15" fill="#1D1D1A">24.76</text>
+  <text x="558" y="347" font-size="15" fill="#1D1D1A">1,292.3</text>
+  <text x="687" y="347" font-size="15" fill="#1D1D1A">112.44 / 78.1%</text>
+  <line x1="65" y1="370" x2="855" y2="370" stroke="#D9D9D9" stroke-width="1" />
+  <text x="77" y="389" font-size="12" fill="#1D1D1A">960DT · 原并行</text>
+  <text x="221" y="381" font-size="12" fill="#1D1D1A">32/32/1</text>
+  <text x="221" y="397" font-size="12" fill="#1D1D1A">本地 bs 32</text>
+  <text x="370" y="389" font-size="15" fill="#1D1D1A">78.00</text>
+  <text x="465" y="389" font-size="15" fill="#1D1D1A">20.17</text>
+  <text x="558" y="389" font-size="15" fill="#1D1D1A">1,586.2</text>
+  <text x="687" y="389" font-size="15" fill="#1D1D1A">62.67 / 21.8%</text>
+  <line x1="65" y1="412" x2="855" y2="412" stroke="#D9D9D9" stroke-width="1" />
+  <rect x="65" y="412" width="790" height="42" fill="#FFF1EF" />
+  <text x="77" y="431" font-size="12" fill="#1D1D1A" font-weight="bold">960DT · 兼顾时延</text>
+  <text x="221" y="423" font-size="12" fill="#1D1D1A">32/4/8</text>
+  <text x="221" y="439" font-size="12" fill="#1D1D1A">本地 bs 4</text>
+  <text x="370" y="431" font-size="15" fill="#C00000" font-weight="bold">72.50</text>
+  <text x="465" y="431" font-size="15" fill="#C00000" font-weight="bold">15.06</text>
+  <text x="558" y="431" font-size="15" fill="#C00000" font-weight="bold">2,125.3</text>
+  <text x="687" y="431" font-size="15" fill="#1D1D1A">183.46 / 63.7%</text>
+  <line x1="65" y1="454" x2="855" y2="454" stroke="#D9D9D9" stroke-width="1" />
+  <text x="77" y="473" font-size="12" fill="#1D1D1A">960DT · 解码优先</text>
+  <text x="221" y="465" font-size="12" fill="#1D1D1A">8/8/16</text>
+  <text x="221" y="481" font-size="12" fill="#1D1D1A">本地 bs 2</text>
+  <text x="370" y="473" font-size="15" fill="#1D1D1A">148.32</text>
+  <text x="465" y="473" font-size="15" fill="#1D1D1A">7.26</text>
+  <text x="558" y="473" font-size="15" fill="#1D1D1A">4,407.6</text>
+  <text x="687" y="473" font-size="15" fill="#1D1D1A">275.56 / 95.7%</text>
+  <line x1="65" y1="496" x2="855" y2="496" stroke="#D9D9D9" stroke-width="1" />
+  <line x1="205" y1="213" x2="205" y2="496" stroke="#D9D9D9" stroke-width="1" />
+  <line x1="355" y1="213" x2="355" y2="496" stroke="#D9D9D9" stroke-width="1" />
+  <line x1="450" y1="213" x2="450" y2="496" stroke="#D9D9D9" stroke-width="1" />
+  <line x1="545" y1="213" x2="545" y2="496" stroke="#D9D9D9" stroke-width="1" />
+  <line x1="670" y1="213" x2="670" y2="496" stroke="#D9D9D9" stroke-width="1" />
+  <line x1="65" y1="244" x2="855" y2="244" stroke="#D9D9D9" stroke-width="1" />
+  <text x="68" y="516" font-size="12" fill="#1D1D1A">6组均整程可行；SP与TP共享ranks，不作独立乘数。</text>
+  </g>
+  <g id="throughput-comparison">
+  <rect x="885" y="172" width="345" height="356" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1" />
+  <rect x="885" y="172" width="345" height="38" fill="#F2F2F2" />
+  <g transform="translate(902.0, 181.0) scale(1.25)" fill="#C00000">
+    <path d="M16 1H12V15H16V1Z" />
+    <path d="M6 5H10V15H6V5Z" />
+    <path d="M0 9H4V15H0V9Z" />
+  </g><text x="934" y="198" font-size="15" fill="#C00000" font-weight="bold">decode吞吐</text>
+  <text x="1129" y="198" font-size="12" fill="#1D1D1A">tokens/s</text>
+  <text x="901" y="232" font-size="12" fill="#1D1D1A" font-weight="bold">950DT</text>
+  <text x="901" y="266" font-size="12" fill="#1D1D1A">原并行</text>
+  <rect x="981" y="256" width="28.394" height="14" fill="#BFBFBF" />
+  <text x="1016.394" y="267" font-size="12" fill="#1D1D1A">742.9</text>
+  <text x="901" y="298" font-size="12" fill="#1D1D1A">兼顾时延</text>
+  <rect x="981" y="288" width="36.101" height="14" fill="#C00000" />
+  <text x="1024.101" y="299" font-size="12" fill="#C00000" font-weight="bold">944.5</text>
+  <text x="901" y="330" font-size="12" fill="#1D1D1A">解码优先</text>
+  <rect x="981" y="320" width="49.396" height="14" fill="#F1B4B7" />
+  <text x="1037.396" y="331" font-size="12" fill="#1D1D1A">1,292.3</text>
+  <line x1="981" y1="341" x2="1153" y2="341" stroke="#BFBFBF" stroke-width="1" />
+  <line x1="981.0" y1="341" x2="981.0" y2="345" stroke="#BFBFBF" stroke-width="1" />
+  <text x="981.0" y="357" font-size="10.5" fill="#666666" text-anchor="middle">0</text>
+  <line x1="1038.333" y1="341" x2="1038.333" y2="345" stroke="#BFBFBF" stroke-width="1" />
+  <text x="1038.333" y="357" font-size="10.5" fill="#666666" text-anchor="middle">1500</text>
+  <line x1="1095.667" y1="341" x2="1095.667" y2="345" stroke="#BFBFBF" stroke-width="1" />
+  <text x="1095.667" y="357" font-size="10.5" fill="#666666" text-anchor="middle">3000</text>
+  <line x1="1153.0" y1="341" x2="1153.0" y2="345" stroke="#BFBFBF" stroke-width="1" />
+  <text x="1153.0" y="357" font-size="10.5" fill="#666666" text-anchor="middle">4500</text>
+  <text x="901" y="366" font-size="12" fill="#1D1D1A" font-weight="bold">960DT</text>
+  <text x="901" y="400" font-size="12" fill="#1D1D1A">原并行</text>
+  <rect x="981" y="390" width="60.627" height="14" fill="#BFBFBF" />
+  <text x="1048.627" y="401" font-size="12" fill="#1D1D1A">1,586.2</text>
+  <text x="901" y="432" font-size="12" fill="#1D1D1A">兼顾时延</text>
+  <rect x="981" y="422" width="81.234" height="14" fill="#C00000" />
+  <text x="1069.234" y="433" font-size="12" fill="#C00000" font-weight="bold">2,125.3</text>
+  <text x="901" y="464" font-size="12" fill="#1D1D1A">解码优先</text>
+  <rect x="981" y="454" width="168.469" height="14" fill="#F1B4B7" />
+  <text x="1156.469" y="465" font-size="12" fill="#1D1D1A">4,407.6</text>
+  <line x1="981" y1="475" x2="1153" y2="475" stroke="#BFBFBF" stroke-width="1" />
+  <line x1="981.0" y1="475" x2="981.0" y2="479" stroke="#BFBFBF" stroke-width="1" />
+  <text x="981.0" y="491" font-size="10.5" fill="#666666" text-anchor="middle">0</text>
+  <line x1="1038.333" y1="475" x2="1038.333" y2="479" stroke="#BFBFBF" stroke-width="1" />
+  <text x="1038.333" y="491" font-size="10.5" fill="#666666" text-anchor="middle">1500</text>
+  <line x1="1095.667" y1="475" x2="1095.667" y2="479" stroke="#BFBFBF" stroke-width="1" />
+  <text x="1095.667" y="491" font-size="10.5" fill="#666666" text-anchor="middle">3000</text>
+  <line x1="1153.0" y1="475" x2="1153.0" y2="479" stroke="#BFBFBF" stroke-width="1" />
+  <text x="1153.0" y="491" font-size="10.5" fill="#666666" text-anchor="middle">4500</text>
+  <text x="901" y="516" font-size="12" fill="#1D1D1A">两平台横轴统一为0–4500 tokens/s</text>
+  </g>
+  <g id="source-boundary">
+  <text x="50" y="551" font-size="10.5" fill="#666666">口径：HBM占比=峰值/144或288 GB；F配置、同全局负载；TPOT为首个decode间隔，非长生成稳态/P99。</text>
+  <text x="50" y="565" font-size="10.5" fill="#666666">来源：2026-10-20并行度扫描 summary.json / recommendations.json；全部为未校准模型预测，非实测。</text>
+  </g>
+  <g id="highlight-strip">
+  <rect x="50" y="574" width="1180" height="68" fill="#F2F2F2" stroke="#D9D9D9" stroke-width="1" rx="4" />
+  <text x="72" y="601" font-size="15" fill="#C00000" font-weight="bold">本页亮点</text>
+  <text x="180" y="601" font-size="15" fill="#1D1D1A">兼顾方案：decode吞吐<tspan fill="#C00000" font-weight="bold">+27.1% / +34.0%</tspan>，<tspan fill="#C00000" font-weight="bold">TTFT同步下降</tspan>。</text>
+  <text x="180" y="626" font-size="15" fill="#1D1D1A">960DT解码优先：TPOT <tspan fill="#C00000" font-weight="bold">7.26 ms</tspan>，代价是首词<tspan fill="#C00000" font-weight="bold">148.32 s与95.7%</tspan>的显存占比。</text>
+  </g>
+  <g id="footer-group" font-family="Arial" font-size="10.5" fill="#1D1D1A">
+  <text x="77" y="683">4</text>
+  <text x="125" y="683">Huawei Proprietary - Restricted Distribution</text>
+  <image href="data:image/png;base64,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" x="1070" y="663" width="133" height="28" preserveAspectRatio="xMidYMid meet" />
+  </g>
+</svg>

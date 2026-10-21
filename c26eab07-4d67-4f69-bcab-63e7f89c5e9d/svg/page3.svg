@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="微软雅黑, Arial, sans-serif">
+  <g id="background"><rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/></g>
+  <g id="page-header">
+    <text x="50" y="50" font-size="28" font-weight="bold" fill="#C00000">仿真 Skill 将配置编译为资源事件图，评估容量与时延</text>
+    <text x="50" y="77" font-size="12" fill="#666666">03 仿真方法 · supernode-modeling 编排，supernode_sim 执行</text>
+  </g>
+  <g id="core-band">
+    <rect x="50" y="96" width="1180" height="62" rx="4" fill="#FFF1EF" stroke="#C00000" stroke-width="1.5"/>
+    <use data-icon="chunk-filled/target-arrow" x="70" y="115" width="22" height="22" fill="#C00000"/>
+    <text x="104" y="132" font-size="15" font-weight="bold" fill="#C00000">核心思想</text>
+    <line x1="180" y1="110" x2="180" y2="146" stroke="#F1B4B7" stroke-width="1"/>
+    <text x="200" y="132" font-size="15" font-weight="bold" fill="#1D1D1A">Skill 负责配置与解释；Python 引擎执行<tspan fill="#C00000">可复现的数值计算</tspan>。</text>
+  </g>
+  <g id="input-validation">
+    <rect x="50" y="172" width="350" height="305" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1"/>
+    <rect x="50" y="172" width="350" height="42" fill="#F2F2F2"/>
+    <use data-icon="chunk-filled/file" x="67" y="184" width="20" height="20" fill="#C00000"/>
+    <text x="99" y="202" font-size="15" font-weight="bold" fill="#C00000">01 输入与严格校验</text>
+    <text x="68" y="239" font-size="15" font-weight="bold" fill="#1D1D1A">结构 · 精度 · 负载</text>
+    <text x="68" y="261" font-size="12" fill="#1D1D1A">模型张量、输入/输出长度与固定 batch</text>
+    <text x="68" y="292" font-size="15" font-weight="bold" fill="#1D1D1A">并行 · 拓扑 · 目标</text>
+    <text x="68" y="314" font-size="12" fill="#1D1D1A">并行策略、SU/SO 链路图与 SLO</text>
+    <line x1="68" y1="332" x2="382" y2="332" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="68" y="358" font-size="15" font-weight="bold" fill="#1D1D1A">严格校验</text>
+    <text x="68" y="382" font-size="12" fill="#1D1D1A">并行乘积 · 专家整除 · 路径连通</text>
+    <text x="68" y="404" font-size="12" fill="#1D1D1A">特性兼容 · 参数来源与假设标记</text>
+    <text x="68" y="445" font-size="12" fill="#1D1D1A">自然语言拓扑 → 原生链路图</text>
+  </g>
+  <g id="resource-execution">
+    <rect x="450" y="172" width="380" height="305" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1"/>
+    <rect x="450" y="172" width="380" height="42" fill="#F2F2F2"/>
+    <use data-icon="chunk-filled/code-block" x="467" y="184" width="20" height="20" fill="#C00000"/>
+    <text x="499" y="202" font-size="15" font-weight="bold" fill="#C00000">02 编译与资源竞争</text>
+    <text x="468" y="239" font-size="15" font-weight="bold" fill="#1D1D1A">① 逐组件张量账本</text>
+    <text x="468" y="261" font-size="12" fill="#1D1D1A">权重、KV/KDA 状态、激活与工作区</text>
+    <text x="468" y="289" font-size="15" font-weight="bold" fill="#1D1D1A">② 资源事件图与执行</text>
+    <rect x="470" y="301" width="90" height="31" fill="#F2F2F2" stroke="#D9D9D9" stroke-width="1"/>
+    <rect x="595" y="301" width="90" height="31" fill="#F2F2F2" stroke="#D9D9D9" stroke-width="1"/>
+    <rect x="720" y="301" width="90" height="31" fill="#F2F2F2" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="515" y="322" text-anchor="middle" font-size="15" fill="#1D1D1A">计算</text>
+    <text x="640" y="322" text-anchor="middle" font-size="15" fill="#1D1D1A">HBM</text>
+    <text x="765" y="322" text-anchor="middle" font-size="15" fill="#1D1D1A">网络</text>
+    <line x1="515" y1="332" x2="515" y2="348" stroke="#A6A6A6" stroke-width="1"/>
+    <line x1="640" y1="332" x2="640" y2="348" stroke="#A6A6A6" stroke-width="1"/>
+    <line x1="765" y1="332" x2="765" y2="348" stroke="#A6A6A6" stroke-width="1"/>
+    <polygon points="515,354 511,347 519,347" fill="#A6A6A6"/>
+    <polygon points="640,354 636,347 644,347" fill="#A6A6A6"/>
+    <polygon points="765,354 761,347 769,347" fill="#A6A6A6"/>
+    <rect x="493" y="354" width="294" height="33" fill="#FFF1EF" stroke="#F1B4B7" stroke-width="1"/>
+    <text x="640" y="376" text-anchor="middle" font-size="15" font-weight="bold" fill="#1D1D1A">依赖约束 + 多资源共同推进</text>
+    <text x="468" y="411" font-size="12" fill="#1D1D1A">先估下界，再做重叠与公平共享调度</text>
+    <text x="468" y="433" font-size="12" fill="#1D1D1A">内存准入 / 释放；保留阶段与并发峰值</text>
+    <text x="468" y="459" font-size="15" font-weight="bold" fill="#C00000">训练/推理共用资源内核</text>
+  </g>
+  <g id="metrics-reproducibility">
+    <rect x="880" y="172" width="350" height="305" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1"/>
+    <rect x="880" y="172" width="350" height="42" fill="#F2F2F2"/>
+    <use data-icon="chunk-filled/chart-bar" x="897" y="184" width="20" height="20" fill="#C00000"/>
+    <text x="929" y="202" font-size="15" font-weight="bold" fill="#C00000">03 输出与解释复现</text>
+    <text x="898" y="239" font-size="15" font-weight="bold" fill="#1D1D1A">时延与吞吐</text>
+    <text x="898" y="261" font-size="12" fill="#1D1D1A">TTFT · TPOT · 吞吐量 · 通信分解</text>
+    <text x="898" y="292" font-size="15" font-weight="bold" fill="#1D1D1A">容量与瓶颈</text>
+    <text x="898" y="314" font-size="12" fill="#1D1D1A">单卡峰值 · 容量失败 · 资源占用</text>
+    <line x1="898" y1="332" x2="1212" y2="332" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="898" y="358" font-size="15" font-weight="bold" fill="#1D1D1A">解析配置与报告</text>
+    <text x="898" y="382" font-size="12" fill="#1D1D1A">CSV / JSON · 代码指纹 · 可重复运行</text>
+    <text x="898" y="404" font-size="12" fill="#1D1D1A">结果带来源、假设与适用条件</text>
+    <text x="898" y="445" font-size="15" font-weight="bold" fill="#C00000">本次：结构化流式推理</text>
+  </g>
+  <g id="process-connectors">
+    <line x1="406" y1="324" x2="436" y2="324" stroke="#A6A6A6" stroke-width="1"/>
+    <polygon points="444,324 436,320 436,328" fill="#A6A6A6"/>
+    <line x1="836" y1="324" x2="866" y2="324" stroke="#A6A6A6" stroke-width="1"/>
+    <polygon points="874,324 866,320 866,328" fill="#A6A6A6"/>
+  </g>
+  <g id="calibration-loop">
+    <rect x="50" y="490" width="1180" height="40" fill="#F2F2F2" stroke="#D9D9D9" stroke-width="1"/>
+    <use data-icon="chunk-filled/arrows-repeat" x="68" y="500" width="20" height="20" fill="#666666"/>
+    <text x="101" y="516" font-size="15" font-weight="bold" fill="#1D1D1A">校准闭环</text>
+    <line x1="198" y1="499" x2="198" y2="521" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="234" y="515" font-size="12" fill="#1D1D1A">调硬件 / 并行 / 特性</text>
+    <line x1="405" y1="510" x2="487" y2="510" stroke="#A6A6A6" stroke-width="1"/>
+    <polygon points="495,510 487,506 487,514" fill="#A6A6A6"/>
+    <text x="537" y="515" font-size="12" fill="#1D1D1A">候选扫描</text>
+    <line x1="645" y1="510" x2="725" y2="510" stroke="#A6A6A6" stroke-width="1"/>
+    <polygon points="733,510 725,506 725,514" fill="#A6A6A6"/>
+    <text x="775" y="515" font-size="12" fill="#1D1D1A">实机校准</text>
+    <line x1="883" y1="510" x2="963" y2="510" stroke="#A6A6A6" stroke-width="1"/>
+    <polygon points="971,510 963,506 963,514" fill="#A6A6A6"/>
+    <text x="1013" y="515" font-size="12" fill="#1D1D1A">更新配置</text>
+    <path d="M 1155 516 L 1180 516 L 1180 536 L 240 536 L 240 529" fill="none" stroke="#A6A6A6" stroke-width="1"/>
+    <polygon points="240,524 236,531 244,531" fill="#A6A6A6"/>
+  </g>
+  <g id="source-boundary">
+    <text x="50" y="551" font-size="10.5" fill="#666666">边界：固定 batch，无线上排队/P99；未做实机 kernel 校准；解析下界不能证明可行。来源：项目仿真技能说明与系统架构文档。</text>
+  </g>
+  <g id="highlight-strip">
+    <rect x="50" y="574" width="1180" height="68" rx="4" fill="#F2F2F2" stroke="#D9D9D9" stroke-width="1"/>
+    <text x="72" y="601" font-size="15" font-weight="bold" fill="#C00000">本页亮点</text>
+    <text x="180" y="601" font-size="15" fill="#1D1D1A"><tspan fill="#C00000">★</tspan> 同一资源语义统一计算、存储与网络</text>
+    <text x="180" y="626" font-size="15" fill="#1D1D1A"><tspan fill="#C00000">★</tspan> 预测带来源和约束，可复现、可校准</text>
+  </g>
+  <g id="footer-group">
+    <text x="77" y="683" font-size="10.5" fill="#1D1D1A">3</text>
+    <text x="125" y="683" font-size="10.5" fill="#1D1D1A">Huawei Proprietary - Restricted Distribution</text>
+    <image href="logo.png" x="1070" y="663" width="133" height="28" preserveAspectRatio="xMidYMid meet"/>
+  </g>
+</svg>

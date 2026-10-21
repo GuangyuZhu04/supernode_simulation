@@ -1,0 +1,182 @@
+{
+  "pages": [
+    {
+      "page": 6,
+      "title": "时延拆解显示：prefill重计算与传输，decode主要受通信启动约束",
+      "speech": "这一页在原来五页的基础上，把第4页完全相同的六组组合拆到时延归因。原、兼、解分别表示原并行、兼顾时延和解码优先；条形旁的三个数字依次是TP与SP、EP、DP。两列均固定一百万级输入、全局批量三十二、每个平台一千零二十四张卡，以及相同F配置、top32和输出两个词元。左列单位是秒，观察prefill的首词元时延；右列单位是毫秒，观察首个decode间隔。保留TP、减少EP的兼顾组合，计算主导时间基本不变，prefill收益主要来自通信传输缩短。decode的主因则是通信启动：950DT和960DT分别减少9.274与5.152毫秒。下方表格保留四个主要分项与总计，条形长度采用原始精度，极窄分项也未人为放大。这里尤其要区分主导归因与计算工作量：计算和HBM服务有重叠，关键路径把这段服务归给主导资源，不能再把两个独立下界相加。decode计算主导为零，表示这些算子由HBM主导，并不表示没有计算或零FLOPs，原第5页的计算工作量仍然有效。调度等待、资源争用、kernel启动和其他服务已保留在底层，本次各阶段合计只有低于十亿分之一秒的浮点残差。分项分别保留三位小数，因此显示和可能与总计相差零点零零一。这些结果属于未经实机校准的固定批量模型预测，不代表稳态时延或生产环境P99。",
+      "transition": "作为新增补充页，回扣第4页的布局取舍与第5页的计算工作量；后续可按通信启动、带宽和算子主导资源逐项开展实机校准。",
+      "glossary": [
+        {
+          "term": "prefill",
+          "full": "Prompt Prefill，提示预填充阶段",
+          "explain": "处理完整输入上下文、生成首个输出词元之前的模型执行阶段。"
+        },
+        {
+          "term": "decode",
+          "full": "Autoregressive Decoding，自回归解码阶段",
+          "explain": "在已有上下文与缓存基础上逐个生成后续词元；本页为首次解码间隔。"
+        },
+        {
+          "term": "TTFT",
+          "full": "Time To First Token，首词元时延",
+          "explain": "本次模型中prefill阶段的完整关键路径时间，左列以秒展示。"
+        },
+        {
+          "term": "TPOT",
+          "full": "Time Per Output Token，每输出词元时延",
+          "explain": "本页取生成第二个输出词元所需的一次decode间隔，右列以毫秒展示。"
+        },
+        {
+          "term": "TP",
+          "full": "Tensor Parallelism，张量并行",
+          "explain": "将张量运算分摊到多张卡；本页布局的第一个数字同时表示TP和SP。"
+        },
+        {
+          "term": "SP",
+          "full": "Sequence Parallelism，序列并行",
+          "explain": "本次六组配置中SP与TP相同；图中32/8/4等写法省略重复的SP值。"
+        },
+        {
+          "term": "EP",
+          "full": "Expert Parallelism，专家并行",
+          "explain": "将专家分布到多张卡；布局的第二个数字表示EP。"
+        },
+        {
+          "term": "DP",
+          "full": "Data Parallelism，数据并行",
+          "explain": "以多份模型处理不同数据批次；布局的第三个数字表示DP。"
+        },
+        {
+          "term": "HBM",
+          "full": "High Bandwidth Memory，高带宽存储器",
+          "explain": "HBM主导服务表示计算与访存重叠后由存储带宽控制的服务时间。"
+        },
+        {
+          "term": "FLOPs",
+          "full": "Floating-Point Operations，浮点运算次数",
+          "explain": "计算工作量指标；计算主导服务时间为零不等于浮点运算次数为零。"
+        },
+        {
+          "term": "1M",
+          "full": "1M Tokens，本次一百万级输入规模标签",
+          "explain": "本仿真明确为1,048,576个输入词元，六组场景保持相同。"
+        },
+        {
+          "term": "bs32",
+          "full": "Batch Size 32，批量大小三十二",
+          "explain": "页眉指全局批量32，各数据并行副本的本地批量随DP变化。"
+        },
+        {
+          "term": "F",
+          "full": "F，本次仿真配置标签",
+          "explain": "沿用原仿真固定的F加速配置，本页未修改配置或另行推定其数值精度。"
+        },
+        {
+          "term": "top32",
+          "full": "Top-32 Expert Routing，前32个专家路由配置",
+          "explain": "本次模型选择使用的专家路由数量配置，各比较方案保持一致。"
+        },
+        {
+          "term": "output2",
+          "full": "Output Length 2，输出长度两个词元",
+          "explain": "生成首词元后再执行一次decode，因此本页TPOT是一个解码间隔。"
+        },
+        {
+          "term": "950DT",
+          "full": "950DT（平台型号）",
+          "explain": "图表中的950对应原稿950DT硬件平台。"
+        },
+        {
+          "term": "960DT",
+          "full": "960DT（平台型号）",
+          "explain": "图表中的960对应原稿960DT硬件平台。"
+        },
+        {
+          "term": "s",
+          "full": "Second，秒",
+          "explain": "左侧prefill分项与总计的时间单位，也是其他归因残差的基准单位。"
+        },
+        {
+          "term": "ms",
+          "full": "Millisecond，毫秒",
+          "explain": "右侧decode分项与总计的时间单位；1毫秒等于0.001秒。"
+        },
+        {
+          "term": "kernel",
+          "full": "Compute Kernel，计算内核",
+          "explain": "底层算子执行单元；kernel启动与集合通信启动为不同归因项。"
+        },
+        {
+          "term": "P99",
+          "full": "99th Percentile，第99百分位",
+          "explain": "生产请求时延分布的尾部指标，本次固定批量模型未模拟该指标。"
+        },
+        {
+          "term": "Huawei",
+          "full": "Huawei（公司名），华为",
+          "explain": "沿用原稿页脚中的公司名称与商标。"
+        },
+        {
+          "term": "Huawei Proprietary - Restricted Distribution",
+          "full": "Huawei Proprietary - Restricted Distribution，华为专有信息—限制分发",
+          "explain": "沿用原稿的固定页脚保密标识，不构成仿真数据证据。"
+        }
+      ],
+      "red_notes": [
+        {
+          "quote": "保TP减EP",
+          "explain": "来源为同第4页六组扫描结果；相对各平台原并行32/32/1，兼顾组合保持TP与SP为32，将950DT的EP降至8、960DT的EP降至4，并相应增加DP。"
+        },
+        {
+          "quote": "传输缩短",
+          "explain": "来源为latency-data.json的原生关键路径归因；兼顾组合相对各平台原并行，prefill通信传输由30.190降至27.597秒、由27.446降至21.945秒，而计算主导值不变。"
+        },
+        {
+          "quote": "通信启动减少",
+          "explain": "来源为collective_startup_s；兼顾组合相对同平台原并行减少集合通信启动耗时，是这两组decode总时延改善的主要贡献，通信传输与HBM服务仍分别保留。"
+        },
+        {
+          "quote": "prefill / TTFT 时延拆解（s）",
+          "explain": "左面板使用原始prefill关键路径归因，所有分项、总计和条形横轴均以秒为单位。"
+        },
+        {
+          "quote": "decode / TPOT 时延拆解（ms）",
+          "explain": "右面板使用一次decode关键路径归因，源秒值统一乘以1000后以毫秒展示，不能与左面板直接比较条长。"
+        },
+        {
+          "quote": "通信传输",
+          "explain": "浅红色条段来自communication_service_s，是关键路径上的通信数据传输服务；其原始值按各阶段共同线性刻度绘制，不人为放大。"
+        },
+        {
+          "quote": "通信启动",
+          "explain": "深红色条段来自collective_startup_s，表示集合通信启动开销；采用相同颜色突出decode受其主导，并与浅红色数据传输及其他归因分开。"
+        },
+        {
+          "quote": "27.052",
+          "explain": "950DT兼顾组合的decode通信启动为27.052毫秒；相对原并行36.326毫秒下降，表值由完整精度独立四舍五入。"
+        },
+        {
+          "quote": "12.146",
+          "explain": "960DT兼顾组合的decode通信启动为12.146毫秒；相对原并行17.298毫秒下降，表值由完整精度独立四舍五入。"
+        },
+        {
+          "quote": "9.274 / 5.152 ms",
+          "explain": "源于latency-data.json的gains字段；950DT与960DT兼顾组合相对各自原并行的decode通信启动分别减少9.274与5.152毫秒，先以原始精度作差再舍入，非总时延减少量。"
+        },
+        {
+          "quote": "并不代表没有计算",
+          "explain": "零值表示模型把decode算子中重叠的计算与HBM服务归给主导的HBM资源，计算与FLOPs仍然存在；不得将独立计算和HBM下界相加，原第5页的计算工作量继续保留。"
+        }
+      ],
+      "sources": [
+        "input/latency-data.json：页面唯一数值来源；2026-10-20固定六组场景，12个阶段的原始完整精度总和已核对。",
+        "content/content6.md：第6页论点、归因口径、零值与舍入说明。",
+        "outputs/kimi-k3-10t-1m-acceleration-20261019/parallelism-20261020/summary.json",
+        "outputs/kimi-k3-10t-1m-acceleration-20261019/parallelism-20261020/latency_breakdown.csv",
+        "原稿第4页：六组平台/并行布局与TTFT/TPOT总值；原稿第5页：计算工作量。",
+        "方法边界：原生关键路径与算子主导资源归因，未经实机校准的固定批量解析/离散事件模型；不含生产排队、稳态或P99。",
+        "其他四项包括scheduler_wait_s、shared_resource_contention_s、kernel_startup_s、other_service_s；每阶段合计仅有低于1e-9秒的浮点残差。"
+      ]
+    }
+  ]
+}

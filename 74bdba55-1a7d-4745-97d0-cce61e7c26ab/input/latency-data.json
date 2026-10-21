@@ -1,0 +1,579 @@
+{
+  "date": "2026-10-20",
+  "units": {
+    "prefill": "s",
+    "decode": "ms"
+  },
+  "primary_keys": [
+    "compute_bound_service_s",
+    "hbm_bound_service_s",
+    "communication_service_s",
+    "collective_startup_s"
+  ],
+  "other_keys": [
+    "scheduler_wait_s",
+    "shared_resource_contention_s",
+    "kernel_startup_s",
+    "other_service_s"
+  ],
+  "rows": [
+    {
+      "name": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "chip": "950dt",
+      "tp": 32,
+      "sp": 32,
+      "ep": 32,
+      "dp": 1,
+      "local_batch": 32,
+      "global_batch": 32,
+      "ttft_s": 131.39090154581464,
+      "tpot_ms": 43.07594641210249,
+      "label": "原并行",
+      "layout": "32/32/1",
+      "short_label": "950原",
+      "chart_label": "950原 32/32/1",
+      "prefill": {
+        "raw_s": {
+          "scheduler_wait_s": 0.0,
+          "kernel_startup_s": 0.0,
+          "other_service_s": 0.0,
+          "shared_resource_contention_s": 2.1818109227750684e-13,
+          "collective_startup_s": 0.03632580000000001,
+          "communication_service_s": 30.19013909632011,
+          "hbm_bound_service_s": 0.49647437304799774,
+          "compute_bound_service_s": 100.6679622764462
+        },
+        "primary": [
+          100.6679622764462,
+          0.49647437304799774,
+          30.19013909632011,
+          0.03632580000000001
+        ],
+        "other_total_s": 2.1818109227750684e-13,
+        "total": 131.39090154581464,
+        "unit": "s",
+        "display": [
+          "100.668",
+          "0.496",
+          "30.190",
+          "0.036",
+          "131.391"
+        ],
+        "display_rounding_difference": -0.0009999999999763531
+      },
+      "decode": {
+        "raw_s": {
+          "scheduler_wait_s": 0.0,
+          "kernel_startup_s": 0.0,
+          "other_service_s": 0.0,
+          "shared_resource_contention_s": 4.8780743237660914e-18,
+          "collective_startup_s": 0.03632580000000001,
+          "communication_service_s": 0.00012943615999988072,
+          "hbm_bound_service_s": 0.00662071025210279
+        },
+        "primary": [
+          0,
+          6.62071025210279,
+          0.12943615999988073,
+          36.325800000000015
+        ],
+        "other_total_s": 4.8780743237660914e-18,
+        "total": 43.07594641210249,
+        "unit": "ms",
+        "display": [
+          "0.000",
+          "6.621",
+          "0.129",
+          "36.326",
+          "43.076"
+        ],
+        "display_rounding_difference": 0.0
+      }
+    },
+    {
+      "name": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "chip": "950dt",
+      "tp": 32,
+      "sp": 32,
+      "ep": 8,
+      "dp": 4,
+      "local_batch": 8,
+      "global_batch": 32,
+      "ttft_s": 128.78854144085426,
+      "tpot_ms": 33.88028588262293,
+      "label": "兼顾时延",
+      "layout": "32/8/4",
+      "short_label": "950兼",
+      "chart_label": "950兼 32/8/4",
+      "prefill": {
+        "raw_s": {
+          "scheduler_wait_s": 0.0,
+          "kernel_startup_s": 0.0,
+          "other_service_s": 0.0,
+          "shared_resource_contention_s": 2.070094730922162e-13,
+          "collective_startup_s": 0.027052199999999978,
+          "communication_service_s": 27.597052591360093,
+          "hbm_bound_service_s": 0.49647437304799774,
+          "compute_bound_service_s": 100.6679622764462
+        },
+        "primary": [
+          100.6679622764462,
+          0.49647437304799774,
+          27.597052591360093,
+          0.027052199999999978
+        ],
+        "other_total_s": 2.070094730922162e-13,
+        "total": 128.78854144085426,
+        "unit": "s",
+        "display": [
+          "100.668",
+          "0.496",
+          "27.597",
+          "0.027",
+          "128.789"
+        ],
+        "display_rounding_difference": -0.0009999999999763531
+      },
+      "decode": {
+        "raw_s": {
+          "scheduler_wait_s": 0.0,
+          "kernel_startup_s": 0.0,
+          "other_service_s": 0.0,
+          "shared_resource_contention_s": 1.1556968817535652e-17,
+          "collective_startup_s": 0.027052199999999978,
+          "communication_service_s": 0.00012696319999998653,
+          "hbm_bound_service_s": 0.00670112268262313
+        },
+        "primary": [
+          0,
+          6.70112268262313,
+          0.12696319999998654,
+          27.052199999999978
+        ],
+        "other_total_s": 1.1556968817535652e-17,
+        "total": 33.88028588262293,
+        "unit": "ms",
+        "display": [
+          "0.000",
+          "6.701",
+          "0.127",
+          "27.052",
+          "33.880"
+        ],
+        "display_rounding_difference": 0.0
+      }
+    },
+    {
+      "name": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "chip": "950dt",
+      "tp": 16,
+      "sp": 16,
+      "ep": 16,
+      "dp": 4,
+      "local_batch": 8,
+      "global_batch": 32,
+      "ttft_s": 171.87926686678804,
+      "tpot_ms": 24.761471516873073,
+      "label": "解码优先",
+      "layout": "16/16/4",
+      "short_label": "950解",
+      "chart_label": "950解 16/16/4",
+      "prefill": {
+        "raw_s": {
+          "scheduler_wait_s": 0.0,
+          "kernel_startup_s": 0.0,
+          "other_service_s": 0.0,
+          "shared_resource_contention_s": 1.7983696532290453e-14,
+          "collective_startup_s": 0.01757700000000001,
+          "communication_service_s": 29.216263507199915,
+          "hbm_bound_service_s": 0.9891896129840009,
+          "compute_bound_service_s": 141.65623674660435
+        },
+        "primary": [
+          141.65623674660435,
+          0.9891896129840009,
+          29.216263507199915,
+          0.01757700000000001
+        ],
+        "other_total_s": 1.7983696532290453e-14,
+        "total": 171.87926686678804,
+        "unit": "s",
+        "display": [
+          "141.656",
+          "0.989",
+          "29.216",
+          "0.018",
+          "171.879"
+        ],
+        "display_rounding_difference": 2.842170943040401e-14
+      },
+      "decode": {
+        "raw_s": {
+          "scheduler_wait_s": 0.0,
+          "kernel_startup_s": 0.0,
+          "other_service_s": 0.0,
+          "shared_resource_contention_s": 4.290418746828819e-18,
+          "collective_startup_s": 0.01757700000000001,
+          "communication_service_s": 7.499519999999978e-05,
+          "hbm_bound_service_s": 0.007109476316873141
+        },
+        "primary": [
+          0,
+          7.109476316873142,
+          0.07499519999999978,
+          17.57700000000001
+        ],
+        "other_total_s": 4.290418746828819e-18,
+        "total": 24.761471516873073,
+        "unit": "ms",
+        "display": [
+          "0.000",
+          "7.109",
+          "0.075",
+          "17.577",
+          "24.761"
+        ],
+        "display_rounding_difference": 3.552713678800501e-15
+      }
+    },
+    {
+      "name": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "chip": "960dt",
+      "tp": 32,
+      "sp": 32,
+      "ep": 32,
+      "dp": 1,
+      "local_batch": 32,
+      "global_batch": 32,
+      "ttft_s": 78.00372445698096,
+      "tpot_ms": 20.17429850807305,
+      "label": "原并行",
+      "layout": "32/32/1",
+      "short_label": "960原",
+      "chart_label": "960原 32/32/1",
+      "prefill": {
+        "raw_s": {
+          "scheduler_wait_s": 0.0,
+          "kernel_startup_s": 0.0,
+          "other_service_s": 0.0,
+          "shared_resource_contention_s": 2.5270366300008765e-13,
+          "collective_startup_s": 0.017297999999999914,
+          "communication_service_s": 27.44558099665434,
+          "hbm_bound_service_s": 0.20686432210333366,
+          "compute_bound_service_s": 50.3339811382231
+        },
+        "primary": [
+          50.3339811382231,
+          0.20686432210333366,
+          27.44558099665434,
+          0.017297999999999914
+        ],
+        "other_total_s": 2.5270366300008765e-13,
+        "total": 78.00372445698096,
+        "unit": "s",
+        "display": [
+          "50.334",
+          "0.207",
+          "27.446",
+          "0.017",
+          "78.004"
+        ],
+        "display_rounding_difference": 0.0
+      },
+      "decode": {
+        "raw_s": {
+          "scheduler_wait_s": 0.0,
+          "kernel_startup_s": 0.0,
+          "other_service_s": 0.0,
+          "shared_resource_contention_s": 7.072169657792078e-18,
+          "collective_startup_s": 0.017297999999999914,
+          "communication_service_s": 0.00011766923636358836,
+          "hbm_bound_service_s": 0.002758629271709483
+        },
+        "primary": [
+          0,
+          2.758629271709483,
+          0.11766923636358836,
+          17.297999999999913
+        ],
+        "other_total_s": 7.072169657792078e-18,
+        "total": 20.17429850807305,
+        "unit": "ms",
+        "display": [
+          "0.000",
+          "2.759",
+          "0.118",
+          "17.298",
+          "20.174"
+        ],
+        "display_rounding_difference": 0.0009999999999976694
+      }
+    },
+    {
+      "name": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "chip": "960dt",
+      "tp": 32,
+      "sp": 32,
+      "ep": 4,
+      "dp": 8,
+      "local_batch": 4,
+      "global_batch": 32,
+      "ttft_s": 72.49808593130803,
+      "tpot_ms": 15.056656884156775,
+      "label": "兼顾时延",
+      "layout": "32/4/8",
+      "short_label": "960兼",
+      "chart_label": "960兼 32/4/8",
+      "prefill": {
+        "raw_s": {
+          "scheduler_wait_s": 0.0,
+          "kernel_startup_s": 0.0,
+          "other_service_s": 0.0,
+          "shared_resource_contention_s": 1.2124838776851138e-14,
+          "collective_startup_s": 0.012145999999999964,
+          "communication_service_s": 21.945094470981626,
+          "hbm_bound_service_s": 0.20686432210333366,
+          "compute_bound_service_s": 50.3339811382231
+        },
+        "primary": [
+          50.3339811382231,
+          0.20686432210333366,
+          21.945094470981626,
+          0.012145999999999964
+        ],
+        "other_total_s": 1.2124838776851138e-14,
+        "total": 72.49808593130803,
+        "unit": "s",
+        "display": [
+          "50.334",
+          "0.207",
+          "21.945",
+          "0.012",
+          "72.498"
+        ],
+        "display_rounding_difference": 0.0
+      },
+      "decode": {
+        "raw_s": {
+          "scheduler_wait_s": 0.0,
+          "kernel_startup_s": 0.0,
+          "other_service_s": 0.0,
+          "shared_resource_contention_s": 7.27185767510728e-18,
+          "collective_startup_s": 0.012145999999999964,
+          "communication_service_s": 0.00011242356363633542,
+          "hbm_bound_service_s": 0.002798233320520448
+        },
+        "primary": [
+          0,
+          2.798233320520448,
+          0.11242356363633542,
+          12.145999999999963
+        ],
+        "other_total_s": 7.27185767510728e-18,
+        "total": 15.056656884156775,
+        "unit": "ms",
+        "display": [
+          "0.000",
+          "2.798",
+          "0.112",
+          "12.146",
+          "15.057"
+        ],
+        "display_rounding_difference": -0.0009999999999994458
+      }
+    },
+    {
+      "name": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "chip": "960dt",
+      "tp": 8,
+      "sp": 8,
+      "ep": 8,
+      "dp": 16,
+      "local_batch": 2,
+      "global_batch": 32,
+      "ttft_s": 148.32042864659837,
+      "tpot_ms": 7.260143466870608,
+      "label": "解码优先",
+      "layout": "8/8/16",
+      "short_label": "960解",
+      "chart_label": "960解 8/8/16",
+      "prefill": {
+        "raw_s": {
+          "scheduler_wait_s": 0.0,
+          "kernel_startup_s": 0.0,
+          "other_service_s": 0.0,
+          "shared_resource_contention_s": 5.4489833843567666e-15,
+          "collective_startup_s": 0.0039059999999999963,
+          "communication_service_s": 24.789556858181744,
+          "hbm_bound_service_s": 0.8227583720233312,
+          "compute_bound_service_s": 122.70420741639376
+        },
+        "primary": [
+          122.70420741639376,
+          0.8227583720233312,
+          24.789556858181744,
+          0.0039059999999999963
+        ],
+        "other_total_s": 5.4489833843567666e-15,
+        "total": 148.32042864659837,
+        "unit": "s",
+        "display": [
+          "122.704",
+          "0.823",
+          "24.790",
+          "0.004",
+          "148.320"
+        ],
+        "display_rounding_difference": 0.0010000000000047748
+      },
+      "decode": {
+        "raw_s": {
+          "scheduler_wait_s": 0.0,
+          "kernel_startup_s": 0.0,
+          "other_service_s": 0.0,
+          "shared_resource_contention_s": 1.2588239289033582e-18,
+          "collective_startup_s": 0.0039059999999999963,
+          "communication_service_s": 4.2307490909086825e-05,
+          "hbm_bound_service_s": 0.0033118359759615264
+        },
+        "primary": [
+          0,
+          3.3118359759615266,
+          0.04230749090908682,
+          3.905999999999996
+        ],
+        "other_total_s": 1.2588239289033582e-18,
+        "total": 7.260143466870608,
+        "unit": "ms",
+        "display": [
+          "0.000",
+          "3.312",
+          "0.042",
+          "3.906",
+          "7.260"
+        ],
+        "display_rounding_difference": 0.0
+      }
+    }
+  ],
+  "checks": [
+    {
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "phase": "prefill",
+      "sum_components": 131.39090154581453,
+      "reported_total": 131.39090154581464,
+      "absolute_difference": 1.1368683772161603e-13,
+      "unit": "s"
+    },
+    {
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "phase": "decode",
+      "sum_components": 43.07594641210269,
+      "reported_total": 43.07594641210249,
+      "absolute_difference": 1.9895196601282805e-13,
+      "unit": "ms"
+    },
+    {
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "phase": "prefill",
+      "sum_components": 128.7885414408545,
+      "reported_total": 128.78854144085426,
+      "absolute_difference": 2.2737367544323206e-13,
+      "unit": "s"
+    },
+    {
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "phase": "decode",
+      "sum_components": 33.880285882623106,
+      "reported_total": 33.88028588262293,
+      "absolute_difference": 1.7763568394002505e-13,
+      "unit": "ms"
+    },
+    {
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "phase": "prefill",
+      "sum_components": 171.87926686678827,
+      "reported_total": 171.87926686678804,
+      "absolute_difference": 2.2737367544323206e-13,
+      "unit": "s"
+    },
+    {
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "phase": "decode",
+      "sum_components": 24.761471516873154,
+      "reported_total": 24.761471516873073,
+      "absolute_difference": 8.171241461241152e-14,
+      "unit": "ms"
+    },
+    {
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "phase": "prefill",
+      "sum_components": 78.00372445698103,
+      "reported_total": 78.00372445698096,
+      "absolute_difference": 7.105427357601002e-14,
+      "unit": "s"
+    },
+    {
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "phase": "decode",
+      "sum_components": 20.174298508072994,
+      "reported_total": 20.17429850807305,
+      "absolute_difference": 5.684341886080802e-14,
+      "unit": "ms"
+    },
+    {
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "phase": "prefill",
+      "sum_components": 72.49808593130807,
+      "reported_total": 72.49808593130803,
+      "absolute_difference": 4.263256414560601e-14,
+      "unit": "s"
+    },
+    {
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "phase": "decode",
+      "sum_components": 15.056656884156755,
+      "reported_total": 15.056656884156775,
+      "absolute_difference": 1.9539925233402755e-14,
+      "unit": "ms"
+    },
+    {
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "phase": "prefill",
+      "sum_components": 148.32042864659883,
+      "reported_total": 148.32042864659837,
+      "absolute_difference": 4.547473508864641e-13,
+      "unit": "s"
+    },
+    {
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "phase": "decode",
+      "sum_components": 7.260143466870611,
+      "reported_total": 7.260143466870608,
+      "absolute_difference": 2.6645352591003757e-15,
+      "unit": "ms"
+    }
+  ],
+  "gains": {
+    "950dt": {
+      "balanced_prefill_s_saved": 2.6023601049603826,
+      "balanced_decode_ms_saved": 9.19566052947956,
+      "balanced_decode_startup_ms_saved": 9.273600000000037,
+      "aggressive_prefill_compute_s_added": 40.988274470158146
+    },
+    "960dt": {
+      "balanced_prefill_s_saved": 5.505638525672936,
+      "balanced_decode_ms_saved": 5.117641623916276,
+      "balanced_decode_startup_ms_saved": 5.1519999999999495,
+      "aggressive_prefill_compute_s_added": 72.37022627817066
+    }
+  },
+  "scope": {
+    "workload": "F,1M=1048576,global_bs32,top32,output2,1024 cards/platform,PP1; exact six combinations on original slide4",
+    "attribution": "Native critical-path attribution: a roofline event's overlapping compute/HBM service is assigned to its controlling resource, not summed twice.",
+    "decode_zero_compute": "Compute-bound service=0 means decode kernels are HBM-bound in this model; computation and FLOPs still exist and are included in original slide5.",
+    "other": "Scheduler wait + shared-resource contention + kernel startup + other service are zero up to floating-point residuals below1e-9 s per stage in these six cases.",
+    "rounding": "Totals use full-precision simulation; independently rounded components can differ from displayed total by0.001 s or ms.",
+    "limit": "Uncalibrated model prediction, fixed batch, first decode interval; no queueing or production P99."
+  }
+}

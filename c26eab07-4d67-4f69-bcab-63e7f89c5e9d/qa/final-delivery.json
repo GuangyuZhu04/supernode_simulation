@@ -1,0 +1,40 @@
+{
+  "finalPath": "C:/D_disk/Github/supernode_simulation/outputs/presentations/kimi-k3-10t-brief-20261019.pptx",
+  "bytes": 77620,
+  "sha256": "5c452941eb8be39f6991df7ffb561f7b91a6fbb5972cab96e97d3e185df2a6a0",
+  "slideCount": 4,
+  "speakerNotes": 4,
+  "nativeEditable": true,
+  "visualReview": {
+    "renderer": "WPS Presentation via KWPP COM",
+    "slidesReviewed": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "noVisualOverflow": true
+  },
+  "sourceAudit": {
+    "report.md": {
+      "sha256": "ba14d0923b18d209a896535b7b827627f5c1d37526fce73803d097e3c4457301",
+      "unchanged": true
+    },
+    "manifest.json": {
+      "sha256": "72cd9bc2d8fc084663eee67d4f67e77071a970a668c49d6b6a0bf28abb78963c",
+      "unchanged": true
+    },
+    "verification.json": {
+      "sha256": "ac70d076b2f3f3f429bacb1670cfe76162aef221d0372dab81dd2518c78f7b0a",
+      "unchanged": true
+    },
+    "summary.csv": {
+      "sha256": "893661bab634f31fa5e5b01693ea30bde4a2b15dbaf144d1286783d572b71462",
+      "unchanged": true
+    },
+    "latency_breakdown.csv": {
+      "sha256": "635254307fc2d5fc0f2396d82918722d7352f59be42592cee80ac166fd9338c9",
+      "unchanged": true
+    }
+  }
+}

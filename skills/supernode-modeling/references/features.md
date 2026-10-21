@@ -128,6 +128,22 @@ python -m supernode_sim simulate examples/features/synthetic-pd.yaml --features 
 
 查看 `model_metadata.prefill_decode_disaggregation` 中的 `state_payload_bytes`、`token_id_payload_bytes`、`handoff_payload_bytes`，以及 `handoffs` 内的源/目标、路径、SU/SO 域和逐跳字节量。结合 `prefill_completion_event`、`handoff_completion_event`、`first_decode_completion_event` 核对等待关系。示例将两卡放在不同 SU，并用较慢的 assumed SO 链路使 handoff 可观察；这不是实际设备性能参数。
 
+## DeepInfer：P/D 独立选型与加速特性组合
+
+参考 DeepInfer 官方部署 Q&A 和 benchmark（核对日期 2026-10-21），把以下策略作为 feature 组合与扫描起点。完整来源、可运行示例和逐项支持范围见 [deepinfer.md](deepinfer.md)。这些是选型策略，不是新的顶层 `features` 字段；上面的输入表与 `list-features` 仍是当前引擎可接受的接口。
+
+| 阶段/特性 | 优先比较的配置 | 使用条件 |
+| --- | --- | --- |
+| P：小并行组 | EP2/4/8；本项目另比较 TP2/SP2、TP4/SP4 + 小 EP | 在 HBM 能容纳权重、KV、activation 和 workspace 时选择较小组；保留 TP1、SP 关闭的官方风格基线 |
+| D：Wide-EP | EP64/128，优先在同一 SU 域；TP1、SP 关闭作为基线 | 检查专家整除、每 rank batch、HBM 和 dispatch/combine 通信，不能只按 EP 倍数推算提速 |
+| P/D 独立请求 batch | P `bs=1`；D `bs=128,256`，可加 32/64 为延迟对照 | 这是本项目选型起点，需声明每 rank/每池口径；P 的 token chunk budget 与请求 bs 是不同量 |
+| 算子与数据路径 | 按组件低精度、局部 megakernel、具体 kernel profile、DSpark draft/verify | 复用现有接口并检查覆盖率；Mega MoE 跨通信融合和置信度调度不等同现有局部融合/固定验证模型 |
+| serving 层优化 | EPLB、异步调度、前缀复用与 SWA bounded replay、动态 chunk 和请求均衡 | 纳入方案分析及扩展需求；当前未实现的机制不能作为已启用的仿真开关 |
+
+官方当前生产配置是 P 小 **EP/Attention DP**、D 大 EP/Attention DP，说明中暂不使用 TP/CP。这里的小 SP+EP 保留为用户提出的候选；本引擎 SP 是与 TP 共用 ranks 的 Megatron 式 sequence parallel。不要把官方 Attention DP、context parallel 和本引擎 `execution.dp` 混为同一参数。
+
+现有 PD feature 仍要求相同 TP/EP 与同一固定 batch。小 P、大 D 及不同 batch 先分别调用 `run_streaming(..., phase='prefill'/'decode')`，报告为独立阶段选型；没有跨布局 KV 重分片、请求汇聚和队列模型时，不拼接成端到端 TTFT/TPOT 或在线吞吐。P/D 总资源是各池实例数乘以各自组大小之和，不能沿用同布局示例的 `2 × TP × EP`。
+
 ## 图执行与实测 profile
 
 CUDA/NPU 图执行或不同运行时 kernel 的服务时间可以通过 `features.kernel_profiles` 输入，格式与 `hardware.kernel_profiles` 相同。需要给出 profile 对应的操作标识、`flops`、`memory_bytes`、`duration_s`，并按需限定 `dtype`、`phase`、`startup_s`。先按 [runtime-calibration.md](runtime-calibration.md) 确认标识匹配与计时口径。若要改变局部 kernel 边界，使用上面的显式 megakernel group；单个 timing profile 本身不会执行图变换。

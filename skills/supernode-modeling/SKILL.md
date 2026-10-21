@@ -23,7 +23,7 @@ python -m supernode_sim schema
 ## 按问题选择资料和命令
 
 - 配置、来源、单位、CLI：读 [configuration.md](references/configuration.md)。
-- 选择训练/推理加速特性、megakernel、PD 分离、DSpark、CSA/HCA/KDA 或对比 feature 开关：读 [features.md](references/features.md)，使用顶层 `features` 或 `--features` 文件；先运行 `list-features` 查看当前支持范围。
+- 选择训练/推理加速特性、megakernel、PD 分离、DSpark、CSA/HCA/KDA 或对比 feature 开关：读 [features.md](references/features.md)，使用顶层 `features` 或 `--features` 文件；先运行 `list-features` 查看当前支持范围。DeepInfer 式小 P / 大 D、分阶段 batch 和相关优化另读 [deepinfer.md](references/deepinfer.md)。
 - 大型仿真、批量实验或本机内存/磁盘紧张：读 [resource-usage.md](references/resource-usage.md)，选择流式运行、缓存预算与导出粒度。
 - 按组件分析存储、activation、梯度、Adam/Muon：读 [memory-breakdown.md](references/memory-breakdown.md)。
 - Kimi K3 / Ascend 950 样例和真实性边界：读 [ascend950-kimi-k3.md](references/ascend950-kimi-k3.md)。
@@ -40,6 +40,8 @@ python -m supernode_sim schema
 Feature 是模型与执行策略输入，不是固定加速倍率。对同一路径的重复设置保留冲突检查；resolved config 使用 canonical 字段重跑。Attention 类型变化需要实际模型逐层结构和维度，不能默认质量等价；DSpark 类路径必须有显式 draft 成本、驻留及接受数。核对报告中的 `model_metadata.feature_plan`，并区分已选择、解析建模、profile 驱动和仍不支持的功能。
 
 Megakernel 要指定有序 kernel 组及融合启动成本，检查 `model_metadata.megakernel` 的实际匹配、跳过原因和未继承的成员 profile；零匹配不能声称提速。PD 使用两个独立物理池，当前相同 TP/EP、DP=PP=1，总卡数为 `2 × TP × EP`；双份权重、状态和首 token ID 传输按实际拓扑计费。TTFT 是 P 池首 token 完成，交接影响首个 decode 间隔，不是线上客户端延迟或生产 P99。
+
+DeepInfer 类部署选型优先比较 P 的小 EP、可选小 TP/SP 与请求 bs=1，以及 D 的 Wide-EP 与请求 bs=128/256；先声明 bs 是每 Attention replica 还是整个池。保留官方小 EP/Attention DP 基线，小 SP 是本项目候选，不能归为官方当前部署。不同 P/D 布局或 batch 使用独立阶段实验，不能套用现有同布局 PD handoff；具体 batch 换算、候选和能力边界见上述参考。
 
 ## 拓扑作为输入
 

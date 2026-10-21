@@ -1,0 +1,71 @@
+{
+  "slide_count": 8,
+  "notes_count": 8,
+  "slides": [
+    {
+      "page": 1,
+      "text_count": 59,
+      "shape_count": 88,
+      "groups": 14,
+      "animations": 0,
+      "transitions": 0
+    },
+    {
+      "page": 2,
+      "text_count": 63,
+      "shape_count": 106,
+      "groups": 13,
+      "animations": 0,
+      "transitions": 0
+    },
+    {
+      "page": 3,
+      "text_count": 80,
+      "shape_count": 108,
+      "groups": 13,
+      "animations": 0,
+      "transitions": 0
+    },
+    {
+      "page": 4,
+      "text_count": 60,
+      "shape_count": 86,
+      "groups": 16,
+      "animations": 0,
+      "transitions": 0
+    },
+    {
+      "page": 5,
+      "text_count": 84,
+      "shape_count": 110,
+      "groups": 11,
+      "animations": 0,
+      "transitions": 0
+    },
+    {
+      "page": 6,
+      "text_count": 147,
+      "shape_count": 206,
+      "groups": 13,
+      "animations": 0,
+      "transitions": 0
+    },
+    {
+      "page": 7,
+      "text_count": 89,
+      "shape_count": 124,
+      "groups": 17,
+      "animations": 0,
+      "transitions": 0
+    },
+    {
+      "page": 8,
+      "text_count": 137,
+      "shape_count": 218,
+      "groups": 11,
+      "animations": 0,
+      "transitions": 0
+    }
+  ],
+  "sha256": "c3d21a3a61b8fdb57e31835926d819fc4cf7fa4c8651fdc1c31307883419ce18"
+}

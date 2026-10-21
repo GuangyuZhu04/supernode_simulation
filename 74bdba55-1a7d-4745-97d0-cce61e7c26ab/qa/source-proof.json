@@ -1,0 +1,110 @@
+{
+  "source_pptx": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\presentations\\kimi-k3-10t-brief-20261020.pptx",
+  "source_sha256": "df6135c999f946ec9fc9c705914fbfb5721c158cb917548918e7cc72e7f32075",
+  "simulation_files": {
+    "summary.json": "8804f05d2ca2fa3aafa5b217bdd256676196ecc6ac331bc4280aa752b50d0bc7",
+    "latency_breakdown.csv": "6b713eb3e99c813b06a176a5a71e530d8d13cba9a3331aad567472c1164e9dbb",
+    "verification.json": "ae34d7bd35ee7c22ed6ea97f859883eed571dd3a8a95725874e6ee0d94c7dcc9"
+  },
+  "original_slides": 5,
+  "new_slide": 6,
+  "preservation": "Append only; keep every original slide/notes/media/master part byte-for-byte.",
+  "component_sum_checks": [
+    {
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "phase": "prefill",
+      "sum_components": 131.39090154581453,
+      "reported_total": 131.39090154581464,
+      "absolute_difference": 1.1368683772161603e-13,
+      "unit": "s"
+    },
+    {
+      "case": "950dt-1M-tp32-ep32-dp1-sp32-g32",
+      "phase": "decode",
+      "sum_components": 43.07594641210269,
+      "reported_total": 43.07594641210249,
+      "absolute_difference": 1.9895196601282805e-13,
+      "unit": "ms"
+    },
+    {
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "phase": "prefill",
+      "sum_components": 128.7885414408545,
+      "reported_total": 128.78854144085426,
+      "absolute_difference": 2.2737367544323206e-13,
+      "unit": "s"
+    },
+    {
+      "case": "950dt-1M-tp32-ep8-dp4-sp32-g32",
+      "phase": "decode",
+      "sum_components": 33.880285882623106,
+      "reported_total": 33.88028588262293,
+      "absolute_difference": 1.7763568394002505e-13,
+      "unit": "ms"
+    },
+    {
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "phase": "prefill",
+      "sum_components": 171.87926686678827,
+      "reported_total": 171.87926686678804,
+      "absolute_difference": 2.2737367544323206e-13,
+      "unit": "s"
+    },
+    {
+      "case": "950dt-1M-tp16-ep16-dp4-sp16-g32",
+      "phase": "decode",
+      "sum_components": 24.761471516873154,
+      "reported_total": 24.761471516873073,
+      "absolute_difference": 8.171241461241152e-14,
+      "unit": "ms"
+    },
+    {
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "phase": "prefill",
+      "sum_components": 78.00372445698103,
+      "reported_total": 78.00372445698096,
+      "absolute_difference": 7.105427357601002e-14,
+      "unit": "s"
+    },
+    {
+      "case": "960dt-1M-tp32-ep32-dp1-sp32-g32",
+      "phase": "decode",
+      "sum_components": 20.174298508072994,
+      "reported_total": 20.17429850807305,
+      "absolute_difference": 5.684341886080802e-14,
+      "unit": "ms"
+    },
+    {
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "phase": "prefill",
+      "sum_components": 72.49808593130807,
+      "reported_total": 72.49808593130803,
+      "absolute_difference": 4.263256414560601e-14,
+      "unit": "s"
+    },
+    {
+      "case": "960dt-1M-tp32-ep4-dp8-sp32-g32",
+      "phase": "decode",
+      "sum_components": 15.056656884156755,
+      "reported_total": 15.056656884156775,
+      "absolute_difference": 1.9539925233402755e-14,
+      "unit": "ms"
+    },
+    {
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "phase": "prefill",
+      "sum_components": 148.32042864659883,
+      "reported_total": 148.32042864659837,
+      "absolute_difference": 4.547473508864641e-13,
+      "unit": "s"
+    },
+    {
+      "case": "960dt-1M-tp8-ep8-dp16-sp8-g32",
+      "phase": "decode",
+      "sum_components": 7.260143466870611,
+      "reported_total": 7.260143466870608,
+      "absolute_difference": 2.6645352591003757e-15,
+      "unit": "ms"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+【第4页 · 完整优化使1M上下文可完成，960DT首步解码约19.90 ms】
+
+本页采用2026年10月19日19点56分更新的104组实验。94组可完成请求，10组因容量不足中止。图和表选取相同的1024卡、TP32乘EP32、batch为1、top-32、输出两个token的完整优化F，避免把不同负载混在一起。F依次包含SP32、MLA缓存压缩、FP8权重与计算、FP8激活与通信以及FP8 KV，KDA状态保持FP32。随着上下文从128k增加到1M，950DT首token从5.66秒增至89.37秒，960DT从4.37秒增至56.99秒；1M首步解码间隔分别是42.42和19.90毫秒。上下文增加同时影响传输及MLA二次计算项，因此首token时间不能线性外推。两平台的布局和状态容量相同，峰值均从31.90GB增至61.44GB每卡。无SP的FP16展开缓存基线A在两平台512k和1M均无法完成；与仅启用SP的可行基线B比较，1M、960DT的完整优化F将首token时间和峰值约减半。这里全部是权重加载后的模型侧预测，输出两个token只测到一个解码间隔；无排队、冷加载与生产P99保证，也没有实机kernel校准或量化质量验证。
+
+过渡：后续可依据相同负载采集真实kernel与collective数据，校准互联启动时间及HBM服务时间，再评估生产SLO。
+
+【本页名词表 · 英文简称：英文全称，中文全称——一句话解释】
+- Kimi K3：Kimi K3（模型产品名）——扩容设计采用其公开文本骨干结构。
+- 950DT / 960DT：Huawei Ascend 950DT / 960DT（硬件型号）——分别采用资料中的硬件路线图参数及显式效率、拓扑假设。
+- TTFT：Time To First Token，首token时间——从模型执行开始到首token完成，不含请求排队、冷加载。
+- TPOT：Time Per Output Token，每输出token耗时——本页输出2个token，TPOT为首token后的一个解码间隔。
+- TP / EP / SP：Tensor / Expert / Sequence Parallelism，张量/专家/序列并行——TP32与EP32形成1024卡；SP32与TP共享ranks，不额外乘卡数。
+- MLA：Multi-head Latent Attention，多头潜在注意力——F使用压缩缓存布局，保存潜在状态而非参考实现展开K/V。
+- KDA：Kimi Delta Attention，Kimi增量注意力——递归与卷积状态采用该结构的独立账本。
+- FP8 / FP16 / FP32：8 / 16 / 32-bit Floating Point，8/16/32位浮点——F主路径使用FP8，KDA递归状态保持FP32；基线A是FP16设计。
+- KV：Key-Value，键值缓存——F将MLA缓存指定为FP8并计入scale。
+- SU：Scale-Up，域内高速互联——1024卡映射为单逻辑非阻塞域。
+- batch / top-32 / token：Batch / Top-k / Token，批量/前k个专家/词元——本页为单请求、每token选择32个routed专家，固定输出2个token。
+- k / M / GB / ms：kilo / million / Gigabyte / millisecond，长度标签/吉字节/毫秒——128k是131072token，1M是1048576token；GB=10^9B，ms=10^-3s。
+- P99：99th Percentile，第99百分位——本次固定batch仿真不提供生产尾时延保证。
+- A / B / F：Experiment Stages A / B / F，实验方案代号——A为FP16展开缓存无SP；B仅加SP32；F包含全部五项叠加优化。
+- report / summary / verification：Report / Summary / Verification，报告/汇总/验证文件——最新实验目录中的追溯证据。
+- Huawei Proprietary - Restricted Distribution：华为专有信息，限制分发——按用户指定华为风格模板保留的页脚。
+
+【标红内容详解 · 逐条一句话解释】
+- 「94组可完成请求」：verification.json记载104组已完成仿真，其中94组feasible、10组infeasible；完成仿真不代表请求可行。
+- 「4.37 / 9.51 / 22.17 / 56.99」：红色条形为同条件F方案960DT的TTFT，来源summary.json，按128k、256k、512k、1M排序；分别为4.368742、9.511830、22.172952、56.994974秒，图中保留两位小数。
+- 「19.90」：1M、960DT、F、batch1、top32、output2的TPOT=0.019902162394657807秒，转毫秒并四舍五入。
+- 「49.9%」：同条件1M、960DT，B方案TTFT=113.77648384870794秒，F=56.99497440539057秒，按1-F/B计算降低49.9062%。
+- 「49.8%」：同条件1M从B峰值122304165278B降至F峰值61435794595B，按1-F/B计算降低49.7680%。
+
+【来源与数据口径】
+- C:/D_disk/Github/supernode_simulation/outputs/kimi-k3-10t-1m-acceleration-20261019/report.md
+- C:/D_disk/Github/supernode_simulation/outputs/kimi-k3-10t-1m-acceleration-20261019/summary.csv
+- C:/D_disk/Github/supernode_simulation/outputs/kimi-k3-10t-1m-acceleration-20261019/verification.json
+- C:/D_disk/Github/supernode_simulation/outputs/kimi-k3-10t-1m-acceleration-20261019/configs/960dt-F_kv-b1-k32-o2.json

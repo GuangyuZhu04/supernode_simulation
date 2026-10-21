@@ -1,0 +1,26 @@
+{
+  "output": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\presentations\\kimi-k3-10t-brief-20261020-v3.pptx",
+  "sha256": "70cf13433474e4a2a06f6938c793d0ca31abe1dc35516b25a4174c7148414e28",
+  "bytes": 117130,
+  "slides": 6,
+  "updated_slide": 2,
+  "table_batch_sizes": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "rendered_in": "WPS Presentation, read-only,1600x900",
+  "visual_review": "passed",
+  "pixel_identical_original_regions": {
+    "title": true,
+    "compute_panel": true,
+    "network_panel": true,
+    "footer": true
+  },
+  "all_other_slides_byte_identical": true,
+  "original_file_preserved": true,
+  "preview": "C:\\D_disk\\Github\\supernode_simulation\\outputs\\presentations\\kimi-k3-10t-brief-20261020-v3-memory.png"
+}

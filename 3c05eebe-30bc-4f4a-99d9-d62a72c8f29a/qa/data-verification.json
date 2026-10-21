@@ -1,0 +1,561 @@
+{
+  "passed": true,
+  "checked_display_values": 110,
+  "all_selected_cases_end_to_end_feasible": true,
+  "fixed_global_bs32_and_1024_cards": true,
+  "source_pptx_unchanged": true,
+  "source_simulation_hashes_unchanged": true,
+  "no_latency_or_throughput_rescaling": true,
+  "checks": [
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp32-ep32-dp1-sp32-g32/layout",
+      "display": "32/32/1"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp32-ep32-dp1-sp32-g32/ttft_s",
+      "display": "131.39"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp32-ep32-dp1-sp32-g32/tpot_ms",
+      "display": "43.08"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp32-ep32-dp1-sp32-g32/decode_tokens_s",
+      "display": "742.9"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp32-ep32-dp1-sp32-g32/peak_hbm_GB",
+      "display": "62.67"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp32-ep32-dp1-sp32-g32/occupancy",
+      "display": "43.5%"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/layout",
+      "display": "32/8/4"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/ttft_s",
+      "display": "128.79"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/tpot_ms",
+      "display": "33.88"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/decode_tokens_s",
+      "display": "944.5"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/peak_hbm_GB",
+      "display": "112.66"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/occupancy",
+      "display": "78.2%"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp16-ep16-dp4-sp16-g32/layout",
+      "display": "16/16/4"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp16-ep16-dp4-sp16-g32/ttft_s",
+      "display": "171.88"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp16-ep16-dp4-sp16-g32/tpot_ms",
+      "display": "24.76"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp16-ep16-dp4-sp16-g32/decode_tokens_s",
+      "display": "1,292.3"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp16-ep16-dp4-sp16-g32/peak_hbm_GB",
+      "display": "112.44"
+    },
+    {
+      "page": 4,
+      "metric": "950dt-1M-tp16-ep16-dp4-sp16-g32/occupancy",
+      "display": "78.1%"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp32-ep32-dp1-sp32-g32/layout",
+      "display": "32/32/1"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp32-ep32-dp1-sp32-g32/ttft_s",
+      "display": "78.00"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp32-ep32-dp1-sp32-g32/tpot_ms",
+      "display": "20.17"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp32-ep32-dp1-sp32-g32/decode_tokens_s",
+      "display": "1,586.2"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp32-ep32-dp1-sp32-g32/peak_hbm_GB",
+      "display": "62.67"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp32-ep32-dp1-sp32-g32/occupancy",
+      "display": "21.8%"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/layout",
+      "display": "32/4/8"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/ttft_s",
+      "display": "72.50"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/tpot_ms",
+      "display": "15.06"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/decode_tokens_s",
+      "display": "2,125.3"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/peak_hbm_GB",
+      "display": "183.46"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/occupancy",
+      "display": "63.7%"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp8-ep8-dp16-sp8-g32/layout",
+      "display": "8/8/16"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp8-ep8-dp16-sp8-g32/ttft_s",
+      "display": "148.32"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp8-ep8-dp16-sp8-g32/tpot_ms",
+      "display": "7.26"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp8-ep8-dp16-sp8-g32/decode_tokens_s",
+      "display": "4,407.6"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp8-ep8-dp16-sp8-g32/peak_hbm_GB",
+      "display": "275.56"
+    },
+    {
+      "page": 4,
+      "metric": "960dt-1M-tp8-ep8-dp16-sp8-g32/occupancy",
+      "display": "95.7%"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-128k-tp32-ep8-dp4-sp32-g32/ttft_s",
+      "display": "10.58"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-128k-tp32-ep8-dp4-sp32-g32/tpot_ms",
+      "display": "30.71"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-128k-tp32-ep8-dp4-sp32-g32/decode_tokens_s",
+      "display": "1,042.0"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-128k-tp32-ep8-dp4-sp32-g32/peak_hbm_GB",
+      "display": "65.04"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-256k-tp32-ep8-dp4-sp32-g32/ttft_s",
+      "display": "22.72"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-256k-tp32-ep8-dp4-sp32-g32/tpot_ms",
+      "display": "31.16"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-256k-tp32-ep8-dp4-sp32-g32/decode_tokens_s",
+      "display": "1,026.9"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-256k-tp32-ep8-dp4-sp32-g32/peak_hbm_GB",
+      "display": "71.84"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-512k-tp32-ep8-dp4-sp32-g32/ttft_s",
+      "display": "51.74"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-512k-tp32-ep8-dp4-sp32-g32/tpot_ms",
+      "display": "32.07"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-512k-tp32-ep8-dp4-sp32-g32/decode_tokens_s",
+      "display": "997.9"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-512k-tp32-ep8-dp4-sp32-g32/peak_hbm_GB",
+      "display": "85.45"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/ttft_s",
+      "display": "128.79"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/tpot_ms",
+      "display": "33.88"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/decode_tokens_s",
+      "display": "944.5"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/peak_hbm_GB",
+      "display": "112.66"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-128k-tp32-ep4-dp8-sp32-g32/ttft_s",
+      "display": "6.30"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-128k-tp32-ep4-dp8-sp32-g32/tpot_ms",
+      "display": "13.74"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-128k-tp32-ep4-dp8-sp32-g32/decode_tokens_s",
+      "display": "2,329.7"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-128k-tp32-ep4-dp8-sp32-g32/peak_hbm_GB",
+      "display": "109.53"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-256k-tp32-ep4-dp8-sp32-g32/ttft_s",
+      "display": "13.38"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-256k-tp32-ep4-dp8-sp32-g32/tpot_ms",
+      "display": "13.92"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-256k-tp32-ep4-dp8-sp32-g32/decode_tokens_s",
+      "display": "2,298.2"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-256k-tp32-ep4-dp8-sp32-g32/peak_hbm_GB",
+      "display": "120.09"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-512k-tp32-ep4-dp8-sp32-g32/ttft_s",
+      "display": "29.92"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-512k-tp32-ep4-dp8-sp32-g32/tpot_ms",
+      "display": "14.30"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-512k-tp32-ep4-dp8-sp32-g32/decode_tokens_s",
+      "display": "2,237.5"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-512k-tp32-ep4-dp8-sp32-g32/peak_hbm_GB",
+      "display": "141.22"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/ttft_s",
+      "display": "72.50"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/tpot_ms",
+      "display": "15.06"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/decode_tokens_s",
+      "display": "2,125.3"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/peak_hbm_GB",
+      "display": "183.46"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g1/decode_tokens_s",
+      "display": "30.1"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g2/decode_tokens_s",
+      "display": "60.2"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g4/decode_tokens_s",
+      "display": "120.4"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g8/decode_tokens_s",
+      "display": "240.1"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g16/decode_tokens_s",
+      "display": "477.5"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/decode_tokens_s",
+      "display": "944.5"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g1/decode_tokens_s",
+      "display": "67.5"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g2/decode_tokens_s",
+      "display": "135.0"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g4/decode_tokens_s",
+      "display": "270.0"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g8/decode_tokens_s",
+      "display": "539.9"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g16/decode_tokens_s",
+      "display": "1,074.0"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/decode_tokens_s",
+      "display": "2,125.3"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep32-dp1-sp32-g32/prefill_EFLOP",
+      "display": "51.54"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep32-dp1-sp32-g32/decode_TFLOP",
+      "display": "74.01"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep32-dp1-sp32-g32/prefill_SU_PB",
+      "display": "24.73"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep32-dp1-sp32-g32/decode_physical_SU_GB",
+      "display": "106.03"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep32-dp1-sp32-g32/decode_HBM_TB",
+      "display": "27.33"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep32-dp1-sp32-g32/resident_cluster_TB",
+      "display": "43.67"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/prefill_EFLOP",
+      "display": "51.54"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/decode_TFLOP",
+      "display": "74.01"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/prefill_SU_PB",
+      "display": "22.61"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/decode_physical_SU_GB",
+      "display": "104.01"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/decode_HBM_TB",
+      "display": "27.66"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp32-ep8-dp4-sp32-g32/resident_cluster_TB",
+      "display": "74.95"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp16-ep16-dp4-sp16-g32/prefill_EFLOP",
+      "display": "43.65"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp16-ep16-dp4-sp16-g32/decode_TFLOP",
+      "display": "66.46"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp16-ep16-dp4-sp16-g32/prefill_SU_PB",
+      "display": "11.97"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp16-ep16-dp4-sp16-g32/decode_physical_SU_GB",
+      "display": "30.72"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp16-ep16-dp4-sp16-g32/decode_HBM_TB",
+      "display": "20.23"
+    },
+    {
+      "page": 5,
+      "metric": "950dt-1M-tp16-ep16-dp4-sp16-g32/resident_cluster_TB",
+      "display": "68.98"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/prefill_EFLOP",
+      "display": "51.54"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/decode_TFLOP",
+      "display": "74.01"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/prefill_SU_PB",
+      "display": "19.78"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/decode_physical_SU_GB",
+      "display": "101.31"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/decode_HBM_TB",
+      "display": "27.71"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp32-ep4-dp8-sp32-g32/resident_cluster_TB",
+      "display": "116.67"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp8-ep8-dp16-sp8-g32/prefill_EFLOP",
+      "display": "39.71"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp8-ep8-dp16-sp8-g32/decode_TFLOP",
+      "display": "62.69"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp8-ep8-dp16-sp8-g32/prefill_SU_PB",
+      "display": "5.58"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp8-ep8-dp16-sp8-g32/decode_physical_SU_GB",
+      "display": "9.53"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp8-ep8-dp16-sp8-g32/decode_HBM_TB",
+      "display": "17.24"
+    },
+    {
+      "page": 5,
+      "metric": "960dt-1M-tp8-ep8-dp16-sp8-g32/resident_cluster_TB",
+      "display": "193.66"
+    }
+  ]
+}

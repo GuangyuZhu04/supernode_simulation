@@ -1,0 +1,59 @@
+【第6页 · 长上下文主要拉高 TTFT，小 batch 使 DP 副本闲置】
+
+本页固定前页选出的生成优选布局，只改变上下文长度或已有生成请求数，不在每个点重新搜索布局。左表覆盖两平台各四个上下文长度，首词时间和预填充显存来自单请求预填充，生成时延、吞吐和生成显存则对应全局三十二条序列。从十三万级扩展到一百万级，上下文恰好增加 8 倍，950DT 与 960DT 的首词时间分别变为 10.28 倍与 9.72 倍；生成时延只增加 6.1% 与 5.4%。这与因果编码器处理全部提示词、稀疏生成只读取部分历史的结构差异一致，但首词时间并非按长度简单线性外推。预填充显存峰值随长度增长也更显著，因此表中继续分列两个阶段，避免把生成峰值当成请求容量上界。右图只扫描一百万级上下文，横轴六档批次采用等间距离散刻度，每个点标出全系统吞吐。数据并行不会创造新请求；活跃副本数等于副本总数与已有批次的较小者。在单请求下，950DT 的 4 个副本只有一个工作，闲置 3 个；960DT 的 16 个副本闲置 15 个。批次填充副本的区间内，每个活跃副本本地批次保持一，时延基本不变而全局吞吐随请求数上升；副本填满后，本地工作增加，增长不再严格线性。下表把时延解释进一步落到物理工作量。预填充浮点运算只列八位矩阵部分，生成浮点运算包含八位和三十二位操作；两者在表头与注释中明确区分，不能拿单位不同的数直接相除。互联字节是实际物理传输总量，生成显存字节是每轮访问量，均不是容量占用。最后一列才是全体数据副本的词组表常驻内存，闲置副本也计入，因此其值随副本数增长，不能从活跃副本数反推总驻留。950DT 优选共驻留 14.189 太字节，960DT 优选为 56.757 太字节。表内工作量来自执行阶段账本而非缩约资源包络，独立舍入仅服务展示。以上敏感性仍受固定路由、无计算通信重叠等假设约束，阶段可行与吞吐预测不构成请求到达、整批预热和在线排队的服务保证。
+
+过渡：在普通自回归的布局与负载边界明确后，再检查三层草稿机制的额外成本，以及每轮实际提交数量对收益门槛的影响。
+
+【本页名词表 · 英文简称：英文全称，中文全称——一句话解释】
+- ngram：N-gram，N元词组——本实验条件记忆表的索引组织方式。
+- TP：Tensor Parallelism，张量并行——对注意力头、专家中间维等张量分片。
+- EP：Expert Parallelism，专家并行——在不同rank间分布专家权重。
+- DP：Data Parallelism，数据并行——在独立权重副本上分配已存在的全局请求。
+- SP：Sequence Parallelism，序列并行——与TP共用卡，分片pointwise和残差等token状态。
+- HBM：High Bandwidth Memory，高带宽内存——NPU卡上存储，容量和带宽分别约束。
+- DRAM：Dynamic Random Access Memory，动态随机存取存储器——主机内存，用于分片存放Engram表。
+- FP8：8-bit Floating Point，8位浮点——主对照的权重、计算、激活、通信和KV精度。
+- FP32：32-bit Floating Point，32位浮点——router、mHC、norm等显式标量运算精度。
+- SU：Scale Up，域内互联——单逻辑1024卡无阻塞互联及端点注入模型。
+- TTFT：Time To First Token，首token时间——本稿统一单独标示prefill全局bs=1的执行时间。
+- TPOT：Time Per Output Token，每输出token时间——AR为轮时延；DSpark为轮时延除以提交数C。
+- bs：Batch Size，批大小——decode为全局同时参与序列数；TTFT的prefill批次另列。
+- batch：Batch Size，批大小——在相应阶段同时处理的序列数量。
+- prefill：Prompt Prefill，提示词预填充——含编码器bulk、解码器KV投影及有界replay。
+- tokens/s：Tokens Per Second，每秒词元数——global batch乘C除以轮时延的系统输出吞吐。
+- tok/s：Tokens Per Second，每秒词元数——全系统输出吞吐。
+- EFLOP：Exa Floating Point Operations，百京次浮点运算——10的18次方次浮点运算。
+- TFLOP：Tera Floating Point Operations，万亿次浮点运算——10的12次方次浮点运算。
+- GB：Gigabyte，十进制吉字节——本稿GB=10^9字节。
+- TB：Terabyte，十进制太字节——本稿TB=10^12字节。
+- ms：Millisecond，毫秒——10^-3秒。
+- s：Second，秒——时延单位。
+- 1M：1,048,576 Tokens，一百万级词元上下文——本稿1M采用二进制长度。
+- 128k：131,072 Tokens，十三万级词元——本稿k采用二进制长度。
+- 256k：262,144 Tokens，二十六万级词元——本稿k采用二进制长度。
+- 512k：524,288 Tokens，五十二万级词元——本稿k采用二进制长度。
+- 950DT：（硬件配置名）Ascend 950DT——本实验采用的144GB、4TB/s、1PFLOP/s假设配置。
+- 960DT：（硬件配置名）Ascend 960DT——本实验采用的288GB、9.6TB/s、2PFLOP/s假设配置。
+- CSV：Comma-Separated Values，逗号分隔数据——全量结构化结果格式。
+- Huawei Proprietary - Restricted Distribution：华为专有资料—限制分发——沿用用户要求的华为模板固定页脚。
+
+【标红内容详解 · 逐条一句话解释】
+- 「TTFT」：核心思想强调首词时间对上下文长度的敏感性；此页所有 TTFT 均为 prefill 全局 bs1。
+- 「DP」：核心思想强调固定副本数由已有请求填充：active DP=min(DP, global batch)，闲置副本仍保留权重和 ngram。
+- 「201.87」：红色 960DT 曲线在固定布局 4/16/16/4、1M、AR、全局 decode bs1 下的吞吐为 201.87 tokens/s，来自 summary.csv；不是每个点重新选优。
+- 「403.73」：红色 960DT 曲线在固定布局 4/16/16/4、1M、AR、全局 decode bs2 下的吞吐为 403.73 tokens/s，来自 summary.csv；不是每个点重新选优。
+- 「807.47」：红色 960DT 曲线在固定布局 4/16/16/4、1M、AR、全局 decode bs4 下的吞吐为 807.47 tokens/s，来自 summary.csv；不是每个点重新选优。
+- 「1614.93」：红色 960DT 曲线在固定布局 4/16/16/4、1M、AR、全局 decode bs8 下的吞吐为 1614.93 tokens/s，来自 summary.csv；不是每个点重新选优。
+- 「3229.86」：红色 960DT 曲线在固定布局 4/16/16/4、1M、AR、全局 decode bs16 下的吞吐为 3229.86 tokens/s，来自 summary.csv；不是每个点重新选优。
+- 「6260.90」：红色 960DT 曲线在固定布局 4/16/16/4、1M、AR、全局 decode bs32 下的吞吐为 6260.90 tokens/s，来自 summary.csv；不是每个点重新选优。
+- 「10.28× / 9.72×」：分别为固定优选布局下，950DT / 960DT 的 1M 单请求 TTFT 除以 128k 单请求 TTFT；上下文长度之比为 8。
+- 「6.1% / 5.4%」：分别为固定优选布局下，950DT / 960DT 的 1M 与 128k 的 AR bs32 TPOT 比值减一；批次与布局保持不变。
+- 「3 / 15」：950DT / 960DT 在固定优选布局、全局 bs1 时闲置的数据副本数；原始 idle_replicas 字段分别为 3 和 15，权重及 ngram 仍驻留。
+- 「红色 960DT 曲线」：固定 TP4/EP16/DP16/SP4 的 960DT 结果系列；与灰色 950DT 系列共享吞吐纵轴，横轴是 1、2、4、8、16、32 六档离散批次。
+
+【来源与数据口径】
+- {'path': 'C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\summary.csv', 'sha256': 'd436067588616b5bb77da49cb2b1fff8961fc4193e2205d86dfe167adef791b6'}
+- {'path': 'C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\prefill.csv', 'sha256': 'e2a3e0be9166ebe9c322db560e183d8a8e89d105e0127d49dbc30978133f9ae6'}
+- {'path': 'C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\recommendations.csv', 'sha256': 'a5c21061549d2ab8db452324109175478d405bb893a7fc955154f9bb0714f163'}
+- {'path': 'C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\methodology.md', 'sha256': '6b035d649c7c485e829e90d92213197076ab1983a41a8f851c813d6f62878eb7'}
+- {'path': 'C:\\D_disk\\Github\\supernode_simulation\\outputs\\deepseek-v41-pro-10t-20261020\\experiment.json', 'sha256': '8a8a928c33746a74f4bfdcef2db12909d34f3c8bd51d873087d193b12e62b121'}

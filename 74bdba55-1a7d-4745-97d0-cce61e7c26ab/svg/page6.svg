@@ -1,0 +1,250 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+<g id="page-background">
+<rect x="0.000000000" y="0" width="1280.000000000" height="720" fill="#FFFFFF"/>
+</g>
+<g id="page-header">
+<text x="50" y="50" font-family="微软雅黑, Arial, sans-serif" font-size="28" fill="#C00000" font-weight="bold" text-anchor="start">时延拆解显示：prefill重计算与传输，decode主要受通信启动约束</text>
+<text x="50" y="77" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#666666" font-weight="normal" text-anchor="start">06 时延拆解 · 同第4页六组｜1M · 全局bs32 · 每平台1024卡 · F · top32 · output2｜2026-10-20</text>
+</g>
+<g id="core-message">
+<rect x="50.000000000" y="96" width="1180.000000000" height="62" fill="#FFF1EF" stroke="#C00000" stroke-width="1.5" rx="4"/>
+<use data-icon="chunk-filled/target-arrow" x="70" y="115" width="22" height="22" fill="#C00000"/>
+<text x="104" y="132" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#C00000" font-weight="bold" text-anchor="start">核心思想</text>
+<line x1="180" y1="110" x2="180" y2="146" stroke="#F1B4B7" stroke-width="1"/>
+<text x="200" y="132" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#1D1D1A" font-weight="bold" text-anchor="start"><tspan fill="#C00000" font-weight="bold">保TP减EP</tspan>：prefill收益来自<tspan fill="#C00000" font-weight="bold">传输缩短</tspan>，decode收益主要来自<tspan fill="#C00000" font-weight="bold">通信启动减少</tspan>。</text>
+</g>
+<g id="prefill-latency-panel">
+<rect x="50.000000000" y="172" width="578.000000000" height="380" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1" rx="4"/>
+<use data-icon="chunk-filled/chart-bar" x="65" y="176" width="20" height="20" fill="#C00000"/>
+<text x="90" y="191" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#C00000" font-weight="bold" text-anchor="start">prefill / TTFT 时延拆解（s）</text>
+<rect x="66.000000000" y="207" width="9.000000000" height="9" fill="#8C8C8C"/>
+<text x="81" y="215" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">计算主导</text>
+<rect x="196.000000000" y="207" width="9.000000000" height="9" fill="#D9D9D9"/>
+<text x="211" y="215" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">HBM主导</text>
+<rect x="326.000000000" y="207" width="9.000000000" height="9" fill="#F1B4B7"/>
+<text x="341" y="215" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">通信传输</text>
+<rect x="456.000000000" y="207" width="9.000000000" height="9" fill="#C00000"/>
+<text x="471" y="215" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">通信启动</text>
+<line x1="180.0" y1="226" x2="180.0" y2="362" stroke="#F2F2F2" stroke-width="1"/>
+<line x1="180.0" y1="362" x2="180.0" y2="365" stroke="#BFBFBF" stroke-width="1"/>
+<text x="180.0" y="377" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#666666" font-weight="normal" text-anchor="middle">0</text>
+<line x1="308.3333333333333" y1="226" x2="308.3333333333333" y2="362" stroke="#F2F2F2" stroke-width="1"/>
+<line x1="308.3333333333333" y1="362" x2="308.3333333333333" y2="365" stroke="#BFBFBF" stroke-width="1"/>
+<text x="308.3333333333333" y="377" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#666666" font-weight="normal" text-anchor="middle">60</text>
+<line x1="436.66666666666663" y1="226" x2="436.66666666666663" y2="362" stroke="#F2F2F2" stroke-width="1"/>
+<line x1="436.66666666666663" y1="362" x2="436.66666666666663" y2="365" stroke="#BFBFBF" stroke-width="1"/>
+<text x="436.66666666666663" y="377" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#666666" font-weight="normal" text-anchor="middle">120</text>
+<line x1="565.0" y1="226" x2="565.0" y2="362" stroke="#F2F2F2" stroke-width="1"/>
+<line x1="565.0" y1="362" x2="565.0" y2="365" stroke="#BFBFBF" stroke-width="1"/>
+<text x="565.0" y="377" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#666666" font-weight="normal" text-anchor="middle">180</text>
+<line x1="180" y1="362" x2="565" y2="362" stroke="#BFBFBF" stroke-width="1"/>
+<line x1="66" y1="295" x2="612" y2="295" stroke="#F2F2F2" stroke-width="1"/>
+<text x="66" y="240.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">950原 32/32/1</text>
+<rect x="180.000000000" y="231" width="215.317585980" height="12" fill="#8C8C8C" id="prefill-row1-component1"/>
+<rect x="395.317585980" y="231" width="1.061903520" height="12" fill="#D9D9D9" id="prefill-row1-component2"/>
+<rect x="396.379489500" y="231" width="64.573353067" height="12" fill="#F1B4B7" id="prefill-row1-component3"/>
+<rect x="460.952842567" y="231" width="0.077696850" height="12" fill="#C00000" id="prefill-row1-component4"/>
+<text x="467.03053941743684" y="240.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">131.391</text>
+<text x="66" y="261.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">950兼 32/8/4</text>
+<rect x="180.000000000" y="252" width="215.317585980" height="12" fill="#8C8C8C" id="prefill-row2-component1"/>
+<rect x="395.317585980" y="252" width="1.061903520" height="12" fill="#D9D9D9" id="prefill-row2-component2"/>
+<rect x="396.379489500" y="252" width="59.027029154" height="12" fill="#F1B4B7" id="prefill-row2-component3"/>
+<rect x="455.406518654" y="252" width="0.057861650" height="12" fill="#C00000" id="prefill-row2-component4"/>
+<text x="461.46438030404937" y="261.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">128.789</text>
+<text x="66" y="282.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">950解 16/16/4</text>
+<rect x="180.000000000" y="273" width="302.986950819" height="12" fill="#8C8C8C" id="prefill-row3-component1"/>
+<rect x="482.986950819" y="273" width="2.115766672" height="12" fill="#D9D9D9" id="prefill-row3-component2"/>
+<rect x="485.102717491" y="273" width="62.490341390" height="12" fill="#F1B4B7" id="prefill-row3-component3"/>
+<rect x="547.593058882" y="273" width="0.037595250" height="12" fill="#C00000" id="prefill-row3-component4"/>
+<text x="553.630654131741" y="282.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">171.879</text>
+<text x="66" y="314.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">960原 32/32/1</text>
+<rect x="180.000000000" y="305" width="107.658792990" height="12" fill="#8C8C8C" id="prefill-row4-component1"/>
+<rect x="287.658792990" y="305" width="0.442459800" height="12" fill="#D9D9D9" id="prefill-row4-component2"/>
+<rect x="288.101252790" y="305" width="58.703048243" height="12" fill="#F1B4B7" id="prefill-row4-component3"/>
+<rect x="346.804301033" y="305" width="0.036998500" height="12" fill="#C00000" id="prefill-row4-component4"/>
+<text x="352.841299532987" y="314.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">78.004</text>
+<text x="66" y="335.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">960兼 32/4/8</text>
+<rect x="180.000000000" y="326" width="107.658792990" height="12" fill="#8C8C8C" id="prefill-row5-component1"/>
+<rect x="287.658792990" y="326" width="0.442459800" height="12" fill="#D9D9D9" id="prefill-row5-component2"/>
+<rect x="288.101252790" y="326" width="46.938118730" height="12" fill="#F1B4B7" id="prefill-row5-component3"/>
+<rect x="335.039371520" y="326" width="0.025978944" height="12" fill="#C00000" id="prefill-row5-component4"/>
+<text x="341.0653504641866" y="335.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">72.498</text>
+<text x="66" y="356.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">960解 8/8/16</text>
+<rect x="180.000000000" y="347" width="262.450665863" height="12" fill="#8C8C8C" id="prefill-row6-component1"/>
+<rect x="442.450665863" y="347" width="1.759788740" height="12" fill="#D9D9D9" id="prefill-row6-component2"/>
+<rect x="444.210454603" y="347" width="53.022107724" height="12" fill="#F1B4B7" id="prefill-row6-component3"/>
+<rect x="497.232562327" y="347" width="0.008354500" height="12" fill="#C00000" id="prefill-row6-component4"/>
+<text x="503.2409168274465" y="356.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">148.320</text>
+<rect x="66.000000000" y="389" width="546.000000000" height="20" fill="#F2F2F2"/>
+<text x="106.0" y="402" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">平台/策略</text>
+<text x="192.5" y="402" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">计算主导</text>
+<text x="280.5" y="402" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">HBM主导</text>
+<text x="368.5" y="402" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">通信传输</text>
+<text x="461.5" y="402" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">通信启动</text>
+<text x="560.0" y="402" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">合计</text>
+<text x="106.0" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">950原</text>
+<text id="prefill-table-row1-value1" x="192.5" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">100.668</text>
+<text id="prefill-table-row1-value2" x="280.5" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.496</text>
+<text id="prefill-table-row1-value3" x="368.5" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">30.190</text>
+<text id="prefill-table-row1-value4" x="461.5" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.036</text>
+<text id="prefill-table-row1-value5" x="560.0" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">131.391</text>
+<line x1="66" y1="431" x2="612" y2="431" stroke="#D9D9D9" stroke-width="1"/>
+<rect x="66.000000000" y="431" width="546.000000000" height="22" fill="#FFF1EF"/>
+<text x="106.0" y="446" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">950兼</text>
+<text id="prefill-table-row2-value1" x="192.5" y="446" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">100.668</text>
+<text id="prefill-table-row2-value2" x="280.5" y="446" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.496</text>
+<text id="prefill-table-row2-value3" x="368.5" y="446" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">27.597</text>
+<text id="prefill-table-row2-value4" x="461.5" y="446" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.027</text>
+<text id="prefill-table-row2-value5" x="560.0" y="446" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">128.789</text>
+<line x1="66" y1="453" x2="612" y2="453" stroke="#D9D9D9" stroke-width="1"/>
+<text x="106.0" y="468" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">950解</text>
+<text id="prefill-table-row3-value1" x="192.5" y="468" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">141.656</text>
+<text id="prefill-table-row3-value2" x="280.5" y="468" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.989</text>
+<text id="prefill-table-row3-value3" x="368.5" y="468" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">29.216</text>
+<text id="prefill-table-row3-value4" x="461.5" y="468" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.018</text>
+<text id="prefill-table-row3-value5" x="560.0" y="468" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">171.879</text>
+<line x1="66" y1="475" x2="612" y2="475" stroke="#D9D9D9" stroke-width="1"/>
+<text x="106.0" y="490" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">960原</text>
+<text id="prefill-table-row4-value1" x="192.5" y="490" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">50.334</text>
+<text id="prefill-table-row4-value2" x="280.5" y="490" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.207</text>
+<text id="prefill-table-row4-value3" x="368.5" y="490" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">27.446</text>
+<text id="prefill-table-row4-value4" x="461.5" y="490" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.017</text>
+<text id="prefill-table-row4-value5" x="560.0" y="490" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">78.004</text>
+<line x1="66" y1="497" x2="612" y2="497" stroke="#D9D9D9" stroke-width="1"/>
+<rect x="66.000000000" y="497" width="546.000000000" height="22" fill="#FFF1EF"/>
+<text x="106.0" y="512" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">960兼</text>
+<text id="prefill-table-row5-value1" x="192.5" y="512" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">50.334</text>
+<text id="prefill-table-row5-value2" x="280.5" y="512" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.207</text>
+<text id="prefill-table-row5-value3" x="368.5" y="512" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">21.945</text>
+<text id="prefill-table-row5-value4" x="461.5" y="512" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.012</text>
+<text id="prefill-table-row5-value5" x="560.0" y="512" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">72.498</text>
+<line x1="66" y1="519" x2="612" y2="519" stroke="#D9D9D9" stroke-width="1"/>
+<text x="106.0" y="534" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">960解</text>
+<text id="prefill-table-row6-value1" x="192.5" y="534" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">122.704</text>
+<text id="prefill-table-row6-value2" x="280.5" y="534" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.823</text>
+<text id="prefill-table-row6-value3" x="368.5" y="534" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">24.790</text>
+<text id="prefill-table-row6-value4" x="461.5" y="534" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.004</text>
+<text id="prefill-table-row6-value5" x="560.0" y="534" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">148.320</text>
+</g>
+<g id="decode-latency-panel">
+<rect x="652.000000000" y="172" width="578.000000000" height="380" fill="#FFFFFF" stroke="#D9D9D9" stroke-width="1" rx="4"/>
+<use data-icon="chunk-filled/chart-line" x="667" y="176" width="20" height="20" fill="#C00000"/>
+<text x="692" y="191" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#C00000" font-weight="bold" text-anchor="start">decode / TPOT 时延拆解（ms）</text>
+<rect x="668.000000000" y="207" width="9.000000000" height="9" fill="#8C8C8C"/>
+<text x="683" y="215" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">计算主导</text>
+<rect x="798.000000000" y="207" width="9.000000000" height="9" fill="#D9D9D9"/>
+<text x="813" y="215" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">HBM主导</text>
+<rect x="928.000000000" y="207" width="9.000000000" height="9" fill="#F1B4B7"/>
+<text x="943" y="215" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">通信传输</text>
+<rect x="1058.000000000" y="207" width="9.000000000" height="9" fill="#C00000"/>
+<text x="1073" y="215" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">通信启动</text>
+<line x1="782.0" y1="226" x2="782.0" y2="362" stroke="#F2F2F2" stroke-width="1"/>
+<line x1="782.0" y1="362" x2="782.0" y2="365" stroke="#BFBFBF" stroke-width="1"/>
+<text x="782.0" y="377" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#666666" font-weight="normal" text-anchor="middle">0</text>
+<line x1="910.3333333333333" y1="226" x2="910.3333333333333" y2="362" stroke="#F2F2F2" stroke-width="1"/>
+<line x1="910.3333333333333" y1="362" x2="910.3333333333333" y2="365" stroke="#BFBFBF" stroke-width="1"/>
+<text x="910.3333333333333" y="377" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#666666" font-weight="normal" text-anchor="middle">15</text>
+<line x1="1038.6666666666665" y1="226" x2="1038.6666666666665" y2="362" stroke="#F2F2F2" stroke-width="1"/>
+<line x1="1038.6666666666665" y1="362" x2="1038.6666666666665" y2="365" stroke="#BFBFBF" stroke-width="1"/>
+<text x="1038.6666666666665" y="377" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#666666" font-weight="normal" text-anchor="middle">30</text>
+<line x1="1167.0" y1="226" x2="1167.0" y2="362" stroke="#F2F2F2" stroke-width="1"/>
+<line x1="1167.0" y1="362" x2="1167.0" y2="365" stroke="#BFBFBF" stroke-width="1"/>
+<text x="1167.0" y="377" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#666666" font-weight="normal" text-anchor="middle">45</text>
+<line x1="782" y1="362" x2="1167" y2="362" stroke="#BFBFBF" stroke-width="1"/>
+<line x1="668" y1="295" x2="1214" y2="295" stroke="#F2F2F2" stroke-width="1"/>
+<text x="668" y="240.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">950原 32/32/1</text>
+<rect x="782.000000000" y="231" width="56.643854379" height="12" fill="#D9D9D9" id="decode-row1-component2"/>
+<rect x="838.643854379" y="231" width="1.107398258" height="12" fill="#F1B4B7" id="decode-row1-component3"/>
+<rect x="839.751252637" y="231" width="310.787400000" height="12" fill="#C00000" id="decode-row1-component4"/>
+<text x="1156.5386526368768" y="240.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">43.076</text>
+<text x="668" y="261.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">950兼 32/8/4</text>
+<rect x="782.000000000" y="252" width="57.331827396" height="12" fill="#D9D9D9" id="decode-row2-component2"/>
+<rect x="839.331827396" y="252" width="1.086240711" height="12" fill="#F1B4B7" id="decode-row2-component3"/>
+<rect x="840.418068107" y="252" width="231.446600000" height="12" fill="#C00000" id="decode-row2-component4"/>
+<text x="1077.8646681068851" y="261.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">33.880</text>
+<text x="668" y="282.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">950解 16/16/4</text>
+<rect x="782.000000000" y="273" width="60.825519600" height="12" fill="#D9D9D9" id="decode-row3-component2"/>
+<rect x="842.825519600" y="273" width="0.641625600" height="12" fill="#F1B4B7" id="decode-row3-component3"/>
+<rect x="843.467145200" y="273" width="150.381000000" height="12" fill="#C00000" id="decode-row3-component4"/>
+<text x="999.848145199914" y="282.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">24.761</text>
+<text x="668" y="314.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">960原 32/32/1</text>
+<rect x="782.000000000" y="305" width="23.601605991" height="12" fill="#D9D9D9" id="decode-row4-component2"/>
+<rect x="805.601605991" y="305" width="1.006725689" height="12" fill="#F1B4B7" id="decode-row4-component3"/>
+<rect x="806.608331680" y="305" width="147.994000000" height="12" fill="#C00000" id="decode-row4-component4"/>
+<text x="960.6023316801806" y="314.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">20.174</text>
+<text x="668" y="335.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">960兼 32/4/8</text>
+<rect x="782.000000000" y="326" width="23.940440631" height="12" fill="#D9D9D9" id="decode-row5-component2"/>
+<rect x="805.940440631" y="326" width="0.961846044" height="12" fill="#F1B4B7" id="decode-row5-component3"/>
+<rect x="806.902286676" y="326" width="103.915777778" height="12" fill="#C00000" id="decode-row5-component4"/>
+<text x="916.8180644533413" y="335.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">15.057</text>
+<text x="668" y="356.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">960解 8/8/16</text>
+<rect x="782.000000000" y="347" width="28.334596683" height="12" fill="#D9D9D9" id="decode-row6-component2"/>
+<rect x="810.334596683" y="347" width="0.361964089" height="12" fill="#F1B4B7" id="decode-row6-component3"/>
+<rect x="810.696560772" y="347" width="33.418000000" height="12" fill="#C00000" id="decode-row6-component4"/>
+<text x="850.1145607721152" y="356.5" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#1D1D1A" font-weight="normal" text-anchor="start">7.260</text>
+<rect x="668.000000000" y="389" width="546.000000000" height="20" fill="#F2F2F2"/>
+<text x="708.0" y="402" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">平台/策略</text>
+<text x="794.5" y="402" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">计算主导</text>
+<text x="882.5" y="402" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">HBM主导</text>
+<text x="970.5" y="402" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">通信传输</text>
+<text x="1063.5" y="402" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">通信启动</text>
+<text x="1162.0" y="402" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">合计</text>
+<text x="708.0" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">950原</text>
+<text id="decode-table-row1-value1" x="794.5" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.000</text>
+<text id="decode-table-row1-value2" x="882.5" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">6.621</text>
+<text id="decode-table-row1-value3" x="970.5" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.129</text>
+<text id="decode-table-row1-value4" x="1063.5" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">36.326</text>
+<text id="decode-table-row1-value5" x="1162.0" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">43.076</text>
+<line x1="668" y1="431" x2="1214" y2="431" stroke="#D9D9D9" stroke-width="1"/>
+<rect x="668.000000000" y="431" width="546.000000000" height="22" fill="#FFF1EF"/>
+<text x="708.0" y="446" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">950兼</text>
+<text id="decode-table-row2-value1" x="794.5" y="446" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.000</text>
+<text id="decode-table-row2-value2" x="882.5" y="446" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">6.701</text>
+<text id="decode-table-row2-value3" x="970.5" y="446" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.127</text>
+<text id="decode-table-row2-value4" x="1063.5" y="446" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#C00000" font-weight="bold" text-anchor="middle">27.052</text>
+<text id="decode-table-row2-value5" x="1162.0" y="446" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">33.880</text>
+<line x1="668" y1="453" x2="1214" y2="453" stroke="#D9D9D9" stroke-width="1"/>
+<text x="708.0" y="468" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">950解</text>
+<text id="decode-table-row3-value1" x="794.5" y="468" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.000</text>
+<text id="decode-table-row3-value2" x="882.5" y="468" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">7.109</text>
+<text id="decode-table-row3-value3" x="970.5" y="468" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.075</text>
+<text id="decode-table-row3-value4" x="1063.5" y="468" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">17.577</text>
+<text id="decode-table-row3-value5" x="1162.0" y="468" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">24.761</text>
+<line x1="668" y1="475" x2="1214" y2="475" stroke="#D9D9D9" stroke-width="1"/>
+<text x="708.0" y="490" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">960原</text>
+<text id="decode-table-row4-value1" x="794.5" y="490" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.000</text>
+<text id="decode-table-row4-value2" x="882.5" y="490" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">2.759</text>
+<text id="decode-table-row4-value3" x="970.5" y="490" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.118</text>
+<text id="decode-table-row4-value4" x="1063.5" y="490" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">17.298</text>
+<text id="decode-table-row4-value5" x="1162.0" y="490" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">20.174</text>
+<line x1="668" y1="497" x2="1214" y2="497" stroke="#D9D9D9" stroke-width="1"/>
+<rect x="668.000000000" y="497" width="546.000000000" height="22" fill="#FFF1EF"/>
+<text x="708.0" y="512" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">960兼</text>
+<text id="decode-table-row5-value1" x="794.5" y="512" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.000</text>
+<text id="decode-table-row5-value2" x="882.5" y="512" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">2.798</text>
+<text id="decode-table-row5-value3" x="970.5" y="512" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.112</text>
+<text id="decode-table-row5-value4" x="1063.5" y="512" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#C00000" font-weight="bold" text-anchor="middle">12.146</text>
+<text id="decode-table-row5-value5" x="1162.0" y="512" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">15.057</text>
+<line x1="668" y1="519" x2="1214" y2="519" stroke="#D9D9D9" stroke-width="1"/>
+<text x="708.0" y="534" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">960解</text>
+<text id="decode-table-row6-value1" x="794.5" y="534" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.000</text>
+<text id="decode-table-row6-value2" x="882.5" y="534" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">3.312</text>
+<text id="decode-table-row6-value3" x="970.5" y="534" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">0.042</text>
+<text id="decode-table-row6-value4" x="1063.5" y="534" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="normal" text-anchor="middle">3.906</text>
+<text id="decode-table-row6-value5" x="1162.0" y="534" font-family="微软雅黑, Arial, sans-serif" font-size="12" fill="#1D1D1A" font-weight="bold" text-anchor="middle">7.260</text>
+</g>
+<g id="attribution-footnote">
+<text x="50" y="565" font-family="微软雅黑, Arial, sans-serif" font-size="10.5" fill="#666666" font-weight="normal" text-anchor="start">其他=等待/争用/kernel启动/其他服务，合计&lt;10^-9s；分项独立舍入。主导服务归因不双计计算/HBM重叠；模型预测。</text>
+</g>
+<g id="page-highlights">
+<rect x="50.000000000" y="574" width="1180.000000000" height="68" fill="#F2F2F2" stroke="#D9D9D9" stroke-width="1" rx="4"/>
+<text x="72" y="601" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#C00000" font-weight="bold" text-anchor="start">本页亮点</text>
+<text x="180" y="601" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#1D1D1A" font-weight="normal" text-anchor="start">兼顾组合：950DT/960DT的decode通信启动分别减少<tspan fill="#C00000" font-weight="bold">9.274 / 5.152 ms</tspan>。</text>
+<text x="180" y="626" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#1D1D1A" font-weight="normal" text-anchor="start">计算与HBM按主导项归因；decode计算主导为0，<tspan fill="#C00000" font-weight="bold">并不代表没有计算</tspan>。</text>
+</g>
+<g id="footer-group" font-family="Arial, sans-serif" font-size="10.5" fill="#1D1D1A">
+<text x="77" y="683">6</text>
+<text x="125" y="683">Huawei Proprietary - Restricted Distribution</text>
+<image href="logo.png" x="1070" y="663" width="133" height="28" preserveAspectRatio="xMidYMid meet"/>
+</g>
+</svg>

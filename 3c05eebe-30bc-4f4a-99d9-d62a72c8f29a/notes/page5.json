@@ -1,0 +1,226 @@
+{
+  "page": 5,
+  "title": "增大batch可近线性提升吞吐，扩容DP仍需核对资源代价",
+  "speech": "这一页比较上下文长度、全局batch和资源开销，所有结果都是2026年10月20日的F配置模型预测，每个平台固定1024卡。左表和右图沿用上一页在1M、全局bs32下选出的兼顾布局：950DT采用TP/SP32、EP8、DP4，960DT采用TP/SP32、EP4、DP8；没有对每个上下文或batch重新寻找最优。左表显示，上下文从128k增长到1M后，首词时延和峰值HBM上升，解码吞吐略降。右图固定1M，把全局bs从1提高到32，950DT吞吐提升31.3766倍，TPOT增长1.9869%；960DT对应31.4893倍和1.6218%，因此概括为吞吐31.4至31.5倍、TPOT增长1.6%至2.0%。横轴按log2档位等距，纵轴吞吐是线性刻度。负载口径是active_DP取配置DP与全局bs的较小值，本地bs为全局bs除以active_DP，吞吐按全局bs除以TPOT计算，不再额外乘DP。下表把计算工作量、通信流量、HBM读写和最终驻留容量分开核算；原并行的两平台资源值一致，所以合并一行。降低通信负载不等于降低驻留，扩容DP会复制更多权重。最终驻留是解码完成后所有1024卡的容量加和，包含空闲DP的静态权重，不是各卡峰值的加和，也不是利用率。全量1008个部署组合中，534组整程可行、66组仅decode可行、408组静态容量不足；仅解码可行不能当作端到端成功。TPOT只代表一次首个decode间隔，未做真机校准，也没有P99结论。",
+  "transition": "以上两页给出了固定1024卡、相同全局负载下的可行选择及资源代价；后续应按实际上下文、并发和首词时延要求筛选布局，再用真机数据校准，而不能将这组预测直接当作交付性能。",
+  "glossary": [
+    {
+      "term": "batch",
+      "full": "Batch，批次",
+      "explain": "同一轮服务的请求批次；本页横轴改变的是全局请求批大小。"
+    },
+    {
+      "term": "bs",
+      "full": "Batch Size，批大小",
+      "explain": "全局bs是系统请求数；本地bs随活跃DP数分摊，吞吐不重复乘DP。"
+    },
+    {
+      "term": "DP",
+      "full": "Data Parallelism，数据并行",
+      "explain": "独立副本并行数；活跃副本数取配置DP与全局bs中的较小值。"
+    },
+    {
+      "term": "950DT",
+      "full": "950DT（平台配置名，源数据未提供英文展开）",
+      "explain": "本次仿真中的950dt硬件配置，固定兼顾布局为TP/SP32、EP8、DP4。"
+    },
+    {
+      "term": "960DT",
+      "full": "960DT（平台配置名，源数据未提供英文展开）",
+      "explain": "本次仿真中的960dt硬件配置，固定兼顾布局为TP/SP32、EP4、DP8。"
+    },
+    {
+      "term": "F",
+      "full": "F precision configuration，F精度配置（实验定义）",
+      "explain": "实验采用SP开启、压缩MLA、权重/计算/激活/通信/KV为FP8、KDA递归状态为FP32。"
+    },
+    {
+      "term": "TTFT",
+      "full": "Time To First Token，首个输出词元时延",
+      "explain": "从请求计算开始到首个输出词元的预测时延，排除排队及加载时间。"
+    },
+    {
+      "term": "TPOT",
+      "full": "Time Per Output Token，每个输出词元耗时",
+      "explain": "本实验output2条件下的一次首个decode间隔；不是尾时延或P99。"
+    },
+    {
+      "term": "HBM",
+      "full": "High Bandwidth Memory，高带宽存储器",
+      "explain": "左表给出单卡整程真实峰值容量；资源表给出全系统解码阶段累计读写量。"
+    },
+    {
+      "term": "tok/s",
+      "full": "Tokens per Second，每秒词元数",
+      "explain": "本页为全系统decode吞吐，等于全局bs除以TPOT秒数。"
+    },
+    {
+      "term": "tokens/s",
+      "full": "Tokens per Second，每秒词元数",
+      "explain": "折线图纵轴单位，与左表tok/s同义。"
+    },
+    {
+      "term": "s",
+      "full": "Second，秒",
+      "explain": "左表TTFT时延单位。"
+    },
+    {
+      "term": "ms",
+      "full": "Millisecond，毫秒",
+      "explain": "TPOT时延单位，1000毫秒等于1秒。"
+    },
+    {
+      "term": "k",
+      "full": "Kilo-context notation，千级上下文标记",
+      "explain": "本实验128k、256k、512k分别表示131072、262144、524288输入词元。"
+    },
+    {
+      "term": "M",
+      "full": "Mega-context notation，百万级上下文标记",
+      "explain": "本实验1M表示1048576输入词元；该上下文记法不改变容量单位的十进制口径。"
+    },
+    {
+      "term": "log2",
+      "full": "Base-two Logarithm，以2为底的对数",
+      "explain": "batch轴按1、2、4、8、16、32六个等距档位显示，不是batch线性距离。"
+    },
+    {
+      "term": "prefill",
+      "full": "Prefill，预填充阶段",
+      "explain": "处理完整输入上下文，资源表给出全系统该阶段累计计算量与SU物理通信量。"
+    },
+    {
+      "term": "decode",
+      "full": "Decode，解码阶段",
+      "explain": "自回归生成阶段，本页流量和计算量按一次decode步累计。"
+    },
+    {
+      "term": "EFLOP",
+      "full": "Exa Floating-point Operations，百亿亿次浮点运算",
+      "explain": "10的18次方次浮点运算；这里是累计计算工作量，不是每秒计算性能。"
+    },
+    {
+      "term": "TFLOP",
+      "full": "Tera Floating-point Operations，万亿次浮点运算",
+      "explain": "10的12次方次浮点运算；表内按每次decode步计量。"
+    },
+    {
+      "term": "SU",
+      "full": "Scale Up，节点内扩展互联",
+      "explain": "本实验只有一个逻辑无阻塞SU，表内为全系统SU物理通信流量，SO流量为0。"
+    },
+    {
+      "term": "GB",
+      "full": "Gigabyte，吉字节",
+      "explain": "十进制10的9次方字节；左表为峰值容量，资源表decode SU为每步通信量。"
+    },
+    {
+      "term": "TB",
+      "full": "Terabyte，太字节",
+      "explain": "十进制10的12次方字节；HBM列是每步累计读写量，驻留列是最终存量。"
+    },
+    {
+      "term": "PB",
+      "full": "Petabyte，拍字节",
+      "explain": "十进制10的15次方字节；资源表为prefill阶段累计SU通信量。"
+    },
+    {
+      "term": "summary.json",
+      "full": "Summary JSON file，仿真汇总文件",
+      "explain": "本页数据引用2026-10-20并行度扫描的原生summary.json，经selected-data.json整理。"
+    },
+    {
+      "term": "Huawei Proprietary - Restricted Distribution",
+      "full": "Huawei Proprietary - Restricted Distribution，华为专有信息、限制分发",
+      "explain": "沿用原稿的保密分发声明。"
+    },
+    {
+      "term": "Huawei",
+      "full": "Huawei（公司名），华为",
+      "explain": "页面页脚中沿用的品牌与专有信息声明主体。"
+    },
+    {
+      "term": "TP",
+      "full": "Tensor Parallelism，张量并行",
+      "explain": "在多个计算卡之间切分模型张量。"
+    },
+    {
+      "term": "SP",
+      "full": "Sequence Parallelism，序列并行",
+      "explain": "本实验SP与TP共享同一组卡，兼顾布局固定SP32。"
+    },
+    {
+      "term": "EP",
+      "full": "Expert Parallelism，专家并行",
+      "explain": "将专家分配到不同卡组；本页固定沿用第4页兼顾布局。"
+    }
+  ],
+  "red_notes": [
+    {
+      "quote": "31.4–31.5倍",
+      "explain": "来源为2026-10-20 summary.json及selected-data.json.batch_growth；固定1M和第4页兼顾布局，以全局bs1为基准到bs32，950DT为31.376582881823552倍、960DT为31.489308336783225倍，分别显示为31.4倍和31.5倍，不是逐负载重选最优。"
+    },
+    {
+      "quote": "1.6%–2.0%",
+      "explain": "同一batch_growth、同一固定布局及bs1基准：950DT的TPOT由33.220237439249836增长到33.88028588262293毫秒，增幅1.9868865915848133%；960DT由14.81636597332383增长到15.056656884156775毫秒，增幅1.6217938411185129%；范围取一位小数，不能把两者都写成1.6%。"
+    },
+    {
+      "quote": "534整程可行",
+      "explain": "2026-10-20并行度扫描summary.json的验证汇总：1008部署组合中534组prefill与decode都可行，才属于整程成功。"
+    },
+    {
+      "quote": "66仅decode可行",
+      "explain": "同一1008组合验证汇总中有600组decode可行而仅534组prefill可行，差额66组仅解码可行，不能计入端到端成功；另408组静态容量不足。"
+    },
+    {
+      "quote": "960DT（红色系列）",
+      "explain": "红线与红点对应固定TP/SP32、EP4、DP8的960DT兼顾布局；横轴为全局bs1、2、4、8、16、32的log2档位，纵轴为原生模型预测decode tokens/s；灰线为950DT固定TP/SP32、EP8、DP4。"
+    },
+    {
+      "quote": "固定兼顾布局 · 四种上下文（全局bs32）",
+      "explain": "左表为selected-data.json.contexts的8个可行case；全局bs固定32，沿用1M/global_bs32选定的两平台兼顾布局，不对各上下文重新优化。"
+    },
+    {
+      "quote": "固定1M · 六档batch吞吐",
+      "explain": "右图为selected-data.json.batches的12个可行case；上下文固定1M、每平台1024卡，以相同全局batch口径比较两平台。"
+    },
+    {
+      "quote": "资源账本",
+      "explain": "下表为selected-data.json.resources的5行，全系统工作量和最终驻留分列；两平台原并行各项资源值一致而合并，时延和吞吐未合并。"
+    },
+    {
+      "quote": "67.5",
+      "explain": "来源为2026-10-20 summary.json案例 960dt-1M-tp32-ep4-dp8-sp32-g1，固定兼顾布局下全局bs=1的全系统decode吞吐为67.492933273952 tokens/s；红色数值仅标识960DT系列，不代表实测。"
+    },
+    {
+      "quote": "135.0",
+      "explain": "来源为2026-10-20 summary.json案例 960dt-1M-tp32-ep4-dp8-sp32-g2，固定兼顾布局下全局bs=2的全系统decode吞吐为134.985866547904 tokens/s；红色数值仅标识960DT系列，不代表实测。"
+    },
+    {
+      "quote": "270.0",
+      "explain": "来源为2026-10-20 summary.json案例 960dt-1M-tp32-ep4-dp8-sp32-g4，固定兼顾布局下全局bs=4的全系统decode吞吐为269.971733095809 tokens/s；红色数值仅标识960DT系列，不代表实测。"
+    },
+    {
+      "quote": "539.9",
+      "explain": "来源为2026-10-20 summary.json案例 960dt-1M-tp32-ep4-dp8-sp32-g8，固定兼顾布局下全局bs=8的全系统decode吞吐为539.943466191617 tokens/s；红色数值仅标识960DT系列，不代表实测。"
+    },
+    {
+      "quote": "1,074.0",
+      "explain": "来源为2026-10-20 summary.json案例 960dt-1M-tp32-ep4-dp8-sp32-g16，固定兼顾布局下全局bs=16的全系统decode吞吐为1074.024618926326 tokens/s；红色数值仅标识960DT系列，不代表实测。"
+    },
+    {
+      "quote": "2,125.3",
+      "explain": "来源为2026-10-20 summary.json案例 960dt-1M-tp32-ep4-dp8-sp32-g32，固定兼顾布局下全局bs=32的全系统decode吞吐为2125.305786417415 tokens/s；红色数值仅标识960DT系列，不代表实测。"
+    }
+  ],
+  "sources": [
+    "2026-10-20；原始仿真汇总：C:/D_disk/Github/supernode_simulation/outputs/kimi-k3-10t-1m-acceleration-20261019/parallelism-20261020/summary.json；页面选数：input/selected-data.json。",
+    "上下文表（contexts）：950dt-128k-tp32-ep8-dp4-sp32-g32；950dt-256k-tp32-ep8-dp4-sp32-g32；950dt-512k-tp32-ep8-dp4-sp32-g32；950dt-1M-tp32-ep8-dp4-sp32-g32；960dt-128k-tp32-ep4-dp8-sp32-g32；960dt-256k-tp32-ep4-dp8-sp32-g32；960dt-512k-tp32-ep4-dp8-sp32-g32；960dt-1M-tp32-ep4-dp8-sp32-g32。",
+    "batch折线图（batches）：950dt-1M-tp32-ep8-dp4-sp32-g1；950dt-1M-tp32-ep8-dp4-sp32-g2；950dt-1M-tp32-ep8-dp4-sp32-g4；950dt-1M-tp32-ep8-dp4-sp32-g8；950dt-1M-tp32-ep8-dp4-sp32-g16；950dt-1M-tp32-ep8-dp4-sp32-g32；960dt-1M-tp32-ep4-dp8-sp32-g1；960dt-1M-tp32-ep4-dp8-sp32-g2；960dt-1M-tp32-ep4-dp8-sp32-g4；960dt-1M-tp32-ep4-dp8-sp32-g8；960dt-1M-tp32-ep4-dp8-sp32-g16；960dt-1M-tp32-ep4-dp8-sp32-g32。",
+    "资源账本（resources）：950dt-1M-tp32-ep32-dp1-sp32-g32；950dt-1M-tp32-ep8-dp4-sp32-g32；950dt-1M-tp16-ep16-dp4-sp16-g32；960dt-1M-tp32-ep4-dp8-sp32-g32；960dt-1M-tp8-ep8-dp16-sp8-g32；共用原并行另核对960dt-1M-tp32-ep32-dp1-sp32-g32，各列全系统资源数值相等。",
+    "增长率：selected-data.json.batch_growth；950DT吞吐31.376582881823552倍、TPOT增幅1.9868865915848133%；960DT吞吐31.489308336783225倍、TPOT增幅1.6217938411185129%。",
+    "全量可行性：selected-data.json.verification，deployment_points=1008，feasible=534，infeasible=66（decode可行、prefill不可行），static_capacity_rejected=408。",
+    "边界：F配置、1024卡/平台、单逻辑SU、PP1、SP共享TP；TP×EP×DP=1024；全局bs=active_DP×本地bs，active_DP=min(DP,全局bs)；output2仅有一次首个decode间隔；未校准模型预测，无P99。",
+    "资源定义：计算与流量为全系统累计工作量，非算力/带宽利用率；GB/TB/PB按十进制；最终驻留为decode完成后所有1024卡加和，包含空闲DP的静态权重，不是单卡峰值的加和。"
+  ]
+}
