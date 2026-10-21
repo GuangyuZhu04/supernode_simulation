@@ -140,7 +140,7 @@ python -m supernode_sim feedback examples/demo_inference.yaml --ttft-s 1 --tpop-
 
 Decode 吞吐为所有请求首 token 后的输出 token 数，除以最早首 token 到最晚末 token 的时间窗；DP=PP=1 时为 Decode 阶段时间，其他并行布局可能包含与未完成 Prefill 的重叠。吞吐最优候选的输入长度和 batch 不一定是各自最大值。未显式给出长度/batch 时，取 1、2、4 等至原输入长度最大值/原 batch 并包含端点；原配置输出长度不一致时，必须显式给出至少为 2 的 `--output-length`。最优只在声明的有限候选集内成立，超过 `max_candidates` 会在仿真前拒绝，不截断或假定单调。
 
-Feedback 输出候选 CSV、失败诊断、Pareto 与布局可行边界，并在有解时生成可复跑的 `best.config.json`；`--engine auto` 为结构化 DP=PP=1 场景选择流式完整运行。字段、Python API 与报告口径见 [Feedback 使用说明](skills/supernode-modeling/references/feedback.md)。
+Feedback 输出候选 CSV、失败诊断、Pareto 与布局可行边界，并在有解时生成可复跑的 `best.config.json`；`--engine auto` 为结构化 DP=PP=1 场景选择流式完整运行，启用投机解码、Megakernel 或 PD 分离时使用普通仿真。PD 布局按双池总卡数校验并保留物理映射。字段、Python API 与报告口径见 [Feedback 使用说明](skills/supernode-modeling/references/feedback.md)。
 
 - 参数总量/活跃量是声明的预算；层级算子是架构近似，并非某个框架的精确执行 trace。
 - Dense 参数在 EP 间复制，expert 参数按 EP 划分；专家默认均匀路由。稀疏 decode 的权重读取按预期触达专家量估算。

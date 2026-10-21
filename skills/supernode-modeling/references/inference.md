@@ -12,6 +12,8 @@
 
 `prefill_decode_disaggregation` 支持独立 P/D 物理池与同 TP/EP 布局的状态交接（DP=PP=1、总卡数为两池之和）。TTFT 截止 P 池首 token，传输 KV、KDA/CSA/HCA 状态、元数据和首 token ID 后 D 才开始；交接计入首个 decode 间隔。它不模拟在线到达队列，暂不与投机、KV offload、Engram 组合。`megakernel` 可在普通图中融合安全的局部 kernel 链；两者均须读 [feature 说明](features.md) 并使用普通 `simulate`。
 
+DeepInfer 式 P 小 SP/EP、D 大 EP，以及 P bs=1 / D bs=128、256 的独立选型见 [deepinfer.md](deepinfer.md)。当前可用两个阶段配置分别分析；每 rank 请求数在本引擎中需换算为每 DP 副本的 `batch_size`，不要直接把官方 Attention DP 数填入 `execution.dp`。独立 decode 预置状态，不包含 P→D 交接。
+
 需要与真机 TTFT/TPOT 对齐时先读 [runtime-calibration.md](runtime-calibration.md)，统一客户端/引擎边界、batch/并发、统计窗口与软件路径。用户写 TPOP 时明确按 TPOT 理解。Kimi K3 的 DSpark 公开性能点见 [kimi-k3-runtime-evidence.md](kimi-k3-runtime-evidence.md)，不将投机吞吐折算值当作本引擎普通 decode 的实测。
 
 - TTFT：执行开始到首个输出 token 完成；报告中聚合 TTFT 取批内序列的最大值。

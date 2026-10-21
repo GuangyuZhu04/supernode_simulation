@@ -159,7 +159,7 @@ function harness(config = fixture()) {
   context.initialConfig = structuredClone(config);
   evaluate(`state.config = initialConfig; state.modified = false; state.jsonDirty = false;
     inputView.source = 'draft'; $('#inputs').hidden = false; $('#run-mode').value = 'simulate';
-    renderTopology = () => {}; renderInputNotes = () => {}; renderHistory = () => {};
+    renderTopology = () => {}; globalThis.realRenderInputNotes = renderInputNotes; renderInputNotes = () => {}; renderHistory = () => {};
     renderJob = () => {}; globalThis.realUpdateRunButton = updateRunButton; updateRunButton = () => {}; setConnected = () => {};
     selectJob = job => { state.currentJob = job; }; refreshHistory = async () => {};
     renderForm = () => { syncJson(); }; routeDashboard = () => {};
@@ -171,6 +171,27 @@ function harness(config = fixture()) {
     node: id => ids.get(id),
   };
 }
+
+test('PD pool counts stay consistent in the form, overview and live edits', async () => {
+  const config = fixture();
+  config.execution.features.prefill_decode_disaggregation = {enabled: true};
+  config.hardware.npu_count = 2 * config.execution.tp * config.execution.ep;
+  const h = harness(config);
+  await h.call('beginInputEditing');
+  h.call('realRenderInputNotes');
+  assert.equal(h.node('parallel-note').classList.contains('error'), false);
+  assert.match(h.node('parallel-note').textContent, /PD 双池总卡数 8 \/ 8/);
+  const note = () => h.node('input-parallel-body').querySelector('[data-input-live-note="parallel"]').textContent;
+  assert.match(note(), /PD 双池：2 × TP × EP = 8.*两者匹配/);
+  await h.call('commitInputValue', ['execution', 'tp'], 1);
+  assert.match(note(), /两者不匹配/);
+  await h.call('commitInputValue', ['hardware', 'npu_count'], 4);
+  assert.match(note(), /PD 双池：2 × TP × EP = 4.*两者匹配/);
+  await h.call('commitInputValue', ['execution', 'pp'], 2);
+  assert.match(note(), /PD 双池要求 PP = DP = 1/);
+  h.call('realRenderInputNotes');
+  assert.equal(h.node('parallel-note').classList.contains('error'), true);
+});
 
 test('edits across the five input sections reach validation and the submitted simulation', async () => {
   const h = harness();

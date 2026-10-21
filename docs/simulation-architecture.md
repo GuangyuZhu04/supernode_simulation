@@ -390,7 +390,7 @@ fingerprint 包含解析后配置和 core/config/components/structured/training/
 
 `FeedbackSpec` 的轴为 TP、EP、SP 开关、prefill length 与 decode batch；模型、硬件/拓扑、PP、DP、FSDP、rank_order、精度和其他 features 保持基线。每个候选的输入长度在请求间统一，prefill 和 decode 使用同一固定 batch 与布局，候选逐项重新校验，保留 invalid_config、infeasible、slo_failed 与 error；不做单调性假定或 estimate 剪枝。未给定长度/batch 轴时，默认是基线边界内的 2 的幂加精确端点，不能解释为全部整数穷举。组合数超过显式或 targets.max_candidates 上限即报错。
 
-必须同时提供 TTFT/TPOT 目标，`tpop_s` 是 TPOT 的输入别名；输出 token 数固定且至少为 2，ragged 输出需显式统一长度。`engine=auto` 对 structured DP=PP=1 选择 streaming，其余选择全图 simulate；显式 streaming 不适用时拒绝。全 prefill/decode 容量准入、两个延迟目标及已有吞吐目标均通过才计为可行。
+必须同时提供 TTFT/TPOT 目标，`tpop_s` 是 TPOT 的输入别名；输出 token 数固定且至少为 2，ragged 输出需显式统一长度。`engine=auto` 对 structured DP=PP=1 且未开启投机、Megakernel 或 PD 的场景选择 streaming，其余选择全图 simulate；显式 streaming 不适用时拒绝。PD 搜索按每池卡数枚举 TP/EP，保留并重校验物理映射。全 prefill/decode 容量准入、两个延迟目标及已有吞吐目标均通过才计为可行。
 
 目标为 `decode_throughput_tokens_s`：每序列除首 token 外的 token 总数，除以“最晚末 token − 最早首 token”窗口。DP>1 或 PP>1 时该窗口可能与其他请求剩余 prefill 重叠；两个输出 token 仅测得一个 decode 间隔。排序先最大化此吞吐，再优先长输入、大 batch、低 TTFT/TPOT、升序 TP/EP/SP。结果还保存以输入长度、batch、吞吐三者最大化的 Pareto 前沿与布局边界；某布局的最大长度和最大 batch 可来自不同候选，只有真实候选组合被联合验证。任何候选 error 都使 search_complete=false、顶层 status=error；最优性只限声明的有限网格与固定调度器。
 

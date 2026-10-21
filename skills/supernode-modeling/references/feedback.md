@@ -38,11 +38,11 @@ python -m supernode_sim feedback examples/demo_inference.yaml --ttft-s 1 --tpop-
 
 保持完整 `model` 与 `hardware` 不变，包括 NPU 数、SU/SO 域、显式链路、路由、带宽、容量和 kernel profiles。同时保持 PP、DP、FSDP、`rank_order`、精度、offload、Engram 等执行设置不变。只搜索 TP、SP、EP、齐次输入长度和 batch；输出 horizon 只有显式设置时才改变，TTFT/TPOT 目标取本次输入。原配置若有 `targets.throughput_tokens_s`，仍按完整执行吞吐检查。
 
-并行约束是 `TP × PP × EP × DP = NPU 数`。SP 是 `execution.sequence_parallel` 布尔开关：开启时 SP degree 等于 TP，关闭时为 1，与 TP 共用 rank。SP 要求结构化推理、TP>1、PP=1，不能再乘入设备数。模型 attention/KDA heads 的 TP 整除与专家数的 EP 整除等约束仍由原生配置校验。
+普通模式并行约束是 `TP × PP × EP × DP = NPU 数`。启用 PD 分离时为 `2 × TP × EP = NPU 数`、PP=DP=1；搜索按每池卡数枚举布局，保留并重校验已有 P/D 物理映射。SP 是 `execution.sequence_parallel` 布尔开关：开启时 SP degree 等于 TP，关闭时为 1，与 TP 共用 rank。SP 要求结构化推理、TP>1、PP=1，不能再乘入设备数。模型 attention/KDA heads 的 TP 整除与专家数的 EP 整除等约束仍由原生配置校验。
 
-每个候选均执行完整 Prefill 和 Decode，再判断 TTFT、TPOT、完整执行吞吐目标与内存可行性。这里的 Prefill 长度是每条请求的输入长度；Decode batch 同时也是该候选的 Prefill batch。引擎没有 chunked prefill、PD 分离或 continuous batching，不能把两个独立阶段的最优长度、batch 拼成一个通过联合 SLO 的推荐。
+每个候选均执行完整 Prefill 和 Decode，再判断 TTFT、TPOT、完整执行吞吐目标与内存可行性。这里的 Prefill 长度是每条请求的输入长度；Decode batch 同时也是该候选的 Prefill batch。PD 仍使用相同布局与固定 batch，吞吐窗口包含两池交接；没有 chunked prefill 或 continuous batching，不能把两个独立阶段的最优长度、batch 拼成一个通过联合 SLO 的推荐。
 
-`auto` 在结构化模型且 DP=PP=1 时使用有界内存的流式完整运行，其他场景使用普通仿真。`streaming` 显式模式仍受这些条件限制；它的完整运行保留 Prefill、Decode 的依赖与内存准入。独立 `phase='decode'` 会跳过 Prefill 和其临时内存，TTFT 为 null，不能用于本搜索的联合可行性判断。
+`auto` 在结构化模型且 DP=PP=1、未启用投机解码、Megakernel 或 PD 分离时使用有界内存的流式完整运行，其他场景使用普通仿真。上述 feature 保持原输入并在每个候选中执行；接受数、profile 和物理映射不会自动重新校准。`streaming` 显式模式不支持这些 feature 时直接报错；它的完整运行保留 Prefill、Decode 的依赖与内存准入。独立 `phase='decode'` 会跳过 Prefill 和其临时内存，TTFT 为 null，不能用于本搜索的联合可行性判断。
 
 ## 吞吐、延迟与排序口径
 

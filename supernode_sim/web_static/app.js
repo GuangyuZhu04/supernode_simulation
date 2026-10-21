@@ -151,9 +151,10 @@ function renderForm() {
 function renderInputNotes() {
   if (!state.config) return;
   const e = state.config.execution || {}, h = state.config.hardware || {}, w = state.config.workload || {};
-  const product = ['tp', 'pp', 'ep', 'dp'].reduce((a, key) => a * (e[key] || 1), 1);
-  text('#parallel-note', '并行乘积 ' + number(product, 0) + ' / ' + number(h.npu_count, 0) + ' NPU · FSDP 为 DP 子组');
-  $('#parallel-note').classList.toggle('error', product !== h.npu_count || (e.dp || 1) % (e.fsdp || 1) !== 0);
+  const pd = pdEnabled(state.config);
+  const product = (pd ? 2 : 1) * ['tp', 'pp', 'ep', 'dp'].reduce((a, key) => a * (e[key] || 1), 1);
+  text('#parallel-note', (pd ? 'PD 双池总卡数 ' : '并行乘积 ') + number(product, 0) + ' / ' + number(h.npu_count, 0) + ' NPU · FSDP 为 DP 子组');
+  $('#parallel-note').classList.toggle('error', product !== h.npu_count || (e.dp || 1) % (e.fsdp || 1) !== 0 || pd && (e.dp !== 1 || e.pp !== 1));
   const inCount = Array.isArray(w.input_lengths) ? w.input_lengths.length : 0;
   const outCount = Array.isArray(w.output_lengths) ? w.output_lengths.length : 0;
   text('#length-note', '已填 ' + inCount + ' / ' + outCount + ' 条输入 / 输出；需要 ' + (w.batch_size || '—') + ' 条。');
@@ -958,12 +959,22 @@ function renderInputHardware(config) {
     }));
   inputFields(host, config.hardware, 'hardware', '全部硬件字段（含显式图、kernel profiles 与共享资源）');
 }
+function pdEnabled(config) {
+  return (config.features?.prefill_decode_disaggregation?.enabled ?? config.execution?.features?.prefill_decode_disaggregation?.enabled) === true;
+}
+function parallelInputNote(config) {
+  const e = inputObject(config.execution), h = inputObject(config.hardware), pd = pdEnabled(config);
+  const factors = [e.tp, e.pp, e.ep, e.dp];
+  if (!factors.every(inputPositiveInt)) return '并行乘积尚不可推导。TP / PP / EP / DP 必须都是正整数；SP 共用 TP rank，FSDP 是 DP 子组。';
+  const product = factors.reduce((a, b) => a * b, pd ? 2 : 1);
+  if (pd && (e.dp !== 1 || e.pp !== 1)) return 'PD 双池要求 PP = DP = 1；请校验并修正并行配置。';
+  return (pd ? 'PD 双池：2 × TP × EP = ' : 'TP × PP × EP × DP = ') + number(product, 0) + '；配置 NPU = ' + inputScalar(h.npu_count) + (product === h.npu_count ? '，两者匹配。' : '，两者不匹配或 NPU 尚未提供。') + ' SP / FSDP 不额外乘入卡数。';
+}
 function renderInputParallel(config) {
   const host = $('#input-parallel-body'); host.replaceChildren();
   const e = inputObject(config.execution), h = inputObject(config.hardware), precision = inputObject(e.precision), features = inputObject(e.features), optimizer = inputObject(e.optimizer);
-  const factors = [e.tp, e.pp, e.ep, e.dp], product = factors.every(inputPositiveInt) ? factors.reduce((a, b) => a * b, 1) : null;
   inputFacts(host, [['TP · 张量并行', e.tp, 'execution.tp'], ['PP · 流水线并行', e.pp, 'execution.pp'], ['EP · 专家并行', e.ep, 'execution.ep'], ['DP · 数据并行', e.dp, 'execution.dp'], ['FSDP · DP 子组', e.fsdp, 'execution.fsdp'], ['Sequence parallel', e.sequence_parallel, 'execution.sequence_parallel']]);
-  inputNote(host, product === null ? '并行乘积尚不可推导。TP / PP / EP / DP 必须都是正整数；SP 共用 TP rank，FSDP 是 DP 子组。' : 'TP × PP × EP × DP = ' + number(product, 0) + '；配置 NPU = ' + inputScalar(h.npu_count) + (product === h.npu_count ? '，两者匹配。' : '，两者不匹配或 NPU 尚未提供。') + ' SP / FSDP 不额外乘入卡数。', 'parallel');
+  inputNote(host, parallelInputNote(config), 'parallel');
   const precisionLabels = {weight: '权重驻留', compute: '计算', gradient: '梯度', master: '主权重', optimizer: '优化器状态', kv: 'KV', weight_transfer: '权重回传', activation: '激活', communication: '通信', recurrent: '循环状态', routed_expert_weight: '路由专家权重覆盖'};
   inputTable(host, ['独立精度项', '数据类型'], Object.entries(precision).map(([key, value]) => [(precisionLabels[key] || key) + ' · ' + key, inputEditableValue(['execution', 'precision', key], value)]), '各精度独立配置；未设置的覆盖项保留 null');
   if (!Object.keys(precision).length) inputNote(host, '精度映射：' + inputScalar(e.precision));
@@ -1466,10 +1477,8 @@ function refreshInputLiveViews() {
     if (node.dataset.inputComputedLabel === 'Scale-up 域数') target.textContent = inputPositiveInt(h.npu_count) && inputPositiveInt(h.su_size) && h.npu_count % h.su_size === 0 ? number(h.npu_count / h.su_size, 0) + '（由 NPU / SU 卡数推导）' : '无法推导：需要可整除的正整数 NPU / SU 卡数';
     if (node.dataset.inputComputedLabel === '主机数') target.textContent = inputPositiveInt(h.npu_count) && inputPositiveInt(h.npus_per_host) ? number(Math.ceil(h.npu_count / h.npus_per_host), 0) + '（向上取整）' : '无法推导：NPU / 每主机卡数未就绪';
   });
-  const factors = [e.tp, e.pp, e.ep, e.dp];
-  const product = factors.every(inputPositiveInt) ? factors.reduce((a, b) => a * b, 1) : null;
   $$('[data-input-live-note]').forEach(node => {
-    if (node.dataset.inputLiveNote === 'parallel') node.textContent = product === null ? '并行乘积尚不可推导；SP 共用 TP rank，FSDP 是 DP 子组。' : 'TP × PP × EP × DP = ' + number(product, 0) + '；配置 NPU = ' + inputScalar(h.npu_count) + (product === h.npu_count ? '，两者匹配。' : '，两者不匹配或 NPU 尚未提供。') + ' SP / FSDP 不额外乘入卡数。';
+    if (node.dataset.inputLiveNote === 'parallel') node.textContent = parallelInputNote(state.config);
     if (node.dataset.inputLiveNote === 'training-batch') node.textContent = [w.batch_size, w.gradient_accumulation, e.dp].every(inputPositiveInt) ? '每优化器步全局样本数 = Batch × 梯度累积 × DP = ' + number(w.batch_size * w.gradient_accumulation * e.dp, 0) + '。' : '全局样本数需要有效的 Batch、梯度累积和 DP 才能推导。';
     if (node.dataset.inputLiveNote === 'inference-batch') node.textContent = inputPositiveInt(w.batch_size) && inputPositiveInt(e.dp) ? '配置请求总数 = 每副本 Batch × DP = ' + number(w.batch_size * e.dp, 0) + '。这是固定负载，不包含请求到达排队。' : '请求总数需有效 Batch 与 DP 才能推导。';
     if (node.dataset.inputLiveNote === 'length-count') node.textContent = Array.isArray(w.input_lengths) && Array.isArray(w.output_lengths) && w.input_lengths.length === w.batch_size && w.output_lengths.length === w.batch_size ? '显式长度列表与每副本 Batch 数量一致；保留每条请求的差异。' : '显式列表数量与 Batch 不一致或仍未展开；此页面不补齐、不覆盖请求长度。';

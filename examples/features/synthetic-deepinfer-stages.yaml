@@ -1,0 +1,51 @@
+# Synthetic starting point for independent P/D stage studies, not DeepSeek weights.
+# bs=1 per Attention replica: workload.batch_size = EP * 1 = 2.
+schema_version: '1.0'
+model:
+  name: synthetic-deepinfer-stage-study
+  layers: 1
+  hidden_dim: 16
+  num_heads: 4
+  kv_heads: 2
+  head_dim: 4
+  architecture:
+    vocab_size: 32
+    attention_by_layer: [GQA]
+    ffn_by_layer: [MoE]
+    moe:
+      num_experts: 128
+      top_k: 2
+      intermediate_dim: 8
+hardware:
+  name: synthetic-homogeneous-stage-pool
+  npu_count: 4
+  su_size: 4
+  npus_per_host: 4
+  npu:
+    hbm_bytes: 67108864
+    hbm_Bps: 1000000000
+    flops: {fp16: 1000000000, bf16: 1000000000, fp32: 100000000}
+    efficiency: 1
+    runtime_bytes: 65536
+    workspace_bytes: 4096
+  scale_up:
+    bandwidth_Bps: 1000000000
+    latency_s: 0.000001
+    efficiency: 1
+workload:
+  scenario: inference
+  batch_size: 2
+  input_length: 8
+  # Two output tokens allow a one-step decode smoke check, not a steady-state claim.
+  output_length: 2
+features:
+  parallelism: {tp: 2, ep: 2, pp: 1, dp: 1}
+  sequence_parallel: true
+sources:
+  '*':
+    status: assumed
+    description: Synthetic model and hardware; DeepInfer motivates the stage study only. No DeepSeek or device performance claim.
+assumptions:
+  - Batch scope is requests per Attention replica; EP lanes own independent requests and TP/SP ranks share each lane.
+  - This is one stage pool, with no P-to-D transfer or request batching queue.
+  - Expert routing is uniform; no redundant experts or dynamic EPLB is modeled.

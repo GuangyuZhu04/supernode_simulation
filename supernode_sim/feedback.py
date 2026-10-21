@@ -64,7 +64,8 @@ def _divisors(value: int) -> list[int]:
 
 
 def _layouts(config: Config, search: FeedbackSpec) -> list[dict]:
-    slots = config.hardware.npu_count // (config.execution.dp * config.execution.pp)
+    copies = 2 if config.execution.features.prefill_decode_disaggregation.enabled else 1
+    slots = config.hardware.npu_count // (copies * config.execution.dp * config.execution.pp)
     if search.tp_sizes is None and search.ep_sizes is None:
         pairs = [(slots // ep, ep) for ep in _divisors(math.gcd(slots, config.model.num_experts))]
     elif search.ep_sizes is None:
@@ -151,9 +152,14 @@ def feedback(config: Config, search: FeedbackSpec | dict | None = None) -> dict:
         output_length = next(iter(lengths))
     if output_length < 2:
         raise ValueError('feedback output_length must be at least 2 to measure TPOT')
-    supports_streaming = config.model.architecture is not None and config.execution.dp == config.execution.pp == 1
+    features = config.execution.features
+    requires_graph = (features.speculative_decode.enabled or features.megakernel.enabled
+                      or features.prefill_decode_disaggregation.enabled)
+    supports_streaming = (config.model.architecture is not None
+                          and config.execution.dp == config.execution.pp == 1 and not requires_graph)
     if search.engine == 'streaming' and not supports_streaming:
-        raise ValueError('streaming feedback requires structured inference and DP=PP=1')
+        raise ValueError('streaming feedback requires structured inference and DP=PP=1; '
+                         'speculative decode, megakernel and PD require ordinary simulate')
     engine = ('streaming' if supports_streaming else 'simulate') if search.engine == 'auto' else search.engine
     prefill_lengths = search.prefill_lengths or _bounded_grid(max(config.workload.input_lengths))
     batch_sizes = search.decode_batch_sizes or _bounded_grid(config.workload.batch_size)
@@ -227,7 +233,9 @@ def feedback(config: Config, search: FeedbackSpec | dict | None = None) -> dict:
         'assumptions': [
             'Optimality is limited to the complete declared finite candidate grid and fixed simulator scheduler; no global optimum is claimed.',
             'Model, hardware/topology, PP, DP, FSDP, rank_order, precision and features are held fixed.',
-            'Prefill length is uniform per request; prefill and decode share the same fixed batch per DP replica and the same parallel layout. No PD disaggregation or chunked prefill is modeled.',
+            'Prefill length is uniform per request; prefill and decode share the same fixed batch per DP replica and the same parallel layout. No chunked prefill or online batching is modeled.',
+            ('PD uses two equal TP/EP pools, counts both pools in the physical NPU budget, and retains/revalidates the explicit pool mappings. Decode throughput includes the handoff window.'
+             if features.prefill_decode_disaggregation.enabled else 'Prefill and decode use the same physical pool.'),
             'SP shares TP ranks: degree is TP when enabled and 1 otherwise; SP does not multiply the device count.',
             'TPOP is accepted as an input alias of TPOT. TTFT is the maximum request TTFT; TPOT is the maximum per-request mean token interval.',
             'Decode throughput = total output tokens after each request first token / (latest last-token completion - earliest first-token completion), aggregated over fixed DP replicas.',
