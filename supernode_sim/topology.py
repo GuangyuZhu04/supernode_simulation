@@ -331,7 +331,7 @@ class Topology:
 
     def collective(self, graph: Graph, prefix: str, kind: str, ranks: list[str], size_bytes: float,
                    deps: tuple[str, ...] = (), payload_matrix: list[list[float]] | None = None,
-                   metadata: dict[str, Any] | None = None) -> tuple[str, ...]:
+                   metadata: dict[str, Any] | None = None, algorithm: str = 'pairwise') -> tuple[str, ...]:
         """Append ring or pairwise rounds, returning terminal dependency IDs.
 
         AG/RS/AR sizes are full tensor bytes per rank; all-to-all-v supplies
@@ -341,6 +341,8 @@ class Topology:
         aliases = {"all-gather": "all_gather", "reduce-scatter": "reduce_scatter", "all-reduce": "all_reduce", "all-to-all-v": "all_to_all_v"}
         kind = aliases.get(kind, kind)
         n = len(ranks)
+        if algorithm not in ('pairwise', 'direct'):
+            raise ValueError('all-to-all algorithm must be pairwise or direct')
         if n == 0 or len(set(ranks)) != n:
             raise ValueError("Collective requires distinct, nonempty ranks")
         if kind not in {"all_gather", "reduce_scatter", "all_reduce", "all_to_all_v"}:
@@ -355,6 +357,7 @@ class Topology:
         if n == 1:
             return tuple(deps)
         previous = tuple(deps)
+        direct_ends = []
         phases = ("reduce_scatter", "all_gather") if kind == "all_reduce" else (kind,)
         for phase in phases:
             for step in range(n - 1):
@@ -368,16 +371,20 @@ class Topology:
                     eid = f"{prefix}.{phase}.s{step}.r{index}"
                     event = self.transfer(eid, src, dst, amount, previous,
                                           {**(metadata or {}), "collective": kind, "collective_phase": phase,
-                                           "algorithm": "pairwise" if kind == "all_to_all_v" else "ring",
+                                           "algorithm": algorithm if kind == "all_to_all_v" else "ring",
                                            "communicator": list(ranks), "round": step})
                     allocations = tuple(Allocation(f"{eid}.{role}", self.memory_for(node), amount,
                                                    "communication_buffer", (metadata or {}).get("buffer_dtype", self.precision.get("communication", "fp16")))
                                         for role, node in (("send", src), ("recv", dst)))
                     event.allocs = allocations
                     event.releases = tuple(alloc.id for alloc in allocations)
-                    event.slots = (f"{src}.collective.tx", f"{dst}.collective.rx")
+                    if kind != 'all_to_all_v' or algorithm != 'direct':
+                        event.slots = (f"{src}.collective.tx", f"{dst}.collective.rx")
                     graph.events.append(event)
                     current.append(eid)
                 if current:
-                    previous = tuple(current)
-        return previous
+                    if kind == 'all_to_all_v' and algorithm == 'direct':
+                        direct_ends.extend(current)
+                    else:
+                        previous = tuple(current)
+        return tuple(direct_ends) if direct_ends else previous

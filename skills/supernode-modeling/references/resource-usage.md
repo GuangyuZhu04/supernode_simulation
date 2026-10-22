@@ -4,7 +4,7 @@
 
 ## 执行方式
 
-- 结构化推理（`model.architecture`，DP=PP=1）只需要性能、流量和设备容量峰值时，使用 `supernode_sim.streaming.run_streaming`。它逐组件执行并释放事件图；支持 SP。返回数值 JSON，不提供普通报告的完整组件/张量生命周期。阶段解释见 [inference.md](inference.md#大规模结构化推理)。
+- 结构化推理（`model.architecture`，DP=PP=1）只需要性能、流量和设备容量峰值时，使用 `supernode_sim.streaming.run_streaming`。它逐组件执行并释放事件图；支持 SP，以及显式 draft/verify/commit 投机轮次；投机分块与完整图共用轮次 hooks，按实际输出 token 数计时。Megakernel/PD 仍不支持此路径。返回数值 JSON，不提供普通报告的完整组件/张量生命周期。阶段解释见 [inference.md](inference.md#大规模结构化推理)。
 - 训练、其他并行布局、完整组件/张量审计使用普通 `estimate` / `simulate`。默认大型导出精简事件与临时缓冲记录，完整汇总仍保留。
 - 需要中断后恢复时使用 `scripts/run_reference_experiment.py`。检查点需要额外磁盘；普通 CLI 不额外保存检查点。先检查已有结果和指纹，避免重复运行同一场景。
 

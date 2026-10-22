@@ -1,7 +1,30 @@
+# Python environment, build products, and test caches.
 __pycache__/
+*.py[cod]
 .pytest_cache/
+.pytest_tmp*/
+pytest-cache-files-*/
 *.egg-info/
 .venv/
 build/
 dist/
+
+# Simulation results, reports, figures, checkpoints, logs, and archives.
+# Keep generated artifacts under outputs/; keep report templates in scripts/.
 outputs/
+
+# Local presentation files and materials (including legacy UUID workspaces).
+*.ppt
+*.pptx
+*.pptm
+*.pps
+*.ppsx
+*.ppsm
+*.pot
+*.potx
+*.potm
+/presentations/
+/ppt/
+/slides/
+/????????-????-????-????-????????????/
+/docs/*-ppt-*.md

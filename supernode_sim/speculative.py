@@ -98,7 +98,8 @@ def _round_storage(builder: Builder, rank: str, item: dict) -> tuple[float, floa
         # A final single-token target step has no speculative candidates and
         # cannot reject a proposal, so it needs no rollback buffer.
         return 0.0, 0.0
-    batch = builder.w['batch_size'] // builder.ep
+    lane = builder.coords[rank][2]
+    batch = len(range(lane, builder.w['batch_size'], builder.ep))
     before, queries, commit = item['context_before'], item['query_tokens'], item['committed_tokens']
     snapshot = builder.f['speculative_decode']['snapshot_bytes_per_rank']
     candidates = 0.0
@@ -121,12 +122,13 @@ def _round_storage(builder: Builder, rank: str, item: dict) -> tuple[float, floa
     return snapshot, candidates
 
 
-def build_speculative(config: dict, topology):
-    """Build one fixed homogeneous batch; feature validation lives in Config."""
+def configure_speculative(builder: Builder):
+    """Install the same round schedule on full-graph and streaming builders."""
+    config = builder.c
     feature = config['execution']['features']['speculative_decode']
     if not feature['enabled']:
         raise ValueError('build_speculative requires speculative_decode.enabled')
-    builder = Builder(config, topology)
+    graph = builder.g
     plan = speculative_plan(config)
     mutable_state = any(kind in ('KDA', 'CSA', 'HCA') for kind in builder.a['attention_by_layer'])
     if mutable_state and feature['replay_cost'] is None and any(item.get('rejected_queries') for item in plan):
@@ -207,14 +209,6 @@ def build_speculative(config: dict, topology):
 
     builder._inference_round_before = before
     builder._inference_round_after = after
-    try:
-        graph = builder.inference()
-    finally:
-        # The CLI disables cyclic GC during large runs. These hooks close over
-        # builder, so remove them on success and on compilation errors alike.
-        for name in ('_inference_round_before', '_inference_round_after', '_inference_plan'):
-            builder.__dict__.pop(name, None)
-    builder.annotate_collective_allocations()
     rounds = plan[1:]
     graph.metadata['speculative_decode'] = {
         'enabled': True, 'method': feature['method'], 'implementation': 'profile_driven_round_schedule',
@@ -234,6 +228,7 @@ def build_speculative(config: dict, topology):
         'Speculative acceptance counts are explicit inputs; DSpark acceptance prediction and token correctness are not simulated.',
         'A trace entry is the committed output count including bonus/replacement for every request in a synchronized equal-length batch.',
         'Draft cost is per participating rank for its whole local batch; draft resident budget includes its weights, maximum KV/state and runtime.',
+        'Uneven EP request placement uses actual local request counts for target state; scalar draft/commit/replay budgets are charged on every rank and must cover the maximum local batch.',
         'Draft, verifier and commit/rollback use the same NPU compute slots and shared HBM. No speculative CPU/network overhead is inferred.',
         'Verifier candidate KV is conservatively double-buffered for dense/MLA; sparse rolling windows and recurrent/compressor states are snapshotted.',
         'A supplied per-round draft profile is not scaled down for a shortened final round; a per-step profile charges only executed draft positions.',
@@ -242,4 +237,17 @@ def build_speculative(config: dict, topology):
         'Snapshot/rollback copies and a replay profile model resource costs, not the internal ReplaySSM or DSpark algorithm.',
         'Committed output timestamps represent a model-side burst. Zero intra-round intervals are not independently observed client token latencies.',
     ])
+    return plan
+
+
+def build_speculative(config: dict, topology):
+    """Build one fixed homogeneous batch; feature validation lives in Config."""
+    builder = Builder(config, topology)
+    configure_speculative(builder)
+    try:
+        graph = builder.inference()
+    finally:
+        for name in ('_inference_round_before', '_inference_round_after', '_inference_plan'):
+            builder.__dict__.pop(name, None)
+    builder.annotate_collective_allocations()
     return graph

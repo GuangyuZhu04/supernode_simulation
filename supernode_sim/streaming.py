@@ -113,8 +113,6 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
     spec = config if isinstance(config, Config) else Config.model_validate(config)
     if spec.execution.features.megakernel.enabled or spec.execution.features.prefill_decode_disaggregation.enabled:
         raise ValueError('Megakernel fusion and prefill/decode disaggregation require ordinary simulate; streaming graph boundaries do not implement these features')
-    if spec.execution.features.speculative_decode.enabled:
-        raise ValueError('Speculative decoding currently requires ordinary simulate; streaming round state is not implemented')
     if spec.workload.scenario != 'inference' or spec.model.architecture is None:
         raise ValueError('Streaming requires structured inference architecture')
     if spec.execution.dp != 1 or spec.execution.pp != 1:
@@ -123,6 +121,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         raise ValueError('Standalone decode requires output_length >= 2')
     data = spec.model_dump()
     builder = Builder(data, Topology(data['hardware'], data['execution']['precision']))
+    speculative = spec.execution.features.speculative_decode.enabled
+    plan = None
     if phase == 'decode':
         original_collective, original_kernel = builder.collective, builder.kernel
 
@@ -184,6 +184,14 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
                 graph.metadata['initial_resident_cache']['hit'] = True
 
         builder.initial = cached_initial
+    # Install after the resident-cache wrapper: the cached target allocations
+    # exclude draft residency, which is workload dependent and added per run.
+    if speculative:
+        from .speculative import configure_speculative
+        plan = configure_speculative(builder)
+        initial_cache_enabled = False
+        builder.__dict__.pop('initial', None)
+        graph.metadata['initial_resident_cache'] = {'enabled': False, 'hit': False}
     component_macros = {}
     kernel_calibration = calibration_summary()
     phases = {}
@@ -467,7 +475,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         # The CLI intentionally disables cyclic GC while simulating large DAGs,
         # so break the cycles even on infeasibility or a progress callback error.
         for name in ('initial', 'collective', 'kernel', '_inference_state_hook',
-                     '_inference_component_before', '_inference_component_after'):
+                     '_inference_component_before', '_inference_component_after',
+                     '_inference_plan', '_inference_round_before', '_inference_round_after'):
             builder.__dict__.pop(name, None)
         graph.events = []
         sink.clear()
@@ -486,8 +495,9 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
             for request in metrics['requests']:
                 request['ttft_breakdown'] = _sum_latency([token_latency[0]])
                 interval_count = len(request['itl_s'])
+                round_count = len(plan) - 1 if plan is not None else interval_count
                 request['tpot_breakdown'] = ({**_sum_latency(
-                    (token_latency[index] for index in range(1, interval_count + 1)), interval_count),
+                    (token_latency[index] for index in range(1, round_count + 1)), interval_count),
                     'interval_count': interval_count} if interval_count else None)
             selected = max(metrics['requests'], key=lambda row: row['ttft_s'])
             latency['ttft'] = {**selected['ttft_breakdown'],
@@ -502,13 +512,17 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
             latency['ttft'] = {**_sum_latency([token_latency[0]]), 'replica': '0', 'sequence': '0'}
         else:
             intervals = [b - a for a, b in zip([0.0] + token_times, token_times)]
+            if plan is not None:
+                intervals = [value for item, interval in zip(plan[1:], intervals)
+                             for value in [interval] + [0.0] * (item['committed_tokens'] - 1)]
             sequence_means = [(index, sum(intervals[:length - 1]) / (length - 1))
                               for index, length in enumerate(spec.workload.output_lengths) if length > 1]
             selected_index, selected_mean = max(sequence_means, key=lambda item: item[1])
             metrics.update(tpot_s=selected_mean, decode_intervals_s=intervals)
             interval_count = spec.workload.output_lengths[selected_index] - 1
+            round_count = len(plan) - 1 if plan is not None else interval_count
             latency['tpot'] = {**_sum_latency(
-                (token_latency[index] for index in range(1, interval_count + 1)), interval_count),
+                (token_latency[index] for index in range(1, round_count + 1)), interval_count),
                 'interval_count': interval_count, 'replica': '0', 'sequence': str(selected_index)}
     else:
         latency['unavailable_reason'] = ('execution_incomplete' if status != 'feasible'
@@ -529,7 +543,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
     graph.metadata['fidelity'] = model_fidelity(spec, kernel_calibration)
     graph.metadata['feature_plan'] = build_feature_plan(spec, kernel_calibration)
     return {
-        'status': status, 'execution_mode': 'structured_layer_streaming', 'phase': phase,
+        'status': status, 'execution_mode': 'speculative_layer_streaming' if speculative else 'structured_layer_streaming', 'phase': phase,
         'metrics': metrics, 'phase_metrics': phases, 'chunks': chunks,
         'simulation': {'status': status, 'duration_s': duration, 'total_events': total_events,
             'completed_events': completed_events, 'generated_events': generated_events,

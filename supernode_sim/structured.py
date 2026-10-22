@@ -135,7 +135,8 @@ class Builder:
                     slots=(rank + '.compute_stream',), allocs=(self.allocation(aid, rank, payload, component, 'communication_buffer', layer, self.p['communication']),),
                     metadata={**meta, 'kernel': 'communication_pack'})))
             deps = packed
-        terminals = self.topo.collective(self.g, prefix, kind, ranks, size, tuple(deps), payload_matrix=matrix, metadata=meta)
+        terminals = self.topo.collective(self.g, prefix, kind, ranks, size, tuple(deps), payload_matrix=matrix,
+            metadata=meta, algorithm=self.x.get('all_to_all_algorithm', 'pairwise'))
         if buffers:
             ends = []
             for i, rank in enumerate(ranks):

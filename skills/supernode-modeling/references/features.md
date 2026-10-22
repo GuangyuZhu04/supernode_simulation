@@ -66,7 +66,7 @@ python -m supernode_sim validate examples/features/synthetic-dspark.yaml
 python -m supernode_sim simulate examples/features/synthetic-dspark.yaml -o outputs/features/dspark
 ```
 
-最小输入使用 `features.speculative_decode`。`enabled: true` 后要求 structured inference、DP = PP = 1、同 batch 内所有 input lengths 相同且 output lengths 相同、output length 至少为 2、batch size 能被 EP 整除、`execution.features.kv_offload: none`。compute dtype 仍需出现在硬件 FLOPs 表中。不要把不同请求的 acceptance 独立序列直接塞入当前同步 batch 接口。
+最小输入使用 `features.speculative_decode`。`enabled: true` 后要求 structured inference、DP = PP = 1、同 batch 内所有 input lengths 相同且 output lengths 相同、output length 至少为 2、`execution.features.kv_offload: none`。batch 不必被 EP 整除，目标状态按 `i % EP` 的实际请求归属分配；标量 draft/commit/replay 预算必须覆盖最大 local batch，并在所有 rank（含空闲 lane）计费。普通 `simulate` 与 `run_streaming` API 使用相同轮次；后者以组件边界执行，支持单列 warm decode（TTFT 为空）。compute dtype 仍需出现在硬件 FLOPs 表中。不要把不同请求的 acceptance 独立序列直接塞入当前同步 batch 接口。
 
 - `draft_tokens` 是每轮草稿位置预算。`accepted_lengths` 是逐轮**最终提交的输出 token 数，包含 bonus/replacement token**，不是“通过验证的 draft token 数”。每项在 1 到 `draft_tokens + 1` 之间；同轮作用于 batch 内每个请求。也可用固定假设 `accepted_length`，两者互斥。
 - prefill 已输出第一个 token，acceptance 列表覆盖之后所有轮次。示例 output length = 7，随后 `[2, 1, 3]` 提交六个 token。末轮按剩余输出长度截断；检查输出中的 unused trace entries，而非假定列表每项都使用。

@@ -6,6 +6,12 @@
 
 支持训练与固定负载推理、FP8/FP16 权重、FSDP2/CPU optimizer offload、MoE、标准与 latent KV、KV offload、Engram 查询、SU/SO 拓扑和有限候选搜索。Demo 与 10T 容量锚点是明确标注的合成配置；Kimi K3 / Ascend 950DT 案例使用公开结构和硬件资料，并分别标明运行时、拓扑及效率假设，不将型号名称当作实测校准。
 
+## 仓库内容与本地产物
+
+`main` 保留仿真引擎与网页源码、`skills/` 中的 skill 代码和文档、运行/汇总脚本及 HTML 报告模板、示例配置、硬件配置、测试、架构说明和 `docs/sources/` 中的参考资料。
+
+仿真结果（JSON/CSV、报告、图表、检查点、日志及压缩包）统一写入 `outputs/`；PPT 文件、内容稿、预览和制作中间材料放在 `outputs/presentations/`。这些本地产物不提交到 Git。`.gitignore` 同时排除旧的根目录 UUID 演示工作目录、独立 PowerPoint 文件和 `docs/*-ppt-*.md` 内容稿，取消跟踪时保留本地文件。
+
 ## 网页仿真工作台
 
 在项目根目录启动本地网页，无需安装 Node.js 或前端依赖：
@@ -161,7 +167,7 @@ python -m supernode_sim simulate examples/features/synthetic-attention-base.yaml
 python -m supernode_sim simulate examples/features/synthetic-dspark.yaml -o outputs/features/dspark
 ```
 
-这些小示例全部是 synthetic，不代表真实硬件 benchmark。报告和 JSON 的 `model_metadata.feature_plan` 列出实际选择与限制。CSA/HCA 计入压缩池、滑窗、索引/选择、评分暂存及索引 TP 通信；训练保留/重算相关状态，但不包含完整 DeepSeek V4 的 mHC 或 indexer 辅助训练目标。投机模式计入 draft prompt 准备、draft 成本、完整 verify query、接受/回滚与临时状态，并按实际输出 token 计指标；同步等长 batch、DP=PP=1，目前只支持普通 `simulate`。
+这些小示例全部是 synthetic，不代表真实硬件 benchmark。报告和 JSON 的 `model_metadata.feature_plan` 列出实际选择与限制。CSA/HCA 计入压缩池、滑窗、索引/选择、评分暂存及索引 TP 通信；训练保留/重算相关状态，但不包含完整 DeepSeek V4 的 mHC 或 indexer 辅助训练目标。投机模式计入 draft prompt 准备、draft 成本、完整 verify query、接受/回滚与临时状态，并按实际输出 token 计指标；同步等长 batch、DP=PP=1，支持普通 `simulate` 与 `run_streaming` API；后者保留原生投机轮次并按组件边界分块。
 
 开启特性不保证更快：offload 可能增加传输，checkpoint 增加重算，投机有 draft/验证成本。融合与图执行通过具体 kernel profile 表达，不能用通用倍数。参数、可用组合、示例与证据边界见 [feature 输入说明](skills/supernode-modeling/references/features.md)。
 

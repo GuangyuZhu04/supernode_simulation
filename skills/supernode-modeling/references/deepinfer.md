@@ -98,7 +98,7 @@ for phase, tp, ep, bs in cases:
 
 投机解码校准时，官方 benchmark 的满接受吞吐使用 `steps/s × requests × (1 + nextn)`（CP=1）。引用有效输出吞吐必须使用实际提交数/接受口径，不把这个满接受指标当作真实 acceptance。[Q&A][qa] 的动态验证收益依赖并发和硬件，低并发点也可能退化；不设置固定提速倍率。保留本引擎 `accepted_lengths` 包含 bonus/replacement token 的定义。
 
-组合分析先建立普通 decode 基线，再按目标实现引入低精度、kernel、投机等成本，并检查现有组合限制。启用投机或 megakernel 要走普通 `simulate`，不能把上面 streaming 示例直接加开关；当前 PD 也不支持同时开启投机。参数看似可校验不等于完整复现 DeepInfer serving。
+组合分析先建立普通 decode 基线，再按目标实现引入低精度、kernel、投机等成本，并检查现有组合限制。投机可使用普通 `simulate` 或 `run_streaming` API，但仍须显式 draft/acceptance 成本并检查批次范围；megakernel 要走普通 `simulate`，当前 PD 也不支持同时开启投机。参数看似可校验不等于完整复现 DeepInfer serving。
 
 [qa]: https://github.com/deepseek-ai/DeepInfer/blob/774ce244b87cc0eb8d4b94ab9f5de2ab22049f01/doc/inference_deployment_qa.md
 [readme]: https://github.com/deepseek-ai/DeepInfer/blob/774ce244b87cc0eb8d4b94ab9f5de2ab22049f01/README.md

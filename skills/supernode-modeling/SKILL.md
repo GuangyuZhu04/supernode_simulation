@@ -93,7 +93,7 @@ DeepInfer 类部署选型优先比较 P 的小 EP、可选小 TP/SP 与请求 bs
 
 只需要性能、流量、容量峰值和失败诊断的大型结构化推理，DP=PP=1 时优先使用 [流式推理](references/inference.md#大规模结构化推理)。需要完整组件/张量生命周期、训练或其他并行布局时继续使用普通引擎。批量实验默认串行并复用匹配结果；每个并发进程会分别占用图和缓存内存。
 
-启用 `speculative_decode`、`megakernel` 或 `prefill_decode_disaggregation` 时使用普通 `simulate`；流式路径当前不处理投机轮次、跨组件融合或跨池交接，会明确报错。不要绕过限制退回普通 decode。PD 暂不与投机、KV offload、Engram 组合；未知收益不能用一个效率系数替代缺失语义。
+`speculative_decode` 支持普通 `simulate` 和 `run_streaming` API；流式投机复用相同 draft/verify/commit hooks，按实际提交 token 数归因时延，并保留状态快照/回滚。小 batch 按实际 EP 请求归属计状态；标量 draft profile 必须覆盖最大 local batch，并在所有 rank 计费。`megakernel` 与 `prefill_decode_disaggregation` 仍须普通 `simulate`，流式路径不处理跨组件融合或跨池交接。PD 暂不与投机、KV offload、Engram 组合；未知收益不能用一个效率系数替代缺失语义。
 
 大型 optimizer offload 场景可显式配置 `execution.optimizer.inflight_components_per_rank: 2`，限制同时在途的组件更新并保留搬运/计算重叠；这是执行策略，会影响峰值和耗时，应随结果说明。未设置时保留原有全部提交策略。
 

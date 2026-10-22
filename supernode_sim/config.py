@@ -497,6 +497,7 @@ class FeatureSpec(Spec):
 
 class ExecutionSpec(Spec):
     tp: int = Field(default=1, gt=0)
+    all_to_all_algorithm: Literal['pairwise', 'direct'] = 'pairwise'
     sequence_parallel: bool = False
     pp: int = Field(default=1, gt=0)
     ep: int = Field(default=1, gt=0)
@@ -710,8 +711,8 @@ class Config(Spec):
                 raise ValueError('speculative_decode currently requires DP=PP=1')
             if len(set(self.workload.input_lengths)) != 1 or len(set(self.workload.output_lengths)) != 1:
                 raise ValueError('speculative_decode currently requires uniform input and output lengths')
-            if min(self.workload.output_lengths) < 2 or self.workload.batch_size % e.ep:
-                raise ValueError('speculative_decode requires output lengths >=2 and batch_size divisible by EP')
+            if min(self.workload.output_lengths) < 2:
+                raise ValueError('speculative_decode requires output lengths >=2')
             if f.kv_offload != 'none':
                 raise ValueError('speculative_decode currently requires kv_offload=none; block verification offload is not modeled')
             for cost in (speculative.draft.cost, speculative.draft.prefill_cost, speculative.commit_cost, speculative.replay_cost):
