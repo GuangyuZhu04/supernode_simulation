@@ -17,6 +17,8 @@ from typing import Callable
 
 from .analysis import execution_metrics, model_fidelity
 from .calibration import apply_kernel_profiles, calibration_summary, merge_calibration_summaries
+from .collective_calibration import (collective_calibration_summary, summarize_collective_calibration,
+                                     merge_collective_calibration_summaries)
 from .cache import BoundedCache
 from .config import Config
 from .features import build_feature_plan
@@ -194,6 +196,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         graph.metadata['initial_resident_cache'] = {'enabled': False, 'hit': False}
     component_macros = {}
     kernel_calibration = calibration_summary()
+    collective_calibration = collective_calibration_summary()
     phases = {}
     peaks = defaultdict(float)
     categories_at_peak = {}
@@ -272,6 +275,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
             apply_kernel_profiles(chunk, data)
             chunk_calibration = chunk.metadata['kernel_calibration']
         merge_calibration_summaries(kernel_calibration, chunk_calibration)
+        chunk.metadata['collective_calibration'] = (replay['collective_calibration'] if replay
+            else summarize_collective_calibration(chunk))
         used_resources = {key for event in chunk.events for key in event.work}
         chunk.resources = {key: chunk.resources[key] for key in used_resources}
         initial_bytes = defaultdict(float)
@@ -324,6 +329,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
                 cached['resource_work'] = {key: value for key, value in template['resource_work'].items() if value}
                 cached['resource_busy_s'] = {key: value for key, value in template['resource_busy_s'].items() if value}
                 cached['_latency_breakdown'] = window_breakdown(chunk, template, terminal.id)
+                cached['_collective_calibration'] = summarize_collective_calibration(chunk, template)
                 cached['_peak_delta'] = {pool: value - initial_bytes[pool] for pool, value in template['memory_peaks_bytes'].items()}
                 cached['_final_delta'] = {pool: value - initial_bytes[pool] for pool, value in template['memory_final_bytes'].items()}
                 cached['_category_delta'] = {pool: {category: value - initial_categories[pool].get(category, 0)
@@ -335,6 +341,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         if fits:
             result = {key: value for key, value in cached.items() if not key.startswith('_')}
             result['_latency_breakdown'] = cached['_latency_breakdown']
+            result['_collective_calibration'] = cached['_collective_calibration']
             result['memory_peaks_bytes'] = {pool: initial_bytes[pool] + cached['_peak_delta'].get(pool, 0) for pool in chunk.memory_caps}
             result['memory_final_bytes'] = {pool: initial_bytes[pool] + cached['_final_delta'].get(pool, 0) for pool in chunk.memory_caps}
             result['memory_categories_at_peak_bytes'] = {pool: {
@@ -344,8 +351,10 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         else:
             cache_hit = False
             result = simulate(chunk, retain_event_payload=False)
+            result['_collective_calibration'] = summarize_collective_calibration(chunk, result)
             if result['status'] == 'feasible':
                 result['_latency_breakdown'] = window_breakdown(chunk, result, terminal.id)
+        merge_collective_calibration_summaries(collective_calibration, result['_collective_calibration'])
         total_events += result['total_events']
         completed_events += result['completed_events']
         before = duration
@@ -391,7 +400,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         macro_key = terminal.metadata.get('_stream_macro_key')
         if macro_key is not None and fits and not survivors and not (released & named.keys()):
             component_macros[macro_key] = {'template': cached, 'communication': traffic,
-                                           'kernel_calibration': chunk_calibration}
+                                           'kernel_calibration': chunk_calibration,
+                                           'collective_calibration': result['_collective_calibration']}
         for aid in released:
             named.pop(aid, None)
         for event in sink:
@@ -540,7 +550,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         phase_result['peak_hbm_bytes'] = max((v for k, v in phase_result['memory_peaks_bytes'].items() if k.endswith('.hbm')), default=0)
         phase_result['communication']['classification_note'] = 'Semantic and collective payloads are two views; physical bytes count link hops.'
     graph.metadata['kernel_calibration'] = kernel_calibration
-    graph.metadata['fidelity'] = model_fidelity(spec, kernel_calibration)
+    graph.metadata['collective_calibration'] = collective_calibration
+    graph.metadata['fidelity'] = model_fidelity(spec, kernel_calibration, collective_calibration)
     graph.metadata['feature_plan'] = build_feature_plan(spec, kernel_calibration)
     return {
         'status': status, 'execution_mode': 'speculative_layer_streaming' if speculative else 'structured_layer_streaming', 'phase': phase,

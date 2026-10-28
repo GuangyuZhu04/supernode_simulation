@@ -30,6 +30,8 @@ python -m supernode_sim feedback examples/demo_inference.yaml --ttft-s 1 --tpop-
 | `max_candidates` | 候选数量上限；默认沿用基础场景 `targets.max_candidates`；超出上限在仿真前拒绝运行，不截断候选 |
 | `engine` | `auto`、`simulate` 或 `streaming`；默认 `auto` |
 
+多核搜索使用 CLI `--workers 4` 或 `feedback(config, search, workers=4)`；这是主机运行选项，不属于上表的搜索规范。默认串行，`0` 自动选择且最多四个进程。候选完整执行和推荐排序保持相同，内存预算与 Windows 脚本入口要求见 [resource-usage.md](resource-usage.md)。
+
 两个延迟目标都须能从搜索参数或基础场景确定。不要把毫秒直接填入秒字段；例如 50 ms 输入 `0.05`。搜索文件同时提供 `tpot_s` 与 `tpop_s` 时两者必须相等。基础场景若有不同的 `output_lengths`，必须显式指定统一 `output_length`，避免在改变 batch 时悄悄丢失输出负载分布。样例的 `[4, 2]` 因而使用 `output_length: 4`。
 
 未提供长度或 batch 列表时，默认分别取 `1, 2, 4, ...` 至基础场景 `max(input_lengths)` 和 `batch_size`，并包含上界端点。它是便于开始运行的有限候选集，不覆盖这些区间的每个整数。用户显式列表可以超出原配置的长度或 batch；按用户意图设置上下界并在结果中披露。原模型没有定义 context 上限，不能据此声称可以无限寻优或证明最大支持上下文。

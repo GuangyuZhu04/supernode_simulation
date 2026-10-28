@@ -1,0 +1,30 @@
+{
+  "hosts": 2,
+  "sio": {
+    "bandwidth_Bps": 200000000000,
+    "latency_s": 4e-7,
+    "efficiency": 1,
+    "source": {
+      "status": "assumed",
+      "description": "Illustrative engineering assumption, not an Ascend published link measurement. Replace with measured per-direction SIO bandwidth and latency."
+    }
+  },
+  "hccs_l1": {
+    "bandwidth_Bps": 100000000000,
+    "latency_s": 8e-7,
+    "efficiency": 1,
+    "source": {
+      "status": "assumed",
+      "description": "Illustrative engineering assumption per NPU-to-host-fabric directed attachment, not a vendor HCCS-L1 specification."
+    }
+  },
+  "hccs_l2": {
+    "bandwidth_Bps": 160000000000,
+    "latency_s": 0.0000015,
+    "efficiency": 1,
+    "source": {
+      "status": "assumed",
+      "description": "Illustrative engineering assumption for the aggregate directed host-to-SU uplink, shared across cross-host flows; not a vendor HCCS-L2 specification."
+    }
+  }
+}

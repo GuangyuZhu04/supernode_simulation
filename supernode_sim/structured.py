@@ -15,6 +15,8 @@ from .components import (parameter_inventory, inventory_summary, optimizer_state
 from .core import Allocation, DTYPE_BYTES, Event, Graph, Resource
 from .training import pipeline_schedule
 from .sparse_attention import sparse_attention_state, sparse_attention_work, position_bias_rows
+from .moe_wire import moe_payload_matrix, moe_wire_metadata, wire_payload_parts
+from .calibration import model_shape_signature
 
 
 class Builder:
@@ -23,6 +25,7 @@ class Builder:
         self.m, self.h, self.w, self.x = (config[k] for k in ('model', 'hardware', 'workload', 'execution'))
         self.p, self.f, self.opt = self.x['precision'], self.x['features'], self.x['optimizer']
         self.a = self.m['architecture']
+        self.model_shape_signature = model_shape_signature(self.m)
         self.tp, self.pp, self.ep, self.dp = (self.x[k] for k in ('tp', 'pp', 'ep', 'dp'))
         self.sp = self.x.get('sequence_parallel', False)
         self.fsdp = self.x['fsdp']
@@ -120,33 +123,57 @@ class Builder:
             return [[self.ranks[d, stage, e, t] for d in range(start, start + self.fsdp)] for start, e, t in product(range(0, self.dp, self.fsdp), range(self.ep), range(self.tp))]
         return [[self.ranks[d, stage, e, t] for d in range(offset, self.dp, self.fsdp)] for offset, e, t in product(range(self.fsdp), range(self.ep), range(self.tp))]
 
-    def collective(self, prefix, kind, ranks, size, deps, component, layer, matrix=None, activation=False):
+    def collective(self, prefix, kind, ranks, size, deps, component, layer, matrix=None, activation=False,
+                   *, phase=None, wire_metadata=None):
         meta = {'component': component, 'layer': layer, 'operation': 'dispatch' if 'dispatch' in prefix else 'combine' if 'combine' in prefix else kind}
+        meta.update(wire_metadata or {})
+        if phase is not None:
+            meta['phase'] = phase
+        wire = meta.get('wire_dtype', self.p['communication'])
+        moe = component == 'MoE' and meta['operation'] in ('dispatch', 'combine')
+        original_deps = tuple(deps)
+        algorithm = self.x.get('all_to_all_algorithm', 'pairwise')
+        outer = moe
+        if moe:
+            selection = self.topo.select_collective_timing_scope(kind, ranks, size, matrix, meta, algorithm)
+            meta['collective_scope_selection'] = selection
+            outer = selection['selected_scope'] == 'activation_collective'
+
+        def finish(terminals):
+            if not outer:
+                return list(terminals)
+            return list(self.topo.complete_collective_profile(self.g, prefix, kind, ranks, size,
+                deps=original_deps, terminals=tuple(terminals), payload_matrix=matrix,
+                metadata=meta, algorithm=algorithm, timing_scope='activation_collective'))
+
         packed = []
         buffers = []
-        if activation and self.p['activation'] != self.p['communication'] and len(ranks) > 1:
+        if activation and self.p['activation'] != wire and len(ranks) > 1:
             for i, rank in enumerate(ranks):
                 payload = sum(matrix[i]) if matrix is not None else size / len(ranks) if kind == 'all_gather' else size
                 aid = f'{prefix}.{rank}.wire'
                 buffers.append(aid)
-                amount = payload / DTYPE_BYTES[self.p['communication']]
+                amount, extra = wire_payload_parts(payload, wire, meta)
                 packed.append(self.add(Event(aid + '.pack', tuple(deps),
-                    {self.scalar(rank): 2 * amount, rank + '.hbm': amount * DTYPE_BYTES[self.p['activation']] + payload},
-                    slots=(rank + '.compute_stream',), allocs=(self.allocation(aid, rank, payload, component, 'communication_buffer', layer, self.p['communication']),),
-                    metadata={**meta, 'kernel': 'communication_pack'})))
+                    {self.scalar(rank): 2 * amount, rank + '.hbm': amount * DTYPE_BYTES[self.p['activation']] + payload + extra},
+                    slots=(rank + '.compute_stream',), allocs=(self.allocation(aid, rank, payload, component, 'communication_buffer', layer, wire),),
+                    metadata={**meta, 'kernel': 'communication_pack', 'tensor_elements': amount,
+                              'wire_metadata_bytes': extra, 'source_precision': self.p['activation'], 'destination_precision': wire})))
             deps = packed
         terminals = self.topo.collective(self.g, prefix, kind, ranks, size, tuple(deps), payload_matrix=matrix,
-            metadata=meta, algorithm=self.x.get('all_to_all_algorithm', 'pairwise'))
+            metadata=meta, algorithm=algorithm, apply_profiles=not outer)
         if buffers:
             ends = []
             for i, rank in enumerate(ranks):
                 payload = sum(row[i] for row in matrix) if matrix is not None else size / len(ranks) if kind == 'reduce_scatter' else size
-                count = payload / DTYPE_BYTES[self.p['communication']]
+                count, extra = wire_payload_parts(payload, wire, meta)
                 ends.append(self.add(Event(prefix + f'.{rank}.unpack', tuple(terminals),
-                    {self.scalar(rank): 2 * count, rank + '.hbm': payload + count * DTYPE_BYTES[self.p['activation']]},
-                    slots=(rank + '.compute_stream',), releases=(buffers[i],), metadata={**meta, 'kernel': 'communication_unpack'})))
-            return ends
-        return list(terminals)
+                    {self.scalar(rank): 2 * count, rank + '.hbm': payload + count * DTYPE_BYTES[self.p['activation']] + extra},
+                    slots=(rank + '.compute_stream',), releases=(buffers[i],), metadata={**meta, 'kernel': 'communication_unpack',
+                        'tensor_elements': count, 'wire_metadata_bytes': extra,
+                        'source_precision': wire, 'destination_precision': self.p['activation']})))
+            return finish(ends)
+        return finish(terminals)
 
     def local_tensors(self, layer, component=None):
         return [t for t in self.by_layer[layer] if not t.alias_of and (component is None or t.component == component)]
@@ -417,6 +444,8 @@ class Builder:
             metadata={'kernel': component.lower(), 'component': component, 'layer': layer, 'phase': phase,
                       'flops': flops, 'working_set_bytes': weight_reads + working + cache_reads,
                       'tokens': tokens, 'sequence_parallel': self.sp,
+                      'model_shape_signature': self.model_shape_signature,
+                      'tensor_parallel_degree': self.tp, 'expert_parallel_degree': self.ep,
                        'sequence_parallel_degree': self.tp if self.sp else 1,
                        **({'sparse_attention': sparse, 'selection_rate_assumption': 'Scalar operation throughput proxied by configured FP32 FLOP/s; calibrate with kernel profiles.'} if sparse is not None else {})}))
 
@@ -472,12 +501,12 @@ class Builder:
         for component in self.component_order(layer):
             if component == 'MoE' and self.ep > 1:
                 width = self.a['moe'].get('latent_dim') or self.m['hidden_dim']
-                size = tokens * self.m['top_k'] * width * DTYPE_BYTES[self.p['communication']]
-                matrix = [[size / self.ep for _ in range(self.ep)] for _ in range(self.ep)]
+                matrix = moe_payload_matrix(self.p, 'dispatch', [tokens] * self.ep, width, self.m['top_k'])
                 terminals = []
                 for i, group in enumerate(self.groups(stage, 'ep')):
                     terminals += self.collective(name + f'.recompute.dispatch{i}', 'all_to_all_v',
-                        group, 0, previous, component, layer, matrix, True)
+                        group, 0, previous, component, layer, matrix, True, phase='recompute',
+                        wire_metadata=moe_wire_metadata(self.p, 'dispatch', width, top_k=self.m['top_k'], num_experts=self.m['num_experts']))
                 previous = terminals
             ends = []
             for rank in ranks:
@@ -518,9 +547,11 @@ class Builder:
                     self.groups(stage, 'tp'), lengths, previous, phase='recompute', divisor=self.ep)
             if component == 'MoE' and self.ep > 1:
                 terminals = []
+                matrix = moe_payload_matrix(self.p, 'combine', [tokens] * self.ep, width, self.m['top_k'])
                 for i, group in enumerate(self.groups(stage, 'ep')):
                     terminals += self.collective(name + f'.recompute.combine{i}', 'all_to_all_v',
-                        group, 0, previous, component, layer, matrix, True)
+                        group, 0, previous, component, layer, matrix, True, phase='recompute',
+                        wire_metadata=moe_wire_metadata(self.p, 'combine', width, top_k=self.m['top_k'], num_experts=self.m['num_experts']))
                 previous = terminals
             if component in (self.a['attention_by_layer'][layer], self.a['ffn_by_layer'][layer]) and self.tp > 1:
                 terminals = []
@@ -638,8 +669,9 @@ class Builder:
                             for t in range(self.tp):
                                 group = [self.ranks[d, stage, e, t] for e in range(self.ep)]
                                 width = self.a['moe'].get('latent_dim') or self.m['hidden_dim']
-                                matrix = [[tokens[e] * self.m['top_k'] * width * DTYPE_BYTES[self.p['communication']] / self.ep for _ in group] for e in range(self.ep)]
-                                terminals += self.collective(prefix + f'.t{t}.dispatch', 'all_to_all_v', group, 0, ready, component, layer, matrix, True)
+                                matrix = moe_payload_matrix(self.p, 'dispatch', [tokens[e] for e in range(self.ep)], width, self.m['top_k'])
+                                terminals += self.collective(prefix + f'.t{t}.dispatch', 'all_to_all_v', group, 0, ready, component, layer, matrix, True,
+                                    phase=phase, wire_metadata=moe_wire_metadata(self.p, 'dispatch', width, top_k=self.m['top_k'], num_experts=self.m['num_experts']))
                             ready = terminals
                         ends = []
                         for rank in ranks:
@@ -754,8 +786,9 @@ class Builder:
                             for t in range(self.tp):
                                 group = [self.ranks[d, stage, e, t] for e in range(self.ep)]
                                 width = self.a['moe'].get('latent_dim') or self.m['hidden_dim']
-                                matrix = [[tokens[e] * self.m['top_k'] * width * DTYPE_BYTES[self.p['communication']] / self.ep for _ in group] for e in range(self.ep)]
-                                terminals += self.collective(prefix + f'.t{t}.combine', 'all_to_all_v', group, 0, ready, component, layer, list(map(list, zip(*matrix))), True)
+                                matrix = moe_payload_matrix(self.p, 'combine', [tokens[e] for e in range(self.ep)], width, self.m['top_k'])
+                                terminals += self.collective(prefix + f'.t{t}.combine', 'all_to_all_v', group, 0, ready, component, layer, matrix, True,
+                                    phase=phase, wire_metadata=moe_wire_metadata(self.p, 'combine', width, top_k=self.m['top_k'], num_experts=self.m['num_experts']))
                             ready = terminals
                         if (component in (self.a['attention_by_layer'][layer], self.a['ffn_by_layer'][layer]) or self.sp and component == 'WordEmbedding') and self.tp > 1:
                             reductions = []
@@ -859,11 +892,11 @@ class Builder:
                             ends = []
                             if component == 'MoE' and self.ep > 1:
                                 width = self.a['moe'].get('latent_dim') or self.m['hidden_dim']
-                                size = local_tokens * self.m['top_k'] * width * DTYPE_BYTES[self.p['communication']]
                                 terminals = []
                                 for i, group in enumerate(self.groups(stage, 'ep')):
-                                    matrix = [[size / self.ep for _ in group] for _ in group]
-                                    terminals += self.collective(name + f'.dispatch{i}', 'all_to_all_v', group, 0, previous, component, layer, matrix, True)
+                                    matrix = moe_payload_matrix(self.p, 'dispatch', [local_tokens] * self.ep, width, self.m['top_k'])
+                                    terminals += self.collective(name + f'.dispatch{i}', 'all_to_all_v', group, 0, previous, component, layer, matrix, True,
+                                        phase=phase, wire_metadata=moe_wire_metadata(self.p, 'dispatch', width, top_k=self.m['top_k'], num_experts=self.m['num_experts']))
                                 previous = terminals
                             for rank in ranks:
                                 key = step, micro, rank, layer, component
@@ -916,8 +949,9 @@ class Builder:
                             if component == 'MoE' and self.ep > 1:
                                 terminals = []
                                 for i, group in enumerate(self.groups(stage, 'ep')):
-                                    matrix = [[size / self.ep for _ in group] for _ in group]
-                                    terminals += self.collective(name + f'.combine{i}', 'all_to_all_v', group, 0, previous, component, layer, matrix, True)
+                                    matrix = moe_payload_matrix(self.p, 'combine', [local_tokens] * self.ep, width, self.m['top_k'])
+                                    terminals += self.collective(name + f'.combine{i}', 'all_to_all_v', group, 0, previous, component, layer, matrix, True,
+                                        phase=phase, wire_metadata=moe_wire_metadata(self.p, 'combine', width, top_k=self.m['top_k'], num_experts=self.m['num_experts']))
                                 previous = terminals
                             if component in (self.a['attention_by_layer'][layer], self.a['ffn_by_layer'][layer]) and self.tp > 1:
                                 terminals = []

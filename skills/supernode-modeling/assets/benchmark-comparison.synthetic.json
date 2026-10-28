@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "reference": {
+    "id": "synthetic-arithmetic-reference",
+    "status": "synthetic",
+    "evidence_kind": "synthetic",
+    "source": "Invented arithmetic demonstration only; not a hardware measurement or public benchmark.",
+    "context": {
+      "model": {"name": "synthetic-model", "revision": "example-v1"},
+      "hardware": {"sku": "synthetic-device", "count": 8, "topology": "one host; invented fully connected fabric"},
+      "runtime": {"name": "synthetic-serving-runtime", "version": "example-v1", "backend_version": "example-v1"},
+      "precision": {"weights": "BF16", "activations": "BF16", "kv_cache": "BF16", "communication": "BF16"},
+      "parallelism": {"tp": 8, "pp": 1, "ep": 1, "dp": 1},
+      "workload": {
+        "input_tokens": 1024,
+        "output_tokens": 128,
+        "batch_size": 16,
+        "batch_scope": "global requests",
+        "concurrency": 16,
+        "arrival_process": "closed loop; fixed synthetic lengths",
+        "cache_state": "prefix cache disabled; warmed kernels and allocator"
+      },
+      "execution": {"speculative_decoding": false, "chunked_prefill": false}
+    },
+    "metrics": {
+      "request_tpot_mean": {
+        "value": 10,
+        "unit": "ms",
+        "phase": "decode",
+        "timer_boundary": "engine token emission",
+        "aggregation": "arithmetic mean of per-request TPOT",
+        "token_basis": "(last token time - first token time) / (output tokens - 1)",
+        "window": {"duration_s": 60, "warmup": "excluded", "cohort": "successful requests completed in window"}
+      },
+      "output_token_throughput": {
+        "value": 1000,
+        "unit": "tokens/s",
+        "phase": "end_to_end",
+        "timer_boundary": "engine token emission",
+        "aggregation": "all output tokens emitted in window divided by duration",
+        "token_basis": "output tokens including first token; all devices total",
+        "window": {"duration_s": 60, "warmup": "excluded", "cohort": "successful non-warmup requests; in-window tokens"}
+      }
+    }
+  },
+  "candidate": {
+    "id": "synthetic-simulation-candidate",
+    "status": "simulated",
+    "evidence_kind": "synthetic",
+    "source": "Invented simulator output for tool demonstration only; no simulator or hardware run was performed.",
+    "context": {
+      "model": {"name": "synthetic-model", "revision": "example-v1"},
+      "hardware": {"sku": "synthetic-device", "count": 8, "topology": "one host; invented fully connected fabric"},
+      "runtime": {"name": "synthetic-serving-runtime", "version": "example-v1", "backend_version": "example-v1"},
+      "precision": {"weights": "BF16", "activations": "BF16", "kv_cache": "BF16", "communication": "BF16"},
+      "parallelism": {"tp": 8, "pp": 1, "ep": 1, "dp": 1},
+      "workload": {
+        "input_tokens": 1024,
+        "output_tokens": 128,
+        "batch_size": 16,
+        "batch_scope": "global requests",
+        "concurrency": 16,
+        "arrival_process": "closed loop; fixed synthetic lengths",
+        "cache_state": "prefix cache disabled; warmed kernels and allocator"
+      },
+      "execution": {"speculative_decoding": false, "chunked_prefill": false}
+    },
+    "metrics": {
+      "request_tpot_mean": {
+        "value": 12,
+        "unit": "ms",
+        "phase": "decode",
+        "timer_boundary": "engine token emission",
+        "aggregation": "arithmetic mean of per-request TPOT",
+        "token_basis": "(last token time - first token time) / (output tokens - 1)",
+        "window": {"duration_s": 60, "warmup": "excluded", "cohort": "successful requests completed in window"}
+      },
+      "output_token_throughput": {
+        "value": 900,
+        "unit": "tokens/s",
+        "phase": "end_to_end",
+        "timer_boundary": "engine token emission",
+        "aggregation": "all output tokens emitted in window divided by duration",
+        "token_basis": "output tokens including first token; all devices total",
+        "window": {"duration_s": 60, "warmup": "excluded", "cohort": "successful non-warmup requests; in-window tokens"}
+      }
+    }
+  }
+}

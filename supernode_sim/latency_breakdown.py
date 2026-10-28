@@ -33,6 +33,7 @@ def latency_breakdown_metadata() -> dict[str, Any]:
         "method": "actual_dependency_critical_path",
         "components": dict(COMPONENTS),
         "notes": [
+            "A matched collective call timer is a concurrent completion lower bound, classified as other communication when it dominates. Its whole-call measurement may include pack/unpack; it is not split into unsupported fabric or compute measurements.",
             "Components are additive wall-clock seconds on one observed latest-finishing dependency path; parallel ranks/events are not summed. Equal completion times choose the lexically smallest event ID.",
             "TTFT uses [0, first-token completion]. TPOT is the mean of consecutive output-token windows; aggregate TTFT and TPOT each select the same worst request as the scalar metric, not the maximum of each component.",
             "Compute includes operator-local memory service and launch time. Transfer baseline uses the maximum work/capacity resource time, attributed to that bottleneck's path domain; equal resource times choose the lexically smallest resource ID. Endpoint memory bottlenecks are other communication, not fabricated network time.",
@@ -113,6 +114,8 @@ class _WindowAttributor:
 
     def _operator_component(self, event: Event) -> str:
         metadata = event.metadata
+        if metadata.get("type") == "collective_timing":
+            return "communication_other_s"
         if (metadata.get("type") == "barrier" or metadata.get("operation") == "barrier"
                 or metadata.get("kind") == "barrier") and not any(event.work.values()):
             return "synchronization_wait_s"

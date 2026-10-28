@@ -35,7 +35,7 @@ python -m supernode_sim schema
 
 - 配置、来源、单位、CLI：读 [configuration.md](references/configuration.md)。
 - 选择训练/推理加速特性、megakernel、PD 分离、DSpark、CSA/HCA/KDA 或对比 feature 开关：读 [features.md](references/features.md)，使用顶层 `features` 或 `--features` 文件；先运行 `list-features` 查看当前支持范围。DeepInfer 式小 P / 大 D、分阶段 batch 和相关优化另读 [deepinfer.md](references/deepinfer.md)。
-- 大型仿真、批量实验或本机内存/磁盘紧张：读 [resource-usage.md](references/resource-usage.md)，选择流式运行、缓存预算与导出粒度。
+- 提高仿真器自身运行速度、大型仿真、批量实验或本机内存/磁盘紧张：读 [resource-usage.md](references/resource-usage.md)，选择流式运行、多核候选搜索、缓存预算与导出粒度；用相同配置的基准验证主机耗时与数值一致性。
 - 按组件分析存储、activation、梯度、Adam/Muon：读 [memory-breakdown.md](references/memory-breakdown.md)。
 - Kimi K3 / Ascend 950 样例和真实性边界：读 [ascend950-kimi-k3.md](references/ascend950-kimi-k3.md)。
 - 训练/FSDP2/optimizer offload/10T 容量：读 [training.md](references/training.md)。
@@ -43,6 +43,10 @@ python -m supernode_sim schema
 - TTFT、TPOT（TPOP）的计算、node 内 / scale-up / scale-out 通信与等待拆解：读 [latency-breakdown.md](references/latency-breakdown.md)。
 - 固定模型、拓扑和硬件，输入 TTFT、TPOT（用户也可能写 TPOP），反求 TP/SP/EP、Prefill 长度及 Decode batch：读 [feedback.md](references/feedback.md)，运行 `feedback`，在满足目标的有限候选内优先最大化 Decode 吞吐量。
 - TTFT、TPOT（用户可能写作 TPOP）、实测对齐或性能优化：先读 [runtime-calibration.md](references/runtime-calibration.md)；引用 K3/950DT 的 10 ms 数据时再读 [kimi-k3-runtime-evidence.md](references/kimi-k3-runtime-evidence.md)。
+- 希望仿真拟合真实运行、根据 DeepInfer/NVIDIA/Ascend 数据改进预测：先读 [执行模型拟合](references/runtime-fitting.md)，实际调整 wire 精度/元数据、算法、NIC 资源和 collective/kernel 服务时间，运行拟合与留出实验并交付前后结果。不能仅输出真实性检查或缺失条件清单。
+- 按硬件架构/拓扑提高拟合，或分析 GPU-NIC 亲和性、PCIe 与 offload 争用、多 spine、A3 HiAM/HCCS 层级：读 [硬件拓扑拟合](references/hardware-topology-fitting.md)，使用 `io_groups`、显式分层图及可选逐流 ECMP，检查 profile 的拓扑签名。不要只调整全局效率或给所有卡对套同一带宽。
+- 适配其他 Ascend 机型/运行环境、超出单一 DeepEP 数据点的 batch/消息量，或接入 HCCL/msprof 数据：先读 [Ascend 多环境适配](references/ascend-runtime-adaptation.md)，用 `build_runtime_calibration.py` 从各环境独立观测生成 `collective_models`，按覆盖范围插值并运行留出与完整执行检查。数据采集按 [Ascend 实测来源](references/ascend-measurement-sources.md)；此前 H800 DeepEP 的误差不能标为 Ascend 精度。
+- 与公开指标做严格比较：读 [公开数据对比](references/public-benchmark-validation.md)，使用证据目录与 `scripts/compare_inference_benchmarks.py`。逐条件可比后才计算误差；`public` 只表示来源公开，作者估算与硬件实测须用 `evidence_kind` 区分。
 - 接收 SU/SO 拓扑、scale-out 域、分析链路瓶颈/最小域搜索：读 [topology.md](references/topology.md)。
 - 用户用自然语言生成或修改 scale-up / scale-out 拓扑：按子 skill [supernode-topology](subskills/supernode-topology/SKILL.md) 生成拓扑规范、原生配置和拓扑图，再回到本 skill 做流量仿真。仅生成拓扑时在子 skill 内完成，不要求模型或负载。
 
@@ -91,10 +95,16 @@ DeepInfer 类部署选型优先比较 P 的小 EP、可选小 TP/SP 与请求 bs
 
 大型场景默认按报告中的导出清单精简原始事件和临时通信缓冲记录，容量统计与真实并发峰值保持完整；超过 50,000 行的保留张量明细无损压缩为 `tensors.csv.gz`。优先阅读 `report.md`、`component_memory.csv`、`state_memory.csv` 和 `model_parameters.csv`；需要检查全部逐事件生命周期时，在 `estimate` 或 `simulate` 命令添加 `--full-detail`。读取明细前检查 `artifact_export` 的实际文件名，不整份加载大型 CSV/JSON。不要把导出行数减少解释为仿真忽略了这些资源。
 
-只需要性能、流量、容量峰值和失败诊断的大型结构化推理，DP=PP=1 时优先使用 [流式推理](references/inference.md#大规模结构化推理)。需要完整组件/张量生命周期、训练或其他并行布局时继续使用普通引擎。批量实验默认串行并复用匹配结果；每个并发进程会分别占用图和缓存内存。
+只需要性能、流量、容量峰值和失败诊断的大型结构化推理，DP=PP=1 时优先使用 [流式推理](references/inference.md#大规模结构化推理)。需要完整组件/张量生命周期、训练或其他并行布局时继续使用普通引擎。`sweep`、`size-su`、`feedback` 可通过 `--workers` 并行评估独立候选；按主机内存选择进程数，每个进程分别占用图和缓存。单次仿真的依赖、争用、内存准入和校准条件仍完整执行，不以减少模型层数或输出长度代替仿真器优化。
 
 `speculative_decode` 支持普通 `simulate` 和 `run_streaming` API；流式投机复用相同 draft/verify/commit hooks，按实际提交 token 数归因时延，并保留状态快照/回滚。小 batch 按实际 EP 请求归属计状态；标量 draft profile 必须覆盖最大 local batch，并在所有 rank 计费。`megakernel` 与 `prefill_decode_disaggregation` 仍须普通 `simulate`，流式路径不处理跨组件融合或跨池交接。PD 暂不与投机、KV offload、Engram 组合；未知收益不能用一个效率系数替代缺失语义。
 
 大型 optimizer offload 场景可显式配置 `execution.optimizer.inflight_components_per_rank: 2`，限制同时在途的组件更新并保留搬运/计算重叠；这是执行策略，会影响峰值和耗时，应随结果说明。未设置时保留原有全部提交策略。
 
 用户指出仿真与现实存在差距时，先对齐计时边界、负载与软件执行路径，再核对结构、精度、复制/分片、平台 SKU、拓扑及实测 kernel/collective。使用 [校准流程](references/runtime-calibration.md) 分开校准 prefill/decode、服务时间和启动开销；检查实际匹配覆盖率。公开的整网 TPOT 不能填入单算子 profile，投机 decode 的吞吐不能充当普通 decode 的耗时，缺失 TTFT 保持未知。没有同条件留出实测时，交付可复跑的预测和明确限制，不报告误差百分比或“符合真实情况”。
+
+真实硬件的 SO 建模须分别检查单卡注入、主机聚合和共享上联。多 NIC 主机可显式设置 `hardware.scale_out.host_injection_Bps`；这是每主机每方向的带宽，未提供时保留原共享单注入口径。MoE 使用 `precision.moe_dispatch/moe_combine` 和各自 metadata 字节表达非对称流量；`hardware.collective_profiles` 在保留字节与争用的基础上提供同条件服务时间约束。不能把双向带宽、每卡端口能力或 NCCL busbw 当作同一个数。配置、拟合命令和仍未实现的热点/动态调度见 [执行模型拟合](references/runtime-fitting.md)。
+
+`io_groups.members` 使用物理设备编号；相邻 rank 不代表相同 NIC/PCIe/HiAM。高层 topology DSL 暂未提供 I/O/ECMP 字段时，在生成的 canonical 硬件中配置并重新校验。A3 分层生成器需要各级速率/时延及来源，不能套用到 950；未公开的数值明确作为假设。新 collective profile 的 `applicability_signature` 锁定硬件、路由、rank 和 peer 矩阵；改变这些条件后检查匹配，旧无签名匹配须标 unguarded。容量/路径检查与实机留出误差分开报告。
+
+Ascend 响应曲线通过 `hardware.calibration_context` 锁定 SKU、CANN/HCCL/驱动、runtime、transport、mode 和来源计时边界，按完整 peer 比例分组；只对同条件已测 payload 区间插值，不跨设备/软件/rank 数外推。MoE whole-call 模型必须有五项 shape/format 条件；HCCL transport 模型只约束网络，pack/unpack 成本保留。报告 exact/interpolated/out_of_range 和未覆盖部分，synthetic 例子不能变成精度结论。kernel profile 可附硬件/环境/结构元数据匹配条件，未知形状不能凭同 FLOPs/bytes 复用。

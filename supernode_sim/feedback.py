@@ -13,6 +13,7 @@ from pydantic import Field, StrictBool, model_validator
 
 from .analysis import evaluate_targets, run
 from .config import Config, Spec
+from .parallel import ordered_map
 from .streaming import run_streaming
 
 
@@ -131,7 +132,35 @@ def _frontier(rows: list[dict]) -> list[int]:
         for other_id, other in points if other_id != identifier)]
 
 
-def feedback(config: Config, search: FeedbackSpec | dict | None = None) -> dict:
+def _feedback_candidate(arguments) -> dict:
+    base, parameters, output_length, targets, engine, identifier = arguments
+    row = {'id': identifier, 'parameters': parameters, 'engine': engine, 'metrics': {},
+           'slo': {'specified': True, 'satisfied': False, 'checks': []},
+           'memory_peaks_bytes': {}, 'diagnostics': []}
+    try:
+        candidate = _candidate_config(base, parameters, output_length, targets)
+    except ValueError as exc:
+        row.update(status='invalid_config', diagnostics=[str(exc)])
+        return row
+    try:
+        simulated = (run_streaming(candidate, phase='all') if engine == 'streaming'
+                     else run(candidate, 'simulate', full_detail=False))
+        simulation = simulated.get('simulation', {})
+        physical_status = simulation.get('status', simulated['status'])
+        row['memory_peaks_bytes'] = simulation.get('memory_peaks_bytes', {})
+        row['diagnostics'] = simulation.get('diagnostics', [])
+        if physical_status in ('feasible', 'slo_failed'):
+            row['metrics'] = _decode_metrics(simulated['metrics'])
+            row['slo'] = evaluate_targets(candidate, row['metrics'], True)
+            row['status'] = 'feasible' if row['slo']['satisfied'] else 'slo_failed'
+        else:
+            row['status'] = 'infeasible' if physical_status == 'infeasible' else 'error'
+    except (ValueError, KeyError) as exc:
+        row.update(status='error', diagnostics=[str(exc)])
+    return row
+
+
+def feedback(config: Config, search: FeedbackSpec | dict | None = None, *, workers: int = 1) -> dict:
     """Search each declared joint workload, retaining every failure and SLO check.
 
     Prefill and decode use the same fixed batch and parallel layout. Only the
@@ -175,34 +204,11 @@ def feedback(config: Config, search: FeedbackSpec | dict | None = None) -> dict:
         defaults.append('prefill_lengths: powers of two plus max(original input_lengths), bounded by that maximum')
     if search.decode_batch_sizes is None:
         defaults.append('decode_batch_sizes: powers of two plus original batch_size, bounded by that batch size')
-    rows = []
-    for layout, length, batch in itertools.product(layouts, prefill_lengths, batch_sizes):
-        parameters = {**layout, 'prefill_length': length, 'decode_batch_size': batch}
-        row = {'id': len(rows), 'parameters': parameters, 'engine': engine, 'metrics': {},
-               'slo': {'specified': True, 'satisfied': False, 'checks': []},
-               'memory_peaks_bytes': {}, 'diagnostics': []}
-        try:
-            candidate = _candidate_config(base, parameters, output_length, targets)
-        except ValueError as exc:
-            row.update(status='invalid_config', diagnostics=[str(exc)])
-            rows.append(row)
-            continue
-        try:
-            simulated = (run_streaming(candidate, phase='all') if engine == 'streaming'
-                         else run(candidate, 'simulate', full_detail=False))
-            simulation = simulated.get('simulation', {})
-            physical_status = simulation.get('status', simulated['status'])
-            row['memory_peaks_bytes'] = simulation.get('memory_peaks_bytes', {})
-            row['diagnostics'] = simulation.get('diagnostics', [])
-            if physical_status in ('feasible', 'slo_failed'):
-                row['metrics'] = _decode_metrics(simulated['metrics'])
-                row['slo'] = evaluate_targets(candidate, row['metrics'], True)
-                row['status'] = 'feasible' if row['slo']['satisfied'] else 'slo_failed'
-            else:
-                row['status'] = 'infeasible' if physical_status == 'infeasible' else 'error'
-        except (ValueError, KeyError) as exc:
-            row.update(status='error', diagnostics=[str(exc)])
-        rows.append(row)
+    arguments = ((base, {**layout, 'prefill_length': length, 'decode_batch_size': batch},
+                  output_length, targets, engine, identifier)
+                 for identifier, (layout, length, batch) in enumerate(
+                     itertools.product(layouts, prefill_lengths, batch_sizes)))
+    rows = list(ordered_map(_feedback_candidate, arguments, workers=workers, count=count))
     feasible = sorted((row for row in rows if row['status'] == 'feasible'), key=_rank)
     best = None
     if feasible:

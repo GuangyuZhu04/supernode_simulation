@@ -14,21 +14,32 @@ from .core import Allocation, Graph
 from .engine import simulate as simulate_graph
 from .topology import Topology
 from .calibration import apply_kernel_profiles
+from .collective_calibration import collective_calibration_summary, summarize_collective_calibration
 from .components import inventory_summary
 from .memory_breakdown import build_memory_breakdown
 from .latency_breakdown import build_latency_breakdown, latency_breakdown_metadata
 from .features import build_feature_plan
 
 
-def model_fidelity(config: Config, calibration: dict) -> dict:
-    """Report matched kernel evidence without claiming serving validation."""
-    performance = lambda counts: 'partially_kernel_calibrated' if counts['matched_events'] else 'uncalibrated'
+def model_fidelity(config: Config, calibration: dict, collective_calibration: dict | None = None) -> dict:
+    """Report matched timing evidence without claiming serving validation."""
+    collective_calibration = collective_calibration or collective_calibration_summary()
+
+    def performance(kernels, collectives):
+        kernel = bool(kernels.get('matched_events'))
+        collective = bool(collectives.get('matched_collectives'))
+        return ('partially_kernel_and_collective_calibrated' if kernel and collective
+                else 'partially_kernel_calibrated' if kernel
+                else 'partially_collective_calibrated' if collective else 'uncalibrated')
+
     return {
         'parameter_capacity': 'shape_derived' if config.model.architecture else 'declared_budget',
         'activation_capacity': 'analytical_kernel_layout',
-        'hardware_performance': performance(calibration),
-        'hardware_performance_by_phase': {phase: performance(counts)
-            for phase, counts in calibration['by_phase'].items()},
+        'hardware_performance': performance(calibration, collective_calibration),
+        'hardware_performance_by_phase': {
+            phase: performance(calibration['by_phase'].get(phase, {}),
+                               collective_calibration['by_phase'].get(phase, {}))
+            for phase in sorted(set(calibration['by_phase']) | set(collective_calibration['by_phase']))},
         'timing_scope': ('fixed_batch_model_execution' if config.workload.scenario == 'inference'
                          else 'training_execution'),
         'serving_performance': 'not_validated' if config.workload.scenario == 'inference' else 'not_applicable',
@@ -72,6 +83,7 @@ def compile_graph(config: Config | dict) -> Graph:
         from .megakernel import apply_megakernel
         apply_megakernel(graph, data)
     apply_kernel_profiles(graph, data)
+    graph.metadata['collective_calibration'] = summarize_collective_calibration(graph)
     assumptions = graph.metadata.setdefault('assumptions', [])
     assumptions.extend(graph.metadata.get('approximations', []))
     assumptions.extend(spec.assumptions)
@@ -79,7 +91,7 @@ def compile_graph(config: Config | dict) -> Graph:
         assumptions.append('FP8/INT8 activation communication assumes shared static quantization scales; dynamic per-message scale exchange is not modeled. Weight/KV scale storage and offload metadata are counted separately.')
     graph.metadata['parameterization'] = ('Shape-derived component tensors with analytical execution kernels and optional kernel profiles; no measured allocator trace.'
         if spec.model.architecture else 'Declared parameter budgets with coarse layer kernels; component attribution unavailable without model.architecture.')
-    graph.metadata['fidelity'] = model_fidelity(spec, graph.metadata['kernel_calibration'])
+    graph.metadata['fidelity'] = model_fidelity(spec, graph.metadata['kernel_calibration'], graph.metadata['collective_calibration'])
     graph.metadata['feature_plan'] = build_feature_plan(spec, graph.metadata['kernel_calibration'])
     return graph
 
@@ -336,6 +348,7 @@ def run(config: Config | dict, mode: str = 'simulate', *, full_detail: bool = Tr
                       'per_device': devices}}
     if mode == 'simulate':
         sim = simulate_graph(graph, retain_event_payload=full_detail or len(graph.events) <= 50_000)
+        graph.metadata['collective_calibration'] = summarize_collective_calibration(graph, sim)
         result['simulation'] = sim
         result['metrics'] = execution_metrics(spec, graph, sim)
         result['slo'] = evaluate_targets(spec, result['metrics'], sim['status'] == 'feasible')

@@ -1,5 +1,6 @@
 import pytest
 
+from supernode_sim.config import HardwareSpec
 from supernode_sim.core import Graph
 from supernode_sim.engine import simulate
 from supernode_sim.topology import Topology
@@ -55,6 +56,98 @@ def test_so_is_separate_and_host_nic_shared():
     assert first.work["cpu1.nic.rx"] == 100
     assert first.metadata["physical_bytes"] == 400
     assert simulate(graph)["duration_s"] == pytest.approx(2)
+
+
+@pytest.mark.parametrize("host_rate,expected", [(100, 2), (200, 1), (400, 1)])
+def test_so_host_aggregate_preserves_per_device_limits(host_rate, expected):
+    params = hardware(su_size=2)
+    params["scale_out"]["host_injection_Bps"] = host_rate
+    topology = Topology(params, {})
+    graph = Graph()
+    topology.populate(graph)
+    graph.events.extend([topology.transfer("a", "npu0", "npu2", 100),
+                         topology.transfer("b", "npu1", "npu3", 100)])
+    assert graph.resources["cpu0.nic.tx"].capacity == host_rate
+    assert graph.resources["cpu1.nic.rx"].capacity == host_rate
+    assert graph.resources["npu0.SO.tx"].capacity == 100
+    assert graph.resources["link:su0.gateway>so.spine:SO"].capacity == min(host_rate, 200)
+    assert simulate(graph)["duration_s"] == pytest.approx(expected)
+
+
+def test_so_host_aggregate_efficiency_and_explicit_uplink_are_independent():
+    params = hardware(su_size=2)
+    params["scale_out"].update(host_injection_Bps=200, uplink_Bps=50, efficiency=0.5)
+    topology = Topology(params, {})
+    graph = Graph()
+    topology.populate(graph)
+    graph.events.extend([topology.transfer("a", "npu0", "npu2", 100),
+                         topology.transfer("b", "npu1", "npu3", 100)])
+    assert graph.resources["cpu0.nic.tx"].capacity == 100
+    assert graph.resources["npu0.SO.tx"].capacity == 50
+    assert graph.resources["link:su0.gateway>so.spine:SO"].capacity == 25
+    assert simulate(graph)["duration_s"] == pytest.approx(8)
+
+
+def test_so_default_uplink_sums_reachable_host_nic_capacity():
+    params = hardware(npu_count=8, su_size=4)
+    params["scale_out"].update(host_injection_Bps=150, injection_Bps=80)
+    topology = Topology(params, {})
+    graph = Graph()
+    topology.populate(graph)
+    # Two hosts in each SU domain: min(150, 2 * 80) each.
+    assert graph.resources["link:su0.gateway>so.spine:SO"].capacity == 300
+    graph.events.extend(topology.transfer(f"flow{i}", f"npu{i}", f"npu{i + 4}", 100)
+                        for i in range(4))
+    assert simulate(graph)["duration_s"] == pytest.approx(400 / 300)
+
+
+def test_so_partial_host_keeps_one_shared_nic_across_domains():
+    params = hardware(su_size=2, npus_per_host=4)
+    params["scale_out"].update(host_injection_Bps=150)
+    topology = Topology(params, {})
+    graph = Graph()
+    topology.populate(graph)
+    graph.events.extend([topology.transfer("a", "npu0", "npu2", 100),
+                         topology.transfer("b", "npu1", "npu3", 100)])
+    assert graph.events[0].work["cpu0.nic.tx"] == 100
+    assert graph.events[0].work["cpu0.nic.rx"] == 100
+    assert simulate(graph)["duration_s"] == pytest.approx(200 / 150)
+
+
+def test_so_host_aggregate_preserves_explicit_link_capacities():
+    links = [{"id": f"flow{i}", "src": f"npu{i}", "dst": f"npu{i + 2}",
+              "domain": "SO", "bandwidth_Bps": 100, "latency_s": 0}
+             for i in range(2)]
+    params = hardware(su_size=2, topology="explicit", explicit_links=links)
+    params["scale_out"]["host_injection_Bps"] = 200
+    topology = Topology(params, {})
+    graph = Graph()
+    topology.populate(graph)
+    graph.events.extend(topology.transfer(f"a{i}", f"npu{i}", f"npu{i + 2}", 100)
+                        for i in range(2))
+    assert graph.resources["link:flow0"].capacity == 100
+    assert simulate(graph)["duration_s"] == pytest.approx(1)
+
+
+def test_so_host_aggregate_schema_is_optional_and_scale_out_only():
+    original = HardwareSpec.model_validate(hardware())
+    assert original.scale_out.host_injection_Bps is None
+    params = hardware()
+    params["scale_out"]["host_injection_Bps"] = 200
+    normalized = HardwareSpec.model_validate(params).model_dump()
+    assert normalized["scale_out"]["host_injection_Bps"] == 200
+    assert Topology(normalized, {}).resources["cpu0.nic.tx"].capacity == 200
+    params["scale_up"]["host_injection_Bps"] = 200
+    with pytest.raises(ValueError, match="Extra inputs"):
+        HardwareSpec.model_validate(params)
+
+
+@pytest.mark.parametrize("value", [0, -1, float("inf"), float("nan")])
+def test_so_host_aggregate_rejects_invalid_rates(value):
+    params = hardware()
+    params["scale_out"]["host_injection_Bps"] = value
+    with pytest.raises(ValueError):
+        HardwareSpec.model_validate(params)
 
 
 def test_host_transfers_compete_with_ddr_lookup():

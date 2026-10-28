@@ -7,6 +7,7 @@ import math
 
 from .analysis import run
 from .config import Config
+from .parallel import ordered_map, worker_count
 
 
 def set_field(data: dict, path: str, value) -> None:
@@ -39,23 +40,27 @@ def compact_result(result: dict) -> dict:
     return compact
 
 
-def sweep(config: Config, axes: dict[str, list], mode: str = 'simulate') -> dict:
+def _sweep_candidate(arguments) -> dict:
+    base, changes, mode = arguments
+    candidate = copy.deepcopy(base)
+    try:
+        for path, value in changes.items():
+            set_field(candidate, path, value)
+        result = compact_result(run(Config.model_validate(candidate), mode, full_detail=False))
+    except (ValueError, KeyError) as exc:
+        result = {'status': 'invalid_config', 'diagnostics': [str(exc)], 'config': candidate}
+    return {'parameters': changes, 'result': result}
+
+
+def sweep(config: Config, axes: dict[str, list], mode: str = 'simulate', *, workers: int = 1) -> dict:
     if not axes or any(not isinstance(v, list) or not v for v in axes.values()):
         raise ValueError('sweep axes must map dotted config paths to nonempty lists')
     count = math.prod(len(v) for v in axes.values())
     if count > config.targets.max_candidates:
         raise ValueError(f'{count} combinations exceed max_candidates={config.targets.max_candidates}')
-    rows = []
-    for values in itertools.product(*axes.values()):
-        changes = dict(zip(axes, values))
-        candidate = copy.deepcopy(config.model_dump())
-        try:
-            for path, value in changes.items():
-                set_field(candidate, path, value)
-            result = compact_result(run(Config.model_validate(candidate), mode, full_detail=False))
-        except (ValueError, KeyError) as exc:
-            result = {'status': 'invalid_config', 'diagnostics': [str(exc)], 'config': candidate}
-        rows.append({'parameters': changes, 'result': result})
+    base = config.model_dump()
+    arguments = ((base, dict(zip(axes, values)), mode) for values in itertools.product(*axes.values()))
+    rows = list(ordered_map(_sweep_candidate, arguments, workers=workers, count=count))
     return {'schema_version': '1.0', 'mode': 'sweep', 'status': 'completed', 'axes': axes, 'candidates': rows,
             'assumptions': ['Each combination is independently validated. Invalid combinations are retained with diagnostics.']}
 
@@ -68,9 +73,40 @@ def _payload_summary(result: dict) -> dict:
     }
 
 
-def size_su(config: Config, mode: str = 'both') -> dict:
+def _su_candidate(arguments) -> dict:
+    base, npu_count, su_size, layout = arguments
+    data = copy.deepcopy(base)
+    data['hardware'].update(npu_count=npu_count, su_size=su_size)
+    data['execution'].update(layout)
+    row = {'npu_count': npu_count, 'su_size': su_size, 'domains': npu_count // su_size, 'parallelism': layout}
+    try:
+        spec = Config.model_validate(data)
+        estimate = run(spec, 'estimate', full_detail=False)
+        residents = estimate['estimate']['resident_memory_bytes']
+        capacities = {f'npu{i}.hbm': spec.hardware.npu.hbm_bytes for i in range(npu_count)}
+        capacities.update({f'cpu{i}.dram': spec.hardware.cpu.dram_bytes for i in range(math.ceil(npu_count / spec.hardware.npus_per_host))})
+        capacities.update({'remote0.memory': spec.hardware.remote.capacity_bytes, 'ssd0.memory': spec.hardware.ssd.capacity_bytes})
+        violations = [{'pool': pool, 'required': amount, 'capacity': capacities[pool]} for pool, amount in residents.items() if pool in capacities and amount > capacities[pool]]
+        if violations:
+            row['result'] = {'status': 'infeasible', 'pruned': 'resident_memory_lower_bound', 'diagnostics': violations, 'config': data}
+        else:
+            deadline = estimate['requirements']['target_window_s']
+            lower = estimate['estimate']['duration_lower_bound_s']
+            if deadline is not None and lower > deadline:
+                row['result'] = {'status': 'slo_failed', 'pruned': 'performance_lower_bound',
+                                 'diagnostics': [{'required_window_s': deadline, 'duration_lower_bound_s': lower}], 'config': data}
+            else:
+                row['result'] = _payload_summary(run(spec, 'simulate', full_detail=False))
+    except (ValueError, KeyError) as exc:
+        row['result'] = {'status': 'invalid_config', 'diagnostics': [str(exc)], 'config': data}
+    return row
+
+
+def size_su(config: Config, mode: str = 'both', *, workers: int = 1) -> dict:
     if mode not in ('single', 'multi', 'both'):
         raise ValueError('SU mode must be single, multi or both')
+    worker_count(workers, 0)  # Validate even for empty/missing-input searches.
+    base_config = config.model_dump()
     target = config.targets
     pd_enabled = config.execution.features.prefill_decode_disaggregation.enabled
     deployment_copies = 2 if pd_enabled else 1
@@ -105,34 +141,9 @@ def size_su(config: Config, mode: str = 'both') -> dict:
                         candidates.append((npu_count, su_size, layout))
         if total_evaluated + len(candidates) > target.max_candidates:
             raise ValueError('SU candidate set exceeds max_candidates; narrow candidates or raise the explicit limit')
-        rows = []
-        for npu_count, su_size, layout in candidates:
-            total_evaluated += 1
-            data = copy.deepcopy(config.model_dump())
-            data['hardware'].update(npu_count=npu_count, su_size=su_size)
-            data['execution'].update(layout)
-            row = {'npu_count': npu_count, 'su_size': su_size, 'domains': npu_count // su_size, 'parallelism': layout}
-            try:
-                spec = Config.model_validate(data)
-                estimate = run(spec, 'estimate', full_detail=False)
-                residents = estimate['estimate']['resident_memory_bytes']
-                capacities = {f'npu{i}.hbm': spec.hardware.npu.hbm_bytes for i in range(npu_count)}
-                capacities.update({f'cpu{i}.dram': spec.hardware.cpu.dram_bytes for i in range(math.ceil(npu_count / spec.hardware.npus_per_host))})
-                capacities.update({'remote0.memory': spec.hardware.remote.capacity_bytes, 'ssd0.memory': spec.hardware.ssd.capacity_bytes})
-                violations = [{'pool': pool, 'required': amount, 'capacity': capacities[pool]} for pool, amount in residents.items() if pool in capacities and amount > capacities[pool]]
-                if violations:
-                    row['result'] = {'status': 'infeasible', 'pruned': 'resident_memory_lower_bound', 'diagnostics': violations, 'config': data}
-                else:
-                    deadline = estimate['requirements']['target_window_s']
-                    lower = estimate['estimate']['duration_lower_bound_s']
-                    if deadline is not None and lower > deadline:
-                        row['result'] = {'status': 'slo_failed', 'pruned': 'performance_lower_bound',
-                                         'diagnostics': [{'required_window_s': deadline, 'duration_lower_bound_s': lower}], 'config': data}
-                    else:
-                        row['result'] = _payload_summary(run(spec, 'simulate', full_detail=False))
-            except (ValueError, KeyError) as exc:
-                row['result'] = {'status': 'invalid_config', 'diagnostics': [str(exc)], 'config': data}
-            rows.append(row)
+        total_evaluated += len(candidates)
+        arguments = ((base_config, npu_count, su_size, layout) for npu_count, su_size, layout in candidates)
+        rows = list(ordered_map(_su_candidate, arguments, workers=workers, count=len(candidates)))
         feasible = [r for r in rows if r['result']['status'] == 'feasible']
         order = lambda r: (r['su_size'], r['npu_count'], r['result'].get('metrics', {}).get('duration_s', float('inf')))
         feasible.sort(key=order)

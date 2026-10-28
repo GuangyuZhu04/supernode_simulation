@@ -11,6 +11,7 @@ from itertools import product
 from typing import TYPE_CHECKING
 
 from .core import Allocation, DTYPE_BYTES, Event, Graph, Resource
+from .moe_wire import moe_token_bytes, moe_wire_metadata, wire_payload_parts
 
 if TYPE_CHECKING:
     from .topology import Topology
@@ -148,6 +149,10 @@ class _TrainingBuilder:
     def collective(self, prefix: str, stage: int, axis: str, kind: str, size: float,
                    deps, metadata: dict) -> list[str]:
         ends: list[str] = []
+        wire = metadata.get('wire_dtype', self.precision['communication'])
+        moe = metadata.get('semantic') in ('dispatch', 'combine')
+        original_deps = tuple(deps)
+        algorithm = self.exe.get('all_to_all_algorithm', 'pairwise')
         for i, ranks in enumerate(self.groups(stage, axis)):
             group_prefix = f"{prefix}.g{i}"
             matrix = None
@@ -156,44 +161,57 @@ class _TrainingBuilder:
                 # payload, including the local share (which is not transmitted).
                 matrix = [[0 if a == b else size / len(ranks) for b in range(len(ranks))]
                           for a in range(len(ranks))]
+            outer = moe
+            if moe:
+                selection = self.topo.select_collective_timing_scope(kind, ranks, size, matrix, metadata, algorithm)
+                metadata = {**metadata, 'collective_scope_selection': selection}
+                outer = selection['selected_scope'] == 'activation_collective'
             activation_wire = metadata.get("semantic") in ("dispatch", "combine") or metadata.get("category") == "tensor_parallel"
             convert = (activation_wire and len(ranks) > 1 and
-                       self.precision["activation"] != self.precision["communication"])
+                       self.precision["activation"] != wire)
             network_deps, buffers = list(deps), []
             if convert:
                 network_deps = []
                 for index, rank in enumerate(ranks):
                     payload = sum(matrix[index]) if matrix is not None else size
-                    elements = payload / DTYPE_BYTES[self.precision["communication"]]
-                    accesses = self.size("activation", elements) + payload
+                    elements, extra = wire_payload_parts(payload, wire, metadata)
+                    accesses = self.size("activation", elements) + payload + extra
                     buffer_id = group_prefix + f".{rank}.packed"
                     buffers.append(buffer_id)
                     network_deps.append(self.add(Event(group_prefix + f".{rank}.pack", tuple(deps),
                         {self.scalar_resource(rank): 2 * elements, rank + ".hbm": accesses},
                         slots=(rank + ".compute_stream",),
-                        allocs=(self.allocation(buffer_id, rank, payload, "conversion_buffer", self.precision["communication"]),),
+                        allocs=(self.allocation(buffer_id, rank, payload, "conversion_buffer", wire),),
                         metadata={**metadata, "category": "precision_conversion", "kernel": "communication_pack",
                                   "conversion": "communication_pack", "working_set_bytes": accesses,
                                   "source_precision": self.precision["activation"],
-                                  "destination_precision": self.precision["communication"]})))
+                                  "destination_precision": wire, "tensor_elements": elements, "wire_metadata_bytes": extra})))
             terminals = self.topo.collective(self.graph, group_prefix, kind, ranks,
-                size, deps=tuple(network_deps), payload_matrix=matrix, metadata=metadata)
+                size, deps=tuple(network_deps), payload_matrix=matrix, metadata=metadata,
+                algorithm=algorithm, apply_profiles=not outer)
+            group_ends = []
             if convert:
                 # Uniform all-to-all and ring reduction reuse their packed
                 # per-rank wire buffer for the receive result until unpack ends.
                 for index, rank in enumerate(ranks):
                     payload = sum(row[index] for row in matrix) if matrix is not None else size
-                    elements = payload / DTYPE_BYTES[self.precision["communication"]]
-                    accesses = self.size("activation", elements) + payload
-                    ends.append(self.add(Event(group_prefix + f".{rank}.unpack", tuple(terminals),
+                    elements, extra = wire_payload_parts(payload, wire, metadata)
+                    accesses = self.size("activation", elements) + payload + extra
+                    group_ends.append(self.add(Event(group_prefix + f".{rank}.unpack", tuple(terminals),
                         {self.scalar_resource(rank): 2 * elements, rank + ".hbm": accesses},
                         slots=(rank + ".compute_stream",), releases=(buffers[index],),
                         metadata={**metadata, "category": "precision_conversion", "kernel": "communication_unpack",
                                   "conversion": "communication_unpack", "working_set_bytes": accesses,
-                                  "source_precision": self.precision["communication"],
-                                  "destination_precision": self.precision["activation"]})))
+                                  "source_precision": wire,
+                                  "destination_precision": self.precision["activation"],
+                                  "tensor_elements": elements, "wire_metadata_bytes": extra})))
             else:
-                ends.extend(terminals)
+                group_ends.extend(terminals)
+            if outer:
+                group_ends = self.topo.complete_collective_profile(self.graph, group_prefix, kind, ranks, size,
+                    deps=original_deps, terminals=tuple(group_ends), payload_matrix=matrix,
+                    metadata=metadata, algorithm=algorithm, timing_scope='activation_collective')
+            ends.extend(group_ends)
         return ends or list(deps)
 
     def phase_name(self, step: int, stage: int, phase: str, micro: int) -> str:
@@ -298,14 +316,17 @@ class _TrainingBuilder:
                 pass
             # A declared MoE layer fraction is applied continuously to each
             # layer's communication instead of guessing which layers are MoE.
-            moe_bytes = (self.tokens / self.ep * self.model["hidden_dim"] *
-                         self.model["top_k"] * self.model["moe_layer_fraction"] *
-                         DTYPE_BYTES[self.precision["communication"]])
+            routed_tokens = self.tokens / self.ep * self.model["top_k"] * self.model["moe_layer_fraction"]
+            width = self.model['hidden_dim']
+            dispatch_wire = moe_wire_metadata(self.precision, 'dispatch', width, top_k=self.model['top_k'], num_experts=self.model['num_experts'])
+            combine_wire = moe_wire_metadata(self.precision, 'combine', width, top_k=self.model['top_k'], num_experts=self.model['num_experts'])
+            moe_bytes = routed_tokens * moe_token_bytes(self.precision, 'dispatch', width)
+            combine_bytes = routed_tokens * moe_token_bytes(self.precision, 'combine', width)
             if self.ep > 1 and moe_bytes:
                 layer_deps = self.collective(name + ".dispatch", stage, "ep", "all_to_all_v",
                     moe_bytes, layer_deps,
                     {"phase": "recompute" if self.checkpoint and not forward else phase,
-                     "semantic": "dispatch", "layer": layer})
+                     "semantic": "dispatch", "layer": layer, **dispatch_wire})
             kernels, recomputes = [], []
             for rank in self.stage_ranks[stage]:
                 rank_name = name + "." + rank
@@ -363,9 +384,9 @@ class _TrainingBuilder:
                             {"phase": "recompute", "category": "tensor_parallel", "layer": layer})
                 if self.ep > 1 and moe_bytes:
                     recompute_terminals = self.collective(name + ".recompute.combine", stage, "ep", "all_to_all_v",
-                        moe_bytes, recompute_terminals, {"phase": "recompute", "semantic": "combine", "layer": layer})
+                        combine_bytes, recompute_terminals, {"phase": "recompute", "semantic": "combine", "layer": layer, **combine_wire})
                     recompute_terminals = self.collective(name + ".backward_dispatch", stage, "ep", "all_to_all_v",
-                        moe_bytes, recompute_terminals, {"phase": "backward", "semantic": "dispatch", "layer": layer})
+                        moe_bytes, recompute_terminals, {"phase": "backward", "semantic": "dispatch", "layer": layer, **dispatch_wire})
                 self.barrier(name + ".recompute.done", recompute_terminals)
             terminals = kernels
             if self.tp > 1:
@@ -375,7 +396,7 @@ class _TrainingBuilder:
                         activation_bytes, terminals, {"phase": phase, "category": "tensor_parallel", "layer": layer})
             if self.ep > 1 and moe_bytes:
                 terminals = self.collective(name + ".combine", stage, "ep", "all_to_all_v",
-                    moe_bytes, terminals, {"phase": phase, "semantic": "combine", "layer": layer})
+                    combine_bytes, terminals, {"phase": phase, "semantic": "combine", "layer": layer, **combine_wire})
             layer_releases = []
             if not forward and (self.exe["sync_each_microbatch"] or micro == self.microbatches - 1):
                 if self.ep > 1 and self.dense_per_layer:

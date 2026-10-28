@@ -42,6 +42,9 @@ def parser() -> argparse.ArgumentParser:
         if name in ('estimate', 'simulate'):
             p.add_argument('--full-detail', action='store_true',
                            help='导出全部原始事件、张量和内存日志；大图默认精简明细，保留完整数值汇总')
+        if name in ('sweep', 'size-su', 'feedback'):
+            p.add_argument('--workers', type=int, default=1,
+                           help='候选仿真进程数；默认 1，0 自动选择（最多 4），每进程独立占用图和缓存内存')
         if name == 'sweep':
             p.add_argument('--axes', required=True, type=Path, help='JSON/YAML mapping dotted paths to candidate lists')
             p.add_argument('--mode', choices=['estimate', 'simulate'], default='simulate')
@@ -99,9 +102,9 @@ def _main(argv: list[str] | None = None) -> int:
                               'feature_plan': build_feature_plan(config)}, ensure_ascii=False))
             return 0
         if args.command == 'sweep':
-            result = sweep(config, read_data(args.axes), args.mode)
+            result = sweep(config, read_data(args.axes), args.mode, workers=args.workers)
         elif args.command == 'size-su':
-            result = size_su(config, args.mode)
+            result = size_su(config, args.mode, workers=args.workers)
         elif args.command == 'feedback':
             search = read_data(args.search) if args.search else {}
             if not isinstance(search, dict):
@@ -113,7 +116,7 @@ def _main(argv: list[str] | None = None) -> int:
                     if key == 'tpot_s':
                         search.pop('tpop_s', None)
                     search[key] = value
-            result = feedback(config, FeedbackSpec.model_validate(search))
+            result = feedback(config, FeedbackSpec.model_validate(search), workers=args.workers)
         else:
             result = run(config, args.command, full_detail=args.full_detail)
         output = write_report(result, args.output, full_detail=getattr(args, 'full_detail', False))

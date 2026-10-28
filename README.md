@@ -41,6 +41,8 @@ snmodel feedback examples/demo_inference.yaml --search examples/feedback_inferen
 
 未安装 CLI 时，在项目根目录把 `snmodel` 替换为 `python -m supernode_sim`，其余参数不变。
 
+批量搜索支持多核：在 `sweep`、`size-su`、`feedback` 命令后添加 `--workers 4`，用四个独立进程评估候选，保持候选顺序、失败诊断与数值口径。默认 `--workers 1`；小任务可能受进程启动开销影响，大图需按每个进程的内存占用控制并发。流式推理、自动并发与可复跑的性能对比见 [仿真器运行性能与资源](skills/supernode-modeling/references/resource-usage.md)。
+
 当前工作区已在 `.venv` 安装 CLI，可直接运行 `.\.venv\Scripts\snmodel.exe`，也可先执行 `.\.venv\Scripts\Activate.ps1` 再使用 `snmodel`。
 
 ```powershell
@@ -112,6 +114,22 @@ PD 分离是总卡数规则的显式例外：两个相同 TP/EP 的池，DP=PP=1
 
 ## 模型导入与校准
 
+面向不同 Ascend 环境，现支持 [多环境响应曲线](skills/supernode-modeling/references/ascend-runtime-adaptation.md)：`hardware.calibration_context` 区分 SKU、CANN/HCCL、驱动、runtime、transport 和计时模式；`collective_models` 在相同条件的实测 payload 范围内插值，不再要求每个消息量都恰好命中单点 profile。通用 `build_runtime_calibration.py` 可导入 HCCL/其他后端的归一化数据，分环境生成校准包，隔离训练与验证；HCCL transport 数据与 MoE 全调用边界分别进入执行图。kernel profile 也可附环境和结构元数据约束。采集口径见 [Ascend 实测指南](skills/supernode-modeling/references/ascend-measurement-sources.md)。
+
+```powershell
+python skills/supernode-modeling/scripts/build_runtime_calibration.py skills/supernode-modeling/assets/runtime-calibration.synthetic.json --output outputs/ascend-runtime-adaptation
+```
+
+这份双环境示例全部是 synthetic，只验证泛化接口、插值和超范围回退，不代表 A2/A3/950 实测精度。
+
+希望数值更贴近真实运行时，使用 [执行模型拟合](skills/supernode-modeling/references/runtime-fitting.md)：MoE dispatch/combine 可独立指定通信精度及元数据字节；collective profile 保留实际传输和争用，并提供包含启动/转换边界的服务时间约束。`python skills/supernode-modeling/scripts/fit_deepep_collectives.py --output outputs/deepep-fit` 使用 DeepEP 公开微基准，按 EP16/32 拟合、EP64/128 留出，输出前后预测及可复用 profile；本轮四个留出点平均绝对相对误差为 23.19% → 3.96%。这是特定通信阶段拟合，不代表整网 serving 已达到相同精度。
+
+硬件拓扑进一步支持 `hardware.io_groups`（物理 GPU/NPU 到独立或共享 NIC/PCIe 的约束、SO 与 offload 争用）、显式多路径的 `routing_algorithm: ecmp_hash`，以及需要逐层速率输入的 A3 HiAM/SIO/HCCS 拓扑生成器。新 profile 锁定硬件、rank 和完整 peer 矩阵，避免换接线后误套旧时延。运行 `python skills/supernode-modeling/scripts/evaluate_hardware_topology.py` 可复现路径和容量检查；[配置、公开架构依据及数值边界](skills/supernode-modeling/references/hardware-topology-fitting.md) 区分了模型检查与实机拟合精度。
+
+与真实推理比较时，可使用新增的 [公开 benchmark 证据与差距分析](skills/supernode-modeling/references/public-benchmark-validation.md)：包含 DeepInfer、NVIDIA、Ascend 的固定来源数据和标准库比较脚本，逐项检查模型、硬件、软件、负载与指标口径；条件缺失时输出 `not_comparable`，不自动拟合效率。`public` 来源中的作者估算另标 `evidence_kind: estimate`，不充当实测。
+
+SO 网络新增可选 `hardware.scale_out.host_injection_Bps`，独立表达多 NIC 主机每方向聚合能力，避免主机内所有卡被限制在一份单卡注入带宽中。单卡注入、共享上联和显式链路限制仍然生效；未设置时保留原行为。具体配置和公开规格依据见上述说明。
+
 ```powershell
 python -m supernode_sim import-hf path/to/config.json --overrides path/to/model-overrides.json -o outputs/imported-model.json
 ```
@@ -122,7 +140,7 @@ python -m supernode_sim import-hf path/to/config.json --overrides path/to/model-
 
 `hardware.kernel_profiles` 支持按 kernel 名称提供实测条目列表，每条包括 `flops`、`memory_bytes`、`duration_s`，可选 `dtype`、`phase` 和 `startup_s`。仅匹配相同工作量；未匹配项保留解析模型并报告。`duration_s` 是不含事件启动延迟的独占服务时间，不能低于物理计算/带宽下界。`startup_s` 给出时替换原启动开销，省略则保留原值，不能把同一启动时间重复计入两个字段。匹配后保留真实 FLOPs、共享 HBM 争用与计算流串行约束；用测量时间替换粗略效率限制。
 
-普通图与流式执行均在 `model_metadata.kernel_calibration` 报告实际匹配数量、覆盖率和 prefill/decode 分项；只有发生匹配才标记部分 kernel 校准。工作量匹配不自动验证张量形状、平台或软件版本，事件覆盖率也不代表端到端精度。实测对齐流程见 [运行时校准](skills/supernode-modeling/references/runtime-calibration.md)，K3/950DT 的公开投机 decode 参考及计时限制见 [来源核验](skills/supernode-modeling/references/kimi-k3-runtime-evidence.md)。
+普通图与流式执行均在 `model_metadata.kernel_calibration` 报告实际匹配数量、覆盖率和 prefill/decode 分项；只有发生匹配才标记部分 kernel 校准。可选 `hardware_name`、`calibration_context`、`metadata_match` 限制适用范围，旧记录仍标 unguarded；没有声明的 shape/版本不会自动验证。事件覆盖率不代表端到端精度。实测对齐流程见 [运行时校准](skills/supernode-modeling/references/runtime-calibration.md)，K3/950DT 的公开投机 decode 参考及计时限制见 [来源核验](skills/supernode-modeling/references/kimi-k3-runtime-evidence.md)。
 
 可用随 skill 提供的标准库工具分析逐 token 实测 trace，输出 TTFT、请求 TPOT、E2E、独立 ITL 分布、吞吐和联合 SLO goodput，并显式计数 warmup、失败与未完成请求。以下示例为 synthetic，只验证工具，不能用于硬件校准：
 

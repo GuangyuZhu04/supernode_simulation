@@ -23,15 +23,56 @@ def max_min_rates(work: dict[str, dict[str, float]], capacities: dict[str, float
     receive equal byte/s, rather than finishing at the same instant.
     Sparse incidence avoids scanning resources unused by running events.
     """
-    fractions = {eid: 0.0 for eid in work}
-    solo = {eid: min((capacities[key] / amount for key, amount in demands.items() if amount > 0), default=0.0)
-            for eid, demands in work.items()}
+    return _max_min_rates({eid: _prepare_service(demands, capacities)
+                           for eid, demands in work.items()}, capacities)
+
+
+def _prepare_service(work, capacities):
+    """Invariant roofline service, retained only while an event is active."""
+    solo = min((capacities[key] / amount for key, amount in work.items() if amount > 0), default=0.0)
+    return solo, tuple((key, amount * solo) for key, amount in work.items() if amount > 0)
+
+
+def _max_min_rates(services, capacities):
+    """Water filling over prepared demands, with an exact first-round shortcut."""
+    if len(services) == 1:
+        eid, (solo, demands) = next(iter(services.items()))
+        if solo <= 0:
+            return {eid: 0.0}
+        # Keep the normalized ratio rather than assuming its rounded value is
+        # exactly one, so a lone event uses the same arithmetic as water filling.
+        step = min((max(0.0, capacities[key]) / demand for key, demand in demands if demand > 0), default=None)
+        if step is None:
+            raise ValueError("Events reference no finite-capacity resource")
+        return {eid: step * solo}
     incidence: dict[str, list[tuple[str, float]]] = defaultdict(list)
-    for eid, demands in work.items():
-        for key, amount in demands.items():
-            if amount > 0:
-                incidence[key].append((eid, amount * solo[eid]))
-    pending = {eid for eid in work if solo[eid] > 0}
+    for eid, (_, demands) in services.items():
+        for key, demand in demands:
+            incidence[key].append((eid, demand))
+    pending = {eid for eid, (solo, _) in services.items() if solo > 0}
+    if not pending:
+        return dict.fromkeys(services, 0.0)
+
+    # Every fraction is initially zero. The first round needs neither the
+    # used-capacity sums nor a fractions table. Most operator batches freeze
+    # completely in this round; preserve the same sums, tie tolerance and
+    # multiplication order as the general solver.
+    candidates = []
+    for resource, participants in incidence.items():
+        slope = sum(demand for eid, demand in participants if eid in pending)
+        if slope > 0:
+            candidates.append((max(0.0, capacities[resource]) / slope, resource))
+    if not candidates:
+        raise ValueError("Events reference no finite-capacity resource")
+    step = min(value for value, _ in candidates)
+    tight = {resource for value, resource in candidates if value <= step * (1 + 1e-10) + 1e-30}
+    frozen = {eid for resource in tight for eid, _ in incidence[resource] if eid in pending}
+    if not frozen:
+        raise ValueError("Unable to resolve resource sharing")
+    if frozen == pending:
+        return {eid: step * solo if solo > 0 else 0.0 for eid, (solo, _) in services.items()}
+    fractions = {eid: step if solo > 0 else 0.0 for eid, (solo, _) in services.items()}
+    pending.difference_update(frozen)
     while pending:
         candidates = []
         for resource, participants in incidence.items():
@@ -51,7 +92,7 @@ def max_min_rates(work: dict[str, dict[str, float]], capacities: dict[str, float
         if not frozen:
             raise ValueError("Unable to resolve resource sharing")
         pending.difference_update(frozen)
-    return {eid: fraction * solo[eid] for eid, fraction in fractions.items()}
+    return {eid: fraction * services[eid][0] for eid, fraction in fractions.items()}
 
 
 def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, Any]:
@@ -174,10 +215,10 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
         # Complete events before admitting new ones, so same-time releases can
         # unblock allocations without introducing artificial overlap.
         finished = []
+        time_tolerance = max(1e-15, abs(now) * 1e-14)
         for eid, state in active.items():
-            event = events[eid]
-            startup_over = now >= state["ready"] - max(1e-15, abs(now) * 1e-14)
-            no_work = not any(value > 0 for value in event.work.values())
+            startup_over = now >= state["ready"] - time_tolerance
+            no_work = not state["service"][1]
             if startup_over and (state["remaining"] <= 1e-10 or no_work):
                 finished.append(eid)
         for eid in sorted(finished):
@@ -229,6 +270,7 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
             del waiting_dependencies[eid]
             held_slots.update(event.slots)
             active[eid] = {"start": now, "ready": now + event.startup_s, "remaining": 1.0,
+                           "service": _prepare_service(event.work, capacities),
                            "admission_timing": ready_timing.pop(eid)}
             admitted = True
         if admitted or finished:
@@ -239,8 +281,8 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
             if completed_count == len(events):
                 break
             return fail("error", "scheduler_deadlock", "No executable event remains")
-        working = {eid: events[eid].work for eid, state in active.items() if now >= state["ready"]}
-        rates = max_min_rates(working, capacities)
+        working = {eid: state["service"] for eid, state in active.items() if now >= state["ready"]}
+        rates = _max_min_rates(working, capacities)
         intervals = [state["ready"] - now for state in active.values() if state["ready"] > now]
         intervals.extend(active[eid]["remaining"] / rate for eid, rate in rates.items() if rate > 0)
         if not intervals:

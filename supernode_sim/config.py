@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, model_validator, model_serializer
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, model_validator, model_serializer
 
 DType = Literal['fp4', 'fp8', 'fp16', 'bf16', 'fp32', 'int8']
 Positive = float
@@ -226,6 +226,12 @@ class LinkSpec(Spec):
         return self
 
 
+class ScaleOutLinkSpec(LinkSpec):
+    host_injection_Bps: float | None = Field(default=None, gt=0,
+        description='Aggregate scale-out NIC bandwidth per host and direction, before efficiency. '
+                    'Omit to retain the per-device injection_Bps shared-host limit.')
+
+
 class ExternalMemorySpec(Spec):
     enabled: bool = False
     capacity_bytes: float = Field(default=1e14, gt=0)
@@ -246,6 +252,77 @@ class ExplicitLink(Spec):
     shared_Bps: float | None = Field(default=None, gt=0)
 
 
+class IOGroupSpec(Spec):
+    """Optional shared endpoint I/O capacity, independent of routed link bytes."""
+    id: str = Field(pattern=r'^[A-Za-z0-9][A-Za-z0-9_.-]*$')
+    members: list[StrictInt] = Field(min_length=1,
+        description='Physical NPU indices, unaffected by execution.rank_order. Overlap between groups expresses nested constraints.')
+    domains: list[Literal['SO', 'H2D', 'D2H']] = Field(min_length=1,
+        description='Apply only to transfers whose actual route uses one of these domains; H2D is destination/rx, D2H is source/tx.')
+    bandwidth_Bps: float = Field(gt=0, strict=True)
+    efficiency: float = Field(default=1.0, gt=0, le=1, strict=True)
+    duplex: Literal['full', 'shared'] = 'full'
+    latency_s: float = Field(default=0.0, ge=0, strict=True,
+        description='Additional latency for each participating NPU endpoint, independent of physical link startup.')
+
+    @model_validator(mode='after')
+    def members_and_domains(self):
+        if any(member < 0 for member in self.members):
+            raise ValueError('I/O group members must be nonnegative physical NPU indices')
+        if len(self.members) != len(set(self.members)):
+            raise ValueError('I/O group members must be unique within each group')
+        if len(self.domains) != len(set(self.domains)):
+            raise ValueError('I/O group domains must be unique within each group')
+        return self
+
+
+def validate_io_groups(groups: list[IOGroupSpec], npu_count: int) -> None:
+    ids = [group.id for group in groups]
+    if len(ids) != len(set(ids)):
+        raise ValueError('I/O group IDs must be unique')
+    if any(member >= npu_count for group in groups for member in group.members):
+        raise ValueError('I/O group members must reference existing physical NPU indices')
+
+
+CALIBRATION_CONTEXT_FIELDS = (
+    'device_sku', 'cann_version', 'hccl_version', 'driver_version', 'runtime',
+    'runtime_version', 'transport', 'mode', 'timer_boundary',
+)
+
+
+def validate_calibration_context(context: dict, *, require_complete: bool = False) -> None:
+    if not isinstance(context, dict):
+        raise ValueError('calibration_context must be an object of known nonempty strings')
+    unknown = {'unknown', 'unspecified', 'not_reported', 'not reported', 'unavailable', 'tbd', '?', 'n/a'}
+    for key, value in context.items():
+        if not isinstance(key, str) or not key.strip() or not isinstance(value, str) or not value.strip() or value.strip().lower() in unknown:
+            raise ValueError('calibration_context keys and values must be known nonempty strings')
+    if require_complete:
+        missing = set(CALIBRATION_CONTEXT_FIELDS) - set(context)
+        if missing:
+            raise ValueError('calibration_context is missing required identity fields: ' + ', '.join(sorted(missing)))
+        if context['timer_boundary'] not in ('device_only', 'whole_call'):
+            raise ValueError('calibration_context.timer_boundary must be device_only or whole_call')
+
+
+def validate_json_metadata(value: Any) -> None:
+    if value is None or isinstance(value, (str, bool, int)):
+        return
+    if isinstance(value, float) and math.isfinite(value):
+        return
+    if isinstance(value, dict):
+        if any(not isinstance(key, str) or not key for key in value):
+            raise ValueError('metadata_match object keys must be nonempty strings')
+        for item in value.values():
+            validate_json_metadata(item)
+        return
+    if isinstance(value, list):
+        for item in value:
+            validate_json_metadata(item)
+        return
+    raise ValueError('metadata_match must contain only finite JSON values')
+
+
 class KernelProfile(Spec):
     flops: float = Field(ge=0)
     memory_bytes: float = Field(ge=0)
@@ -254,6 +331,97 @@ class KernelProfile(Spec):
         description='Optional measured event startup; replaces rather than adds to existing startup.')
     dtype: DType | None = None
     phase: str | None = None
+    hardware_name: str | None = Field(default=None, min_length=1)
+    calibration_context: dict[str, StrictStr] = Field(default_factory=dict)
+    metadata_match: dict[str, Any] = Field(default_factory=dict)
+    source: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode='after')
+    def applicability(self):
+        if self.calibration_context:
+            validate_calibration_context(self.calibration_context, require_complete=True)
+        validate_json_metadata(self.metadata_match)
+        return self
+
+
+class CollectiveProfile(Spec):
+    """Exact byte-vector applicability; call duration includes launch/startup."""
+    id: str = Field(min_length=1)
+    collective: Literal['all_gather', 'reduce_scatter', 'all_reduce', 'all_to_all_v']
+    semantic: str = Field(min_length=1)
+    phase: str = Field(min_length=1)
+    world_size: StrictInt = Field(ge=2)
+    dtype: DType
+    algorithm: Literal['pairwise', 'direct', 'ring']
+    timing_scope: Literal['transport', 'activation_collective'] = 'transport'
+    total_payload_bytes: float = Field(gt=0)
+    send_payload_bytes: list[float] = Field(min_length=2)
+    recv_payload_bytes: list[float] = Field(min_length=2)
+    duration_s: float = Field(gt=0, description='Call wall time including startup; excludes warmup and external queueing.')
+    source: str = Field(min_length=1)
+    hardware_name: str = Field(min_length=1)
+    applicability_signature: str | None = Field(default=None, pattern=r'^v1:sha256:[0-9a-f]{64}$')
+
+    @model_validator(mode='after')
+    def payload_vectors(self):
+        for values in (self.send_payload_bytes, self.recv_payload_bytes):
+            if len(values) != self.world_size or any(value < 0 for value in values):
+                raise ValueError('collective payload vectors must contain world_size nonnegative values')
+            if not math.isclose(math.fsum(values), self.total_payload_bytes, rel_tol=1e-9, abs_tol=1e-6):
+                raise ValueError('collective payload vector sum must equal total_payload_bytes')
+        if self.collective != 'all_to_all_v' and self.algorithm != 'ring':
+            raise ValueError('all_gather/reduce_scatter/all_reduce profiles require ring algorithm')
+        if self.collective == 'all_to_all_v' and self.algorithm == 'ring':
+            raise ValueError('all_to_all_v profiles require pairwise or direct algorithm')
+        return self
+
+
+class CollectiveModelSample(Spec):
+    payload_bytes: float = Field(gt=0, strict=True, description='Total off-diagonal bytes across all ranks and modeled rounds.')
+    duration_s: float = Field(gt=0, strict=True)
+
+
+class CollectiveModel(Spec):
+    id: str = Field(min_length=1)
+    collective: Literal['all_gather', 'reduce_scatter', 'all_reduce', 'all_to_all_v']
+    semantic: str = Field(min_length=1)
+    phase: str = Field(min_length=1)
+    world_size: StrictInt = Field(ge=2)
+    dtype: DType
+    algorithm: Literal['pairwise', 'direct', 'ring']
+    timing_scope: Literal['transport', 'activation_collective'] = 'transport'
+    hardware_name: str = Field(min_length=1)
+    family_signature: str = Field(pattern=r'^collective-family-v1:sha256:[0-9a-f]{64}$')
+    metadata_match: dict[str, Any] = Field(default_factory=dict)
+    samples: list[CollectiveModelSample] = Field(min_length=2)
+    interpolation: Literal['linear'] = 'linear'
+    extrapolation: Literal['none'] = 'none'
+    source: str = Field(min_length=1)
+
+    @model_validator(mode='after')
+    def valid_curve(self):
+        validate_json_metadata(self.metadata_match)
+        if self.timing_scope == 'activation_collective' and self.semantic in ('dispatch', 'combine'):
+            required = ('moe_hidden_width', 'moe_tensor_bytes_per_token', 'moe_metadata_bytes_per_token',
+                        'moe_top_k', 'moe_num_experts')
+            if any(key not in self.metadata_match for key in required):
+                raise ValueError('activation MoE models require five shape/format metadata_match keys: ' + ', '.join(required))
+            for key in required:
+                value = self.metadata_match[key]
+                if type(value) is not int or value < (0 if key == 'moe_metadata_bytes_per_token' else 1):
+                    raise ValueError('activation MoE metadata_match shape/format fields must be valid integer counts')
+            from .core import DTYPE_BYTES
+            if self.metadata_match['moe_top_k'] > self.metadata_match['moe_num_experts']:
+                raise ValueError('moe_top_k cannot exceed moe_num_experts')
+            if self.metadata_match['moe_tensor_bytes_per_token'] != self.metadata_match['moe_hidden_width'] * DTYPE_BYTES[self.dtype]:
+                raise ValueError('moe_tensor_bytes_per_token must equal hidden width times wire dtype bytes')
+        if any(right.payload_bytes <= left.payload_bytes for left, right in zip(self.samples, self.samples[1:])):
+            raise ValueError('collective model samples must have strictly increasing payload_bytes')
+        if any(not getattr(self, key).strip() for key in ('id', 'semantic', 'phase', 'hardware_name', 'source')):
+            raise ValueError('collective model identity and source strings must be nonempty')
+        if (self.collective == 'all_to_all_v') == (self.algorithm == 'ring'):
+            raise ValueError('all_to_all_v models require pairwise/direct; other collectives require ring')
+        return self
 
 
 class HardwareSpec(Spec):
@@ -263,18 +431,24 @@ class HardwareSpec(Spec):
     npus_per_host: int = Field(default=8, gt=0)
     topology: Literal['full_mesh', 'mesh', 'clos', 'fat_tree', 'explicit'] = 'full_mesh'
     routing_policy: Literal['shortest_hop', 'su_so'] = 'shortest_hop'
+    routing_algorithm: Literal['shortest_hop', 'ecmp_hash'] = 'shortest_hop'
+    routing_seed: StrictInt = 0
     mesh_width: int | None = Field(default=None, gt=0)
     leaf_size: int | None = Field(default=None, gt=0)
     npu: NPUSpec = Field(default_factory=NPUSpec)
     cpu: CPUSpec = Field(default_factory=CPUSpec)
     scale_up: LinkSpec = Field(default_factory=LinkSpec)
-    scale_out: LinkSpec = Field(default_factory=lambda: LinkSpec(bandwidth_Bps=50e9, latency_s=5e-6))
+    scale_out: ScaleOutLinkSpec = Field(default_factory=lambda: ScaleOutLinkSpec(bandwidth_Bps=50e9, latency_s=5e-6))
     host_link: LinkSpec = Field(default_factory=lambda: LinkSpec(bandwidth_Bps=64e9, latency_s=2e-6))
     remote: ExternalMemorySpec = Field(default_factory=ExternalMemorySpec)
     ssd: ExternalMemorySpec = Field(default_factory=lambda: ExternalMemorySpec(bandwidth_Bps=10e9, latency_s=100e-6, iops=1e6))
     explicit_links: list[ExplicitLink] = Field(default_factory=list)
+    io_groups: list[IOGroupSpec] = Field(default_factory=list)
     routes: dict[str, list[str]] = Field(default_factory=dict)
     kernel_profiles: dict[str, list[KernelProfile]] = Field(default_factory=dict)
+    collective_profiles: list[CollectiveProfile] = Field(default_factory=list)
+    calibration_context: dict[str, StrictStr] = Field(default_factory=dict)
+    collective_models: list[CollectiveModel] = Field(default_factory=list)
 
     @model_validator(mode='after')
     def topology_valid(self):
@@ -285,6 +459,11 @@ class HardwareSpec(Spec):
         ids = [e.id for e in self.explicit_links]
         if len(ids) != len(set(ids)):
             raise ValueError('explicit link IDs must be unique')
+        validate_io_groups(self.io_groups, self.npu_count)
+        validate_calibration_context(self.calibration_context, require_complete=bool(self.collective_models))
+        model_ids = [model.id for model in self.collective_models]
+        if len(model_ids) != len(set(model_ids)):
+            raise ValueError('collective model IDs must be unique')
         return self
 
 
@@ -320,6 +499,12 @@ class PrecisionSpec(Spec):
     weight_transfer: DType = 'fp16'
     activation: DType = 'fp16'
     communication: DType = 'fp16'
+    moe_dispatch: Literal['fp8', 'fp16', 'bf16', 'fp32', 'int8'] | None = None
+    moe_combine: Literal['fp8', 'fp16', 'bf16', 'fp32', 'int8'] | None = None
+    moe_dispatch_metadata_bytes_per_token: StrictInt = Field(default=0, ge=0,
+        description='Explicit extra wire bytes per routed token copy; includes declared scales/indices. No scale format is inferred.')
+    moe_combine_metadata_bytes_per_token: StrictInt = Field(default=0, ge=0,
+        description='Explicit extra wire bytes per routed token copy; includes declared scales/indices. No scale format is inferred.')
     recurrent: Literal['fp16', 'bf16', 'fp32'] = 'fp32'
     routed_expert_weight: DType | None = None
 

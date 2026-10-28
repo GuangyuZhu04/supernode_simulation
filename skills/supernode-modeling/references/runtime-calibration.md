@@ -2,6 +2,12 @@
 
 用于 TTFT、TPOT/TPOP、decode 性能、仿真与真机差异。先读本文件确定比较是否成立；Kimi K3/950DT 的公开性能点见 [证据与适用范围](kimi-k3-runtime-evidence.md)。这里的测量流程是本项目的工程方法，不是厂商已对本引擎做过验证。
 
+DeepInfer、NVIDIA、Ascend 的固定来源数值、可执行比较工具及本轮引擎修正见 [公开 benchmark 对比](public-benchmark-validation.md)。使用其证据目录时区分 `status`（来源）与 `evidence_kind`（实测/估算/规格）；条件缺失时比较器报告 `not_comparable`，不自动拟合硬件效率。
+
+需要改善预测时，执行 [运行拟合流程](runtime-fitting.md)：分别设置 MoE dispatch/combine wire 格式、NIC 聚合与 collective 服务时间，并运行公开通信数据的拟合/留出实验。检查边界是准备工作，最终应交付实际改变的执行配置与前后数值。
+
+Ascend 多环境使用 [响应曲线流程](ascend-runtime-adaptation.md) 与 [真实数据采集指南](ascend-measurement-sources.md)。环境和软件条件独立分组，消息量可在训练范围内插值；不将 H800 DeepEP 系数作为其他 Ascend 部署的通用修正。
+
 ## 先确定测量的对象
 
 | 对象 | 计时边界 | 当前引擎可比较程度 |
@@ -70,7 +76,7 @@ PD 的总物理卡数是两个池的和，当前相同布局时为 `2 × TP × E
 
 先从未校准 `compile_graph`/事件明细确定真实 kernel 名与工作量。按来源记录 measurement 方法、形状、平台和版本。不能把 profiler 整个 wall time 同时写入 `duration_s`，又在 `startup_s` 重复计入启动。服务时间不能低于配置的物理计算/访存下界，增加启动项也不能绕过此校验。
 
-这是 FLOPs/bytes/dtype/phase 的工作量匹配，**不会自动验证张量形状、融合、runtime 或硬件 provenance**。同工作量不同形状不能无证据复用；不要用“整层/整网含通信”的耗时校准单 kernel，再由原图重复计算通信。
+默认仍是 FLOPs/bytes/dtype/phase 的工作量匹配，不自动验证未声明的张量形状、融合或运行栈。条目可附 `hardware_name`、完整 `calibration_context`、`metadata_match` 和 `source`；不匹配则回退，报告 scope mismatch，不通过 legacy 同工作量条目绕过。结构化组件事件具有模型结构签名及 TP/EP 元数据，可用于明确的选择器；它们不认证真实 checkpoint、tile 或 fused kernel。同工作量不同形状不能无证据复用，也不能用整网含通信的耗时校准单 kernel 后再重复计算通信。
 
 检查 `model_metadata.kernel_calibration` 的 `eligible_events`, `matched_events`, `coverage_fraction`, `by_phase`, `unmatched_kernels`, `unprofiled_kernels`。只有实际匹配才可标 `partially_kernel_calibrated`；全匹配也不是端到端验证。streaming 结果检查对应 `model_metadata` 与实际执行 phase；只校准 prefill 不能声称 decode 已校准。提前因容量失败的流式执行仅统计已构建部分，不能把它的覆盖率当完整运行覆盖率。
 

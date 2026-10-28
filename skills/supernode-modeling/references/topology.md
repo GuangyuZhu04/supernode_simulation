@@ -1,5 +1,7 @@
 # 拓扑、通信与最小 SU
 
+需要拟合具体硬件时，另读 [硬件架构与拓扑拟合](hardware-topology-fitting.md)：独立/共享 NIC、PCIe/offload 争用、逐流 ECMP、A3 HiAM 分层生成和 profile 的拓扑适用性签名。它们直接影响执行路径和资源竞争，不是统一效率折扣。
+
 ## 一等输入：SU 域、SO 域与拓扑结构
 
 | 输入 | 语义与映射 |
@@ -10,6 +12,9 @@
 | 两层拓扑 | 高层规范 `scale_up.topology` 是 SU 域内部结构，`scale_out.topology` 是每个 SO 域内部结构；它们可不同 |
 | SO 域间结构 | 高层规范 `inter_domain_links` 给出有向域间边、速率、延迟和效率；一个方向的声明不代表反方向 |
 | 物理链路能力 | `bandwidth_Bps`、`latency_s`、`efficiency`，可选 `injection_Bps` / `uplink_Bps`；共享资源按实际约束声明 |
+| 主机 SO 聚合注入 | 原生 `hardware.scale_out.host_injection_Bps`，每主机每方向 byte/s，乘 SO efficiency；独立于每卡 `injection_Bps`。省略保持原共享单卡注入上限；高层 DSL 暂不接受此字段，需在编译后的 canonical 场景添加 |
+| 端点 I/O 亲和与共享 | 原生 `hardware.io_groups` 指定物理设备成员、SO/H2D/D2H、带宽及双工；按实际路径计费，允许 NIC 与 PCIe 约束叠加 |
+| 多路径选择 | 原生 `hardware.routing_algorithm: ecmp_hash` 配合 `routing_seed` 在已有合法等跳数路径上稳定选路；默认 shortest_hop。显式 routes 优先，不自动生成 spine/容量 |
 
 这里将一个 SU 域作为一个超节点单元。SO 域是互联这些单元的 fabric 分组，不等于 NPU 总数、DP 副本数，也不等于链路的 `domain: SO` 标签。已有原生配置只有 `hardware.su_size` 与 `hardware.scale_out` 速率时，默认模板代表所有 SU 域共用一个 SO fabric，不能推断成多个隔离 SO 域。
 
@@ -86,3 +91,5 @@ python -m supernode_sim size-su path/to/scenario.yaml --mode multi --output outp
 候选集合不是连续空间证明；只有显式检查过的更小配置都失败，才能表述为“该候选集合与当前策略下最小”。同时报告最佳配置、失败配置、SLO、总卡数/域数、DP/global batch、SO 能力，以及容量还是性能限制。没有 SLO 时，结果只是配置容量/执行可行性搜索，不应解释为业务 SLO 已满足。
 
 实测校准应覆盖链路有效带宽、启动延迟、共享 uplink、host/remote 内存访问和实际 communicator。缓存层次容量和 MTE 通道数还需要 kernel tile、访存局部性及通道模型；架构级字节/带宽输出只能提供设计约束。
+
+多 NIC 主机的配置例子、默认 SO uplink 的推导、explicit 图边界和 NCCL algbw/busbw 口径见 [公开数据对比](public-benchmark-validation.md#已修正的网络表达缺口)。该参数只表达聚合能力，不表示已经模拟 GPU↔NIC 亲和性、rail 或 ECMP。

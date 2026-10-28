@@ -1,0 +1,1087 @@
+{
+  "schema_version": 1,
+  "environments": [
+    {
+      "id": "synthetic-a2",
+      "hardware": {
+        "name": "Synthetic Ascend-A2-like scenario; invented rates",
+        "npu_count": 4,
+        "su_size": 2,
+        "npus_per_host": 2,
+        "topology": "full_mesh",
+        "npu": {
+          "hbm_bytes": 1000000000,
+          "hbm_Bps": 1000000000000,
+          "efficiency": 1,
+          "flops": {
+            "fp8": 2000000000000,
+            "fp16": 1000000000000,
+            "bf16": 1000000000000,
+            "fp32": 500000000000
+          }
+        },
+        "scale_up": {
+          "bandwidth_Bps": 10000000000,
+          "injection_Bps": 10000000000,
+          "latency_s": 0,
+          "efficiency": 1
+        },
+        "scale_out": {
+          "bandwidth_Bps": 1000000000,
+          "injection_Bps": 1000000000,
+          "host_injection_Bps": 1500000000,
+          "latency_s": 0,
+          "efficiency": 1
+        },
+        "host_link": {
+          "bandwidth_Bps": 2000000000,
+          "injection_Bps": 2000000000,
+          "latency_s": 0,
+          "efficiency": 1
+        },
+        "io_groups": [
+          {
+            "id": "host0-io",
+            "members": [
+              0,
+              1
+            ],
+            "domains": [
+              "SO"
+            ],
+            "bandwidth_Bps": 750000000
+          },
+          {
+            "id": "host1-io",
+            "members": [
+              2,
+              3
+            ],
+            "domains": [
+              "SO"
+            ],
+            "bandwidth_Bps": 750000000
+          }
+        ]
+      },
+      "calibration_context": {
+        "device_sku": "synthetic Ascend-A2-like; no device was measured",
+        "cann_version": "synthetic-cann-1",
+        "hccl_version": "synthetic-hccl-1",
+        "driver_version": "synthetic-driver-1",
+        "runtime": "synthetic HCCL test fixture",
+        "runtime_version": "synthetic-runtime-1",
+        "transport": "synthetic explicit uniform-link model",
+        "mode": "synthetic low latency",
+        "timer_boundary": "device_only",
+        "benchmark_identity": "invented demonstration; not vendor performance data"
+      }
+    },
+    {
+      "id": "synthetic-a3",
+      "hardware": {
+        "name": "Synthetic Ascend-A3-like scenario; invented rates",
+        "npu_count": 4,
+        "su_size": 2,
+        "npus_per_host": 2,
+        "topology": "full_mesh",
+        "npu": {
+          "hbm_bytes": 1000000000,
+          "hbm_Bps": 1000000000000,
+          "efficiency": 1,
+          "flops": {
+            "fp8": 2000000000000,
+            "fp16": 1000000000000,
+            "bf16": 1000000000000,
+            "fp32": 500000000000
+          }
+        },
+        "scale_up": {
+          "bandwidth_Bps": 10000000000,
+          "injection_Bps": 10000000000,
+          "latency_s": 0,
+          "efficiency": 1
+        },
+        "scale_out": {
+          "bandwidth_Bps": 2000000000,
+          "injection_Bps": 2000000000,
+          "host_injection_Bps": 4000000000,
+          "latency_s": 0,
+          "efficiency": 1
+        },
+        "host_link": {
+          "bandwidth_Bps": 2000000000,
+          "injection_Bps": 2000000000,
+          "latency_s": 0,
+          "efficiency": 1
+        },
+        "io_groups": [
+          {
+            "id": "host0-io",
+            "members": [
+              0,
+              1
+            ],
+            "domains": [
+              "SO"
+            ],
+            "bandwidth_Bps": 2000000000
+          },
+          {
+            "id": "host1-io",
+            "members": [
+              2,
+              3
+            ],
+            "domains": [
+              "SO"
+            ],
+            "bandwidth_Bps": 2000000000
+          }
+        ]
+      },
+      "calibration_context": {
+        "device_sku": "synthetic Ascend-A3-like; no device was measured",
+        "cann_version": "synthetic-cann-2",
+        "hccl_version": "synthetic-hccl-2",
+        "driver_version": "synthetic-driver-2",
+        "runtime": "synthetic HCCL test fixture",
+        "runtime_version": "synthetic-runtime-2",
+        "transport": "synthetic explicit uniform-link model",
+        "mode": "synthetic throughput",
+        "timer_boundary": "whole_call",
+        "benchmark_identity": "invented demonstration; not vendor performance data"
+      }
+    }
+  ],
+  "observations": [
+    {
+      "id": "a2-train-1",
+      "environment_id": "synthetic-a2",
+      "kind": "collective",
+      "split": "train",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented demonstration observation with synthetic durations and hardware rates; no HCCL or hardware measurement was performed.",
+      "duration_s": 3e-05,
+      "collective": "all_to_all_v",
+      "semantic": "dispatch",
+      "phase": "decode",
+      "dtype": "fp16",
+      "algorithm": "direct",
+      "timing_scope": "transport",
+      "ranks": [
+        "npu0",
+        "npu2",
+        "npu1",
+        "npu3"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          1000,
+          3000,
+          0,
+          1000
+        ],
+        [
+          2000,
+          1000,
+          1000,
+          0
+        ],
+        [
+          0,
+          1000,
+          1000,
+          3000
+        ],
+        [
+          1000,
+          0,
+          2000,
+          1000
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "fp16"
+      },
+      "metadata_match": {}
+    },
+    {
+      "id": "a2-train-2",
+      "environment_id": "synthetic-a2",
+      "kind": "collective",
+      "split": "train",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented demonstration observation with synthetic durations and hardware rates; no HCCL or hardware measurement was performed.",
+      "duration_s": 4.5e-05,
+      "collective": "all_to_all_v",
+      "semantic": "dispatch",
+      "phase": "decode",
+      "dtype": "fp16",
+      "algorithm": "direct",
+      "timing_scope": "transport",
+      "ranks": [
+        "npu0",
+        "npu2",
+        "npu1",
+        "npu3"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          2000,
+          6000,
+          0,
+          2000
+        ],
+        [
+          4000,
+          2000,
+          2000,
+          0
+        ],
+        [
+          0,
+          2000,
+          2000,
+          6000
+        ],
+        [
+          2000,
+          0,
+          4000,
+          2000
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "fp16"
+      },
+      "metadata_match": {}
+    },
+    {
+      "id": "a2-train-3",
+      "environment_id": "synthetic-a2",
+      "kind": "collective",
+      "split": "train",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented demonstration observation with synthetic durations and hardware rates; no HCCL or hardware measurement was performed.",
+      "duration_s": 4.7e-05,
+      "collective": "all_to_all_v",
+      "semantic": "dispatch",
+      "phase": "decode",
+      "dtype": "fp16",
+      "algorithm": "direct",
+      "timing_scope": "transport",
+      "ranks": [
+        "npu0",
+        "npu2",
+        "npu1",
+        "npu3"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          2000,
+          6000,
+          0,
+          2000
+        ],
+        [
+          4000,
+          2000,
+          2000,
+          0
+        ],
+        [
+          0,
+          2000,
+          2000,
+          6000
+        ],
+        [
+          2000,
+          0,
+          4000,
+          2000
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "fp16"
+      },
+      "metadata_match": {}
+    },
+    {
+      "id": "a2-train-4",
+      "environment_id": "synthetic-a2",
+      "kind": "collective",
+      "split": "train",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented demonstration observation with synthetic durations and hardware rates; no HCCL or hardware measurement was performed.",
+      "duration_s": 4.9e-05,
+      "collective": "all_to_all_v",
+      "semantic": "dispatch",
+      "phase": "decode",
+      "dtype": "fp16",
+      "algorithm": "direct",
+      "timing_scope": "transport",
+      "ranks": [
+        "npu0",
+        "npu2",
+        "npu1",
+        "npu3"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          2000,
+          6000,
+          0,
+          2000
+        ],
+        [
+          4000,
+          2000,
+          2000,
+          0
+        ],
+        [
+          0,
+          2000,
+          2000,
+          6000
+        ],
+        [
+          2000,
+          0,
+          4000,
+          2000
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "fp16"
+      },
+      "metadata_match": {}
+    },
+    {
+      "id": "a2-train-5",
+      "environment_id": "synthetic-a2",
+      "kind": "collective",
+      "split": "train",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented demonstration observation with synthetic durations and hardware rates; no HCCL or hardware measurement was performed.",
+      "duration_s": 9.1e-05,
+      "collective": "all_to_all_v",
+      "semantic": "dispatch",
+      "phase": "decode",
+      "dtype": "fp16",
+      "algorithm": "direct",
+      "timing_scope": "transport",
+      "ranks": [
+        "npu0",
+        "npu2",
+        "npu1",
+        "npu3"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          4000,
+          12000,
+          0,
+          4000
+        ],
+        [
+          8000,
+          4000,
+          4000,
+          0
+        ],
+        [
+          0,
+          4000,
+          4000,
+          12000
+        ],
+        [
+          4000,
+          0,
+          8000,
+          4000
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "fp16"
+      },
+      "metadata_match": {}
+    },
+    {
+      "id": "a2-validation-6",
+      "environment_id": "synthetic-a2",
+      "kind": "collective",
+      "split": "validation",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented demonstration observation with synthetic durations and hardware rates; no HCCL or hardware measurement was performed.",
+      "duration_s": 4e-05,
+      "collective": "all_to_all_v",
+      "semantic": "dispatch",
+      "phase": "decode",
+      "dtype": "fp16",
+      "algorithm": "direct",
+      "timing_scope": "transport",
+      "ranks": [
+        "npu0",
+        "npu2",
+        "npu1",
+        "npu3"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          1500,
+          4500,
+          0,
+          1500
+        ],
+        [
+          3000,
+          1500,
+          1500,
+          0
+        ],
+        [
+          0,
+          1500,
+          1500,
+          4500
+        ],
+        [
+          1500,
+          0,
+          3000,
+          1500
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "fp16"
+      },
+      "metadata_match": {}
+    },
+    {
+      "id": "a2-validation-7",
+      "environment_id": "synthetic-a2",
+      "kind": "collective",
+      "split": "validation",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented demonstration observation with synthetic durations and hardware rates; no HCCL or hardware measurement was performed.",
+      "duration_s": 7.2e-05,
+      "collective": "all_to_all_v",
+      "semantic": "dispatch",
+      "phase": "decode",
+      "dtype": "fp16",
+      "algorithm": "direct",
+      "timing_scope": "transport",
+      "ranks": [
+        "npu0",
+        "npu2",
+        "npu1",
+        "npu3"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          3000,
+          9000,
+          0,
+          3000
+        ],
+        [
+          6000,
+          3000,
+          3000,
+          0
+        ],
+        [
+          0,
+          3000,
+          3000,
+          9000
+        ],
+        [
+          3000,
+          0,
+          6000,
+          3000
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "fp16"
+      },
+      "metadata_match": {}
+    },
+    {
+      "id": "a2-validation-8",
+      "environment_id": "synthetic-a2",
+      "kind": "collective",
+      "split": "validation",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented demonstration observation with synthetic durations and hardware rates; no HCCL or hardware measurement was performed.",
+      "duration_s": 0.00013,
+      "collective": "all_to_all_v",
+      "semantic": "dispatch",
+      "phase": "decode",
+      "dtype": "fp16",
+      "algorithm": "direct",
+      "timing_scope": "transport",
+      "ranks": [
+        "npu0",
+        "npu2",
+        "npu1",
+        "npu3"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          6000,
+          18000,
+          0,
+          6000
+        ],
+        [
+          12000,
+          6000,
+          6000,
+          0
+        ],
+        [
+          0,
+          6000,
+          6000,
+          18000
+        ],
+        [
+          6000,
+          0,
+          12000,
+          6000
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "fp16"
+      },
+      "metadata_match": {}
+    },
+    {
+      "id": "a3-train-1",
+      "environment_id": "synthetic-a3",
+      "kind": "collective",
+      "split": "train",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented synthetic MoE combine experiment: hidden=7168, top_k=2, experts=8, BF16 vectors; durations and hardware rates are invented. No A3 or HCCL measurement was performed.",
+      "duration_s": 0.00015,
+      "collective": "all_to_all_v",
+      "semantic": "combine",
+      "phase": "decode",
+      "dtype": "bf16",
+      "algorithm": "direct",
+      "timing_scope": "activation_collective",
+      "ranks": [
+        "npu3",
+        "npu1",
+        "npu2",
+        "npu0"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          28672,
+          43008,
+          0,
+          14336
+        ],
+        [
+          43008,
+          14336,
+          28672,
+          0
+        ],
+        [
+          0,
+          28672,
+          14336,
+          43008
+        ],
+        [
+          14336,
+          0,
+          43008,
+          28672
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "bf16"
+      },
+      "metadata_match": {
+        "moe_hidden_width": 7168,
+        "moe_tensor_bytes_per_token": 14336,
+        "moe_metadata_bytes_per_token": 0,
+        "moe_top_k": 2,
+        "moe_num_experts": 8
+      }
+    },
+    {
+      "id": "a3-train-2",
+      "environment_id": "synthetic-a3",
+      "kind": "collective",
+      "split": "train",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented synthetic MoE combine experiment: hidden=7168, top_k=2, experts=8, BF16 vectors; durations and hardware rates are invented. No A3 or HCCL measurement was performed.",
+      "duration_s": 0.00034,
+      "collective": "all_to_all_v",
+      "semantic": "combine",
+      "phase": "decode",
+      "dtype": "bf16",
+      "algorithm": "direct",
+      "timing_scope": "activation_collective",
+      "ranks": [
+        "npu3",
+        "npu1",
+        "npu2",
+        "npu0"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          86016,
+          129024,
+          0,
+          43008
+        ],
+        [
+          129024,
+          43008,
+          86016,
+          0
+        ],
+        [
+          0,
+          86016,
+          43008,
+          129024
+        ],
+        [
+          43008,
+          0,
+          129024,
+          86016
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "bf16"
+      },
+      "metadata_match": {
+        "moe_hidden_width": 7168,
+        "moe_tensor_bytes_per_token": 14336,
+        "moe_metadata_bytes_per_token": 0,
+        "moe_top_k": 2,
+        "moe_num_experts": 8
+      }
+    },
+    {
+      "id": "a3-train-3",
+      "environment_id": "synthetic-a3",
+      "kind": "collective",
+      "split": "train",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented synthetic MoE combine experiment: hidden=7168, top_k=2, experts=8, BF16 vectors; durations and hardware rates are invented. No A3 or HCCL measurement was performed.",
+      "duration_s": 0.00035,
+      "collective": "all_to_all_v",
+      "semantic": "combine",
+      "phase": "decode",
+      "dtype": "bf16",
+      "algorithm": "direct",
+      "timing_scope": "activation_collective",
+      "ranks": [
+        "npu3",
+        "npu1",
+        "npu2",
+        "npu0"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          86016,
+          129024,
+          0,
+          43008
+        ],
+        [
+          129024,
+          43008,
+          86016,
+          0
+        ],
+        [
+          0,
+          86016,
+          43008,
+          129024
+        ],
+        [
+          43008,
+          0,
+          129024,
+          86016
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "bf16"
+      },
+      "metadata_match": {
+        "moe_hidden_width": 7168,
+        "moe_tensor_bytes_per_token": 14336,
+        "moe_metadata_bytes_per_token": 0,
+        "moe_top_k": 2,
+        "moe_num_experts": 8
+      }
+    },
+    {
+      "id": "a3-train-4",
+      "environment_id": "synthetic-a3",
+      "kind": "collective",
+      "split": "train",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented synthetic MoE combine experiment: hidden=7168, top_k=2, experts=8, BF16 vectors; durations and hardware rates are invented. No A3 or HCCL measurement was performed.",
+      "duration_s": 0.00036,
+      "collective": "all_to_all_v",
+      "semantic": "combine",
+      "phase": "decode",
+      "dtype": "bf16",
+      "algorithm": "direct",
+      "timing_scope": "activation_collective",
+      "ranks": [
+        "npu3",
+        "npu1",
+        "npu2",
+        "npu0"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          86016,
+          129024,
+          0,
+          43008
+        ],
+        [
+          129024,
+          43008,
+          86016,
+          0
+        ],
+        [
+          0,
+          86016,
+          43008,
+          129024
+        ],
+        [
+          43008,
+          0,
+          129024,
+          86016
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "bf16"
+      },
+      "metadata_match": {
+        "moe_hidden_width": 7168,
+        "moe_tensor_bytes_per_token": 14336,
+        "moe_metadata_bytes_per_token": 0,
+        "moe_top_k": 2,
+        "moe_num_experts": 8
+      }
+    },
+    {
+      "id": "a3-train-5",
+      "environment_id": "synthetic-a3",
+      "kind": "collective",
+      "split": "train",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented synthetic MoE combine experiment: hidden=7168, top_k=2, experts=8, BF16 vectors; durations and hardware rates are invented. No A3 or HCCL measurement was performed.",
+      "duration_s": 0.0006,
+      "collective": "all_to_all_v",
+      "semantic": "combine",
+      "phase": "decode",
+      "dtype": "bf16",
+      "algorithm": "direct",
+      "timing_scope": "activation_collective",
+      "ranks": [
+        "npu3",
+        "npu1",
+        "npu2",
+        "npu0"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          143360,
+          215040,
+          0,
+          71680
+        ],
+        [
+          215040,
+          71680,
+          143360,
+          0
+        ],
+        [
+          0,
+          143360,
+          71680,
+          215040
+        ],
+        [
+          71680,
+          0,
+          215040,
+          143360
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "bf16"
+      },
+      "metadata_match": {
+        "moe_hidden_width": 7168,
+        "moe_tensor_bytes_per_token": 14336,
+        "moe_metadata_bytes_per_token": 0,
+        "moe_top_k": 2,
+        "moe_num_experts": 8
+      }
+    },
+    {
+      "id": "a3-validation-6",
+      "environment_id": "synthetic-a3",
+      "kind": "collective",
+      "split": "validation",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented synthetic MoE combine experiment: hidden=7168, top_k=2, experts=8, BF16 vectors; durations and hardware rates are invented. No A3 or HCCL measurement was performed.",
+      "duration_s": 0.00026,
+      "collective": "all_to_all_v",
+      "semantic": "combine",
+      "phase": "decode",
+      "dtype": "bf16",
+      "algorithm": "direct",
+      "timing_scope": "activation_collective",
+      "ranks": [
+        "npu3",
+        "npu1",
+        "npu2",
+        "npu0"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          57344,
+          86016,
+          0,
+          28672
+        ],
+        [
+          86016,
+          28672,
+          57344,
+          0
+        ],
+        [
+          0,
+          57344,
+          28672,
+          86016
+        ],
+        [
+          28672,
+          0,
+          86016,
+          57344
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "bf16"
+      },
+      "metadata_match": {
+        "moe_hidden_width": 7168,
+        "moe_tensor_bytes_per_token": 14336,
+        "moe_metadata_bytes_per_token": 0,
+        "moe_top_k": 2,
+        "moe_num_experts": 8
+      }
+    },
+    {
+      "id": "a3-validation-7",
+      "environment_id": "synthetic-a3",
+      "kind": "collective",
+      "split": "validation",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented synthetic MoE combine experiment: hidden=7168, top_k=2, experts=8, BF16 vectors; durations and hardware rates are invented. No A3 or HCCL measurement was performed.",
+      "duration_s": 0.00049,
+      "collective": "all_to_all_v",
+      "semantic": "combine",
+      "phase": "decode",
+      "dtype": "bf16",
+      "algorithm": "direct",
+      "timing_scope": "activation_collective",
+      "ranks": [
+        "npu3",
+        "npu1",
+        "npu2",
+        "npu0"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          114688,
+          172032,
+          0,
+          57344
+        ],
+        [
+          172032,
+          57344,
+          114688,
+          0
+        ],
+        [
+          0,
+          114688,
+          57344,
+          172032
+        ],
+        [
+          57344,
+          0,
+          172032,
+          114688
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "bf16"
+      },
+      "metadata_match": {
+        "moe_hidden_width": 7168,
+        "moe_tensor_bytes_per_token": 14336,
+        "moe_metadata_bytes_per_token": 0,
+        "moe_top_k": 2,
+        "moe_num_experts": 8
+      }
+    },
+    {
+      "id": "a3-validation-8",
+      "environment_id": "synthetic-a3",
+      "kind": "collective",
+      "split": "validation",
+      "status": "synthetic",
+      "evidence_kind": "synthetic",
+      "source": "Invented synthetic MoE combine experiment: hidden=7168, top_k=2, experts=8, BF16 vectors; durations and hardware rates are invented. No A3 or HCCL measurement was performed.",
+      "duration_s": 0.00085,
+      "collective": "all_to_all_v",
+      "semantic": "combine",
+      "phase": "decode",
+      "dtype": "bf16",
+      "algorithm": "direct",
+      "timing_scope": "activation_collective",
+      "ranks": [
+        "npu3",
+        "npu1",
+        "npu2",
+        "npu0"
+      ],
+      "size_bytes": 0,
+      "payload_matrix": [
+        [
+          200704,
+          301056,
+          0,
+          100352
+        ],
+        [
+          301056,
+          100352,
+          200704,
+          0
+        ],
+        [
+          0,
+          200704,
+          100352,
+          301056
+        ],
+        [
+          100352,
+          0,
+          301056,
+          200704
+        ]
+      ],
+      "precision": {
+        "compute": "bf16",
+        "activation": "bf16",
+        "communication": "bf16"
+      },
+      "metadata_match": {
+        "moe_hidden_width": 7168,
+        "moe_tensor_bytes_per_token": 14336,
+        "moe_metadata_bytes_per_token": 0,
+        "moe_top_k": 2,
+        "moe_num_experts": 8
+      }
+    }
+  ]
+}

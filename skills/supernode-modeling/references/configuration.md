@@ -55,6 +55,8 @@ execution.precision.weight_transfer: [fp8, fp16]
 
 这会形成四种组合；若只想比较“驻留与回传同时变化”的两种预设，分别运行两份完整配置，避免误读笛卡尔积。扫描 `active_params` 时记录结构不变的假设，不据此自动推断专家数或 top-k。
 
+`sweep`、`size-su`、`feedback` 支持 `--workers 4` 并行评估候选；默认 1，候选排序和结果口径保持一致。该参数控制运行仿真器的主机进程数，与所模拟的 TP/SP/EP/DP 无关。内存预算、Python 多进程入口和计时验证见 [resource-usage.md](resource-usage.md)。
+
 `feedback` 固定模型、硬件和拓扑，联合遍历 TP/SP/EP、输入长度与固定 batch，在满足 TTFT/TPOT 后最大化 Decode 吞吐。`--search` 接受独立的 YAML/JSON 搜索规范，不能把其字段写入原生场景顶层；可用 `--ttft-s`、`--tpot-s`（别名 `--tpop-s`）、`--prefill-lengths`、`--decode-batch-sizes`、`--output-length`、`--max-candidates`、`--engine auto/simulate/streaming` 覆盖相应设置。两个时延目标以秒输入，省略时可沿用场景中的目标。详细搜索字段、默认候选范围、吞吐口径和复跑方式见 [feedback.md](feedback.md)。
 
 输出包括 `report.md`, `result.json`, `config.resolved.json`, `latency_breakdown.csv`；估算/仿真包含资源与内存 CSV，仿真另有事件 CSV 与 Chrome/Perfetto `timeline.json`。时延 CSV 保存 TTFT / TPOT（TPOP）的计算、分域通信与等待分项，单位秒；未定义或未执行的指标留空，详见 [latency-breakdown.md](latency-breakdown.md)。实际文件以命令结果为准。`status=estimated` 不是可行性证明；`infeasible` 表示资源/执行约束失败，`slo_failed` 表示完成执行但不满足 SLO。搜索根状态可为 `completed`，仍须检查每个子搜索和候选的状态。

@@ -1,4 +1,4 @@
-# 控制仿真程序的内存与磁盘占用
+# 仿真器运行性能、内存与磁盘占用
 
 本页控制运行 Python 仿真器的主机资源；不改变所模拟设备的 HBM/DDR、精度、并行布局、负载或调度策略。不能为了降低主机开销而缩小用户场景、跳过失败案例或把独立 decode 当作端到端成功。
 
@@ -31,6 +31,29 @@ for name, value in [('config.resolved.json', snapshot), ('result.json', result)]
 
 ## 缓存和批量实验
 
+`sweep`、`size-su`、`feedback` 将独立候选分配给多个 Python 进程，适用于 CPU 密集的批量仿真。默认 `--workers 1`；`--workers 4` 最多使用四个子进程；`--workers 0` 按可用 CPU 自动选择，最多四个，并受实际候选数限制。结果仍按原候选规则排序，非法配置和不可行候选保留原诊断。主进程有界提交任务，子进程返回候选摘要，避免把全部事件图在进程间传输。
+
+```text
+python -m supernode_sim sweep examples/demo_training.yaml --axes examples/sweep_precision.yaml --workers 4 -o outputs/parallel-sweep
+python -m supernode_sim size-su examples/demo_inference.yaml --workers 4 -o outputs/parallel-su
+python -m supernode_sim feedback examples/demo_inference.yaml --search examples/feedback_inference.yaml --workers 4 -o outputs/parallel-feedback
+```
+
+进程数是仿真器主机的执行选项，不改变所模拟系统的 TP/EP/DP、事件依赖、资源争用或数值精度。单次 `simulate` 的事件调度仍在一个进程执行；重复计算优化自动生效。Windows 启动进程与导入模块有固定开销，只有少量短任务时串行通常更快。先测一个代表性候选的主机耗时和内存，再选择并发；自动模式限制 CPU 数量，但不探测可用内存，也不保证内存足够。
+
+Python API 的 `workers` 为关键字参数。多进程脚本放在可导入的 `.py` 文件中，并保护入口；交互式控制台可使用 `workers=1` 或改用 CLI：
+
+```python
+from supernode_sim.config import load_config
+from supernode_sim.search import sweep
+
+if __name__ == '__main__':
+    result = sweep(load_config('examples/demo_training.yaml'),
+                   {'execution.precision.weight': ['fp8', 'fp16']}, workers=2)
+```
+
+`size_su(config, workers=4)` 和 `feedback(config, search_options, workers=4)` 使用相同接口；`workers` 不写入场景配置或 `FeedbackSpec`。
+
 流式时序缓存默认最多 64 MiB 的 Python 对象计量、256 项；淘汰只触发重新计算，不放宽显存准入。跨场景共享时使用 `BoundedCache`；显式传入普通 `dict` 仍沿用调用者管理的无界行为。预算为 0 时关闭时序缓存。
 
 两个 Kimi 批处理脚本支持 `--cache-mib`，例如：
@@ -40,9 +63,24 @@ python scripts/run_kimi_10t_inference.py --run --cache-mib 32
 python scripts/run_kimi_sp_inference.py --run --cache-mib 32
 ```
 
-这些命令要求对应目录已有 manifest、配置和硬件 profile。缓存预算按每个进程计，不是进程 RSS 上限；事件、拓扑、结果和 Python 运行时另占内存。默认保持串行，增加 shard 进程数前按各进程峰值评估总内存。
+这些 Kimi 脚本要求对应目录已有 manifest、配置和硬件 profile，仍沿用各自的 shard 入口。缓存预算按每个进程计，不是进程 RSS 上限；事件、拓扑、结果和 Python 运行时另占内存。增加搜索 workers 或 shard 进程数前按各进程峰值评估总内存，避免在多个 shard 内重复开启满额并发。
 
 静态拓扑的 pair 路由缓存最多 16 MiB / 65,536 项，各路由模式的源树缓存最多 16 MiB / 128 项。内置 `full_mesh` 会惰性增加 SU 边，其 pair 缓存保留历史语义，暂不限制；源树仍有界。拓扑本身的边和资源不受这些缓存预算约束。
+
+带签名的 collective profile / 响应曲线自动复用相同硬件、物理 rank 和完整 payload 矩阵的签名，每个 Topology 最多 8 MiB / 1024 项；曲线模型在初始化时校验一次。phase、dtype、操作元数据和计时边界仍逐次匹配，缓存淘汰只触发重算。校准拓扑持有初始化快照；直接使用底层 API 修改硬件或 profile 后，应新建 Topology。
+
+## 可复跑的主机性能对比
+
+`scripts/benchmark_simulation.py` 记录实际主机墙钟时间与数值摘要；默认重复三次、取中位数。计时包含图编译和数值汇总，批量运行包含子进程启动；不含配置读取和文件导出。流式每轮使用新的时序缓存，避免用跨轮热缓存冒充引擎加速。
+
+```text
+python scripts/benchmark_simulation.py path/to/scenario.yaml --repeats 3 -o outputs/performance/before.json
+python scripts/benchmark_simulation.py path/to/scenario.yaml --repeats 3 --compare outputs/performance/before.json -o outputs/performance/after.json
+```
+
+第一条在修改引擎前运行，第二条在修改后运行；也可用 `--implementation-root path/to/saved-revision` 指向包含 `supernode_sim/` 的旧版本目录。比较要求相同 resolved config、模式和 axes，并检查状态、指标、通信、资源工作量与内存等数值摘要（相对容差 `1e-10`，绝对容差 `1e-12`）。不一致时返回非零退出码，不输出有效加速比；原始事件顺序及未保留的明细仍由回归测试验证。
+
+使用 `--mode streaming` 测流式完整推理，或 `--mode sweep --axes path/to/axes.yaml --workers 1/4` 比较批量串并行。比较时关闭其他重型任务，并报告 Python 版本、CPU 数、场景规模与重复次数；合成案例的仿真器加速比不代表真实 NPU/GPU 的模型推理加速比。
 
 ## 文件大小与恢复
 

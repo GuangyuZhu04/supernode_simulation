@@ -10,6 +10,7 @@ import math
 from typing import Any, TYPE_CHECKING
 
 from .core import Allocation, DTYPE_BYTES, Event, Graph, Resource
+from .moe_wire import moe_payload_matrix, moe_wire_metadata, wire_payload_parts
 
 if TYPE_CHECKING:
     from .topology import Topology
@@ -102,35 +103,58 @@ def build_inference(config: dict[str, Any], topology: "Topology") -> Graph:
     def collective(prefix: str, kind: str, ranks: list[str], size: float,
                    deps: tuple[str, ...], payload_matrix=None, metadata=None) -> tuple[str, ...]:
         """Pack/unpack explicitly when wire and activation precision differ."""
-        if p["activation"] == p["communication"] or len(ranks) == 1:
-            return topology.collective(graph, prefix, kind, ranks, size, deps,
-                                       payload_matrix=payload_matrix, metadata=metadata)
+        metadata = dict(metadata or {})
+        wire = metadata.get('wire_dtype', p['communication'])
+        moe = metadata.get('operation') in ('dispatch', 'combine')
+        algorithm = x.get('all_to_all_algorithm', 'pairwise')
+        outer = moe
+        if moe:
+            selection = topology.select_collective_timing_scope(kind, ranks, size, payload_matrix, metadata, algorithm)
+            metadata['collective_scope_selection'] = selection
+            outer = selection['selected_scope'] == 'activation_collective'
+
+        def finish(terminals):
+            if not outer:
+                return tuple(terminals)
+            return topology.complete_collective_profile(graph, prefix, kind, ranks, size,
+                deps=tuple(deps), terminals=tuple(terminals), payload_matrix=payload_matrix,
+                metadata=metadata, algorithm=algorithm, timing_scope='activation_collective')
+
+        if p["activation"] == wire or len(ranks) == 1:
+            return finish(topology.collective(graph, prefix, kind, ranks, size, deps,
+                payload_matrix=payload_matrix, metadata=metadata, algorithm=algorithm, apply_profiles=not outer))
         packed, buffers = [], []
         for index, device in enumerate(ranks):
             send_bytes = sum(payload_matrix[index]) if payload_matrix is not None else size
-            elements = send_bytes / DTYPE_BYTES[p["communication"]]
+            elements, extra = wire_payload_parts(send_bytes, wire, metadata)
+            accesses = elements * DTYPE_BYTES[p['activation']] + send_bytes + extra
             aid = f"{prefix}.{device}.packed"
             buffers.append(aid)
             packed.append(add(Event(f"{prefix}.{device}.pack", deps,
                 {device + ".compute": elements,
-                 device + ".hbm": elements * (DTYPE_BYTES[p["activation"]] + DTYPE_BYTES[p["communication"]])},
+                 device + ".hbm": accesses},
                 slots=(device + ".compute_stream",),
-                allocs=(alloc(aid, device, send_bytes, "conversion_buffer", p["communication"]),),
+                allocs=(alloc(aid, device, send_bytes, "conversion_buffer", wire),),
                 metadata={**(metadata or {}), "operation": "precision_conversion", "conversion": "communication_pack",
-                          "kernel": "communication_pack", "working_set_bytes": elements * (DTYPE_BYTES[p["activation"]] + DTYPE_BYTES[p["communication"]])})))
+                          "kernel": "communication_pack", "working_set_bytes": accesses,
+                          "tensor_elements": elements, "wire_metadata_bytes": extra,
+                          "source_precision": p['activation'], "destination_precision": wire})))
         network = topology.collective(graph, prefix, kind, ranks, size, tuple(packed),
-                                      payload_matrix=payload_matrix, metadata=metadata)
+            payload_matrix=payload_matrix, metadata=metadata, algorithm=algorithm, apply_profiles=not outer)
         unpacked = []
         for index, device in enumerate(ranks):
             recv_bytes = sum(row[index] for row in payload_matrix) if payload_matrix is not None else size
-            elements = recv_bytes / DTYPE_BYTES[p["communication"]]
+            elements, extra = wire_payload_parts(recv_bytes, wire, metadata)
+            accesses = elements * DTYPE_BYTES[p['activation']] + recv_bytes + extra
             unpacked.append(add(Event(f"{prefix}.{device}.unpack", tuple(network),
                 {device + ".compute": elements,
-                 device + ".hbm": elements * (DTYPE_BYTES[p["activation"]] + DTYPE_BYTES[p["communication"]])},
+                 device + ".hbm": accesses},
                 slots=(device + ".compute_stream",), releases=(buffers[index],),
                 metadata={**(metadata or {}), "operation": "precision_conversion", "conversion": "communication_unpack",
-                          "kernel": "communication_unpack", "working_set_bytes": elements * (DTYPE_BYTES[p["activation"]] + DTYPE_BYTES[p["communication"]])})))
-        return tuple(unpacked)
+                          "kernel": "communication_unpack", "working_set_bytes": accesses,
+                          "tensor_elements": elements, "wire_metadata_bytes": extra,
+                          "source_precision": wire, "destination_precision": p['activation']})))
+        return finish(unpacked)
 
     dense_params = m["total_params"] * (1 - m["expert_parameter_fraction"])
     expert_params = m["total_params"] - dense_params
@@ -364,12 +388,16 @@ def build_inference(config: dict[str, Any], topology: "Topology") -> Graph:
                 if is_moe:
                     for t in range(tp):
                         ranks = [rank(d, stage, e, t) for e in range(ep)]
-                        matrices = [[local_tokens[e] * m["hidden_dim"] * m["top_k"] * DTYPE_BYTES[p["communication"]] / ep
-                                     for _ in range(ep)] for e in range(ep)]
+                        source_tokens = [local_tokens[e] for e in range(ep)]
+                        matrices = moe_payload_matrix(p, 'dispatch', source_tokens, m['hidden_dim'], m['top_k'])
+                        dispatch_wire = moe_wire_metadata(p, 'dispatch', m['hidden_dim'], top_k=m['top_k'], num_experts=m['num_experts'])
+                        combine_wire = moe_wire_metadata(p, 'combine', m['hidden_dim'], top_k=m['top_k'], num_experts=m['num_experts'])
                         expert_allocs = []
                         for device in ranks:
                             aid = f"{prefix}.{device}.expert_buffer"
-                            size = total_tokens * m["hidden_dim"] * m["top_k"] * max(DTYPE_BYTES[p["communication"]], DTYPE_BYTES[p["activation"]]) / ep
+                            size = total_tokens * m["hidden_dim"] * m["top_k"] * max(
+                                DTYPE_BYTES[dispatch_wire['wire_dtype']], DTYPE_BYTES[combine_wire['wire_dtype']],
+                                DTYPE_BYTES[p["activation"]]) / ep
                             expert_allocs.append(alloc(aid, device, size, "expert_buffer", p["activation"]))
                             cleanup[device].append(aid)
                             intermediate_id = f"{prefix}.{device}.expert_intermediate"
@@ -380,7 +408,7 @@ def build_inference(config: dict[str, Any], topology: "Topology") -> Graph:
                             tuple(dense_done[e, t] for e in range(ep)), allocs=tuple(expert_allocs)))
                         dispatch = collective(f"{prefix}.t{t}.dispatch", "all_to_all_v",
                             ranks, 0, (prepared,), payload_matrix=matrices,
-                            metadata={"phase": phase, "operation": "dispatch", "layer": layer})
+                            metadata={"phase": phase, "operation": "dispatch", "layer": layer, **dispatch_wire})
                         experts = []
                         for device in ranks:
                             flops = 2 * active_per_moe_layer * total_tokens / (tp * ep)
@@ -391,8 +419,9 @@ def build_inference(config: dict[str, Any], topology: "Topology") -> Graph:
                                 metadata={"phase": phase, "layer": layer, "operation": "experts", "flops": flops,
                                           "kernel": "experts", "working_set_bytes": bytes_ + total_tokens * m["top_k"] * (m["hidden_dim"] + m["intermediate_dim"] / tp) * DTYPE_BYTES[p["activation"]] / ep})))
                         combined = collective(f"{prefix}.t{t}.combine", "all_to_all_v",
-                            ranks, 0, tuple(experts), payload_matrix=[list(row) for row in zip(*matrices)],
-                            metadata={"phase": phase, "operation": "combine", "layer": layer})
+                            ranks, 0, tuple(experts), payload_matrix=moe_payload_matrix(
+                                p, 'combine', source_tokens, m['hidden_dim'], m['top_k']),
+                            metadata={"phase": phase, "operation": "combine", "layer": layer, **combine_wire})
                         layer_outputs.extend(combined)
                 else:
                     layer_outputs.extend(dense_done.values())

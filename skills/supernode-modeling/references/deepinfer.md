@@ -2,6 +2,8 @@
 
 用于 P/D 选型、Wide-EP、batch 扫描和 DeepInfer 优化方案分析。先读 [features.md](features.md) 的接口契约。本页是现有 feature 的组合方法及扩展边界，不新增 `deepinfer: true` 一类引擎开关。
 
+需要和公开吞吐数值对比时，另读 [公开 benchmark 对比](public-benchmark-validation.md)。证据目录保留固定版本 Q&A 的估算值及未披露条件，不把 estimated throughput、满接受 throughput 或 DeepEP 单 collective 时延混作同一实测指标。
+
 ## 来源与适用范围
 
 核对日期：**2026-10-21**。依据 DeepSeek-AI 官方 DeepInfer 仓库的部署 [Q&A][qa]、[README][readme]、[benchmark 说明][bench] 和 [sweep 脚本][sweep]；固定版本为 `774ce244b87cc0eb8d4b94ab9f5de2ab22049f01`（2026-10-20）。Q&A 是官方[推理系统文章][article]的配套部署说明。后续更新需重新核对版本，不能把这里的快照称为永远最新。

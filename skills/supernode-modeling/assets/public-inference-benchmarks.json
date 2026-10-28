@@ -1,0 +1,447 @@
+{
+  "schema_version": 1,
+  "checked_on": "2026-10-22",
+  "cases": [
+    {
+      "id": "nvidia-r1-fp4-b200-8-max-throughput-b626186",
+      "status": "public",
+      "source": "https://github.com/NVIDIA/TensorRT-LLM/blob/b6261862419c33d6ce2313aff1e7116067d6037d/docs/source/blogs/Best_perf_practice_on_DeepSeek-R1_in_TensorRT-LLM.md ; checked 2026-10-22; documentation snapshot only: pinned source does not identify the benchmark runtime commit",
+      "context": {
+        "model": {
+          "name": "nvidia/DeepSeek-R1-FP4",
+          "revision": null
+        },
+        "hardware": {
+          "sku": "NVIDIA B200",
+          "count": 8,
+          "topology": null
+        },
+        "runtime": {
+          "name": "TensorRT-LLM",
+          "version": null,
+          "backend_version": null,
+          "backend": "pytorch",
+          "documentation_revision": "b6261862419c33d6ce2313aff1e7116067d6037d"
+        },
+        "precision": {
+          "weights": "FP4",
+          "activations": null,
+          "kv_cache": null,
+          "communication": null
+        },
+        "parallelism": {
+          "tp": 8,
+          "pp": null,
+          "ep": 8,
+          "dp": null
+        },
+        "workload": {
+          "input_tokens": 1024,
+          "output_tokens": 2048,
+          "batch_size": 384,
+          "batch_scope": "maximum requests per rank",
+          "concurrency": 3072,
+          "arrival_process": null,
+          "cache_state": null,
+          "request_count": 49152,
+          "dataset": "synthetic token-norm-dist",
+          "input_stddev_tokens": 0,
+          "output_stddev_tokens": 0,
+          "max_num_tokens": 1536
+        },
+        "execution": {
+          "speculative_decoding": false,
+          "chunked_prefill": false,
+          "warmup_requests": 0
+        },
+        "native_parallelism": {
+          "cli_tp": 8,
+          "cli_ep": 8,
+          "enable_attention_dp": true,
+          "semantics": "CLI TP and EP are overlapping component groups, not multiplicative device dimensions."
+        }
+      },
+      "metrics": {
+        "output_throughput_tps": {
+          "value": 35611.5942,
+          "unit": "tokens/s",
+          "phase": "end_to_end",
+          "timer_boundary": null,
+          "aggregation": "total benchmark output count divided by benchmark elapsed time",
+          "token_basis": "generated output tokens",
+          "window": "49152 requests"
+        },
+        "output_throughput_tps_per_gpu": {
+          "value": 4451.4493,
+          "unit": "tokens/s/GPU",
+          "phase": "end_to_end",
+          "timer_boundary": null,
+          "aggregation": "total benchmark output throughput divided by 8 GPUs",
+          "token_basis": "generated output tokens",
+          "window": "49152 requests"
+        },
+        "mean_request_latency_ms": {
+          "value": 176064.1921,
+          "unit": "ms",
+          "phase": "end_to_end",
+          "timer_boundary": null,
+          "aggregation": "arithmetic mean across requests",
+          "token_basis": null,
+          "window": "49152 requests"
+        }
+      },
+      "evidence_kind": "measurement"
+    },
+    {
+      "id": "ascend-v31-w8a8-a3-prefill-cpp",
+      "status": "public",
+      "source": "https://github.com/vllm-project/vllm-ascend/blob/c361fb4990aa9c32a9609e34595d787bb4144f2a/docs/source/tutorials/features/dynamic_chunked_pipeline_parallel.md ; checked 2026-10-22; blob 63541c4d2afeadba67c813ebb645748ce2d89014",
+      "context": {
+        "model": {
+          "name": "DeepSeek-V3.1-W8A8",
+          "revision": null
+        },
+        "hardware": {
+          "sku": "Atlas 800T A3",
+          "count": 16,
+          "topology": null,
+          "device_scope": "prefill instance",
+          "memory_per_device_gb": 64
+        },
+        "runtime": {
+          "name": "vLLM-Ascend",
+          "version": null,
+          "backend_version": null,
+          "documentation_revision": "c361fb4990aa9c32a9609e34595d787bb4144f2a"
+        },
+        "precision": {
+          "weights": "INT8",
+          "activations": "INT8",
+          "kv_cache": null,
+          "communication": null
+        },
+        "parallelism": {
+          "tp": 8,
+          "pp": 2,
+          "ep": null,
+          "dp": 1
+        },
+        "workload": {
+          "input_tokens": null,
+          "output_tokens": null,
+          "batch_size": null,
+          "batch_scope": null,
+          "concurrency": 1,
+          "arrival_process": null,
+          "cache_state": null,
+          "input_length_source_text": "128k",
+          "length_distribution": "fixed"
+        },
+        "execution": {
+          "speculative_decoding": null,
+          "chunked_prefill": true,
+          "dynamic_chunked_pipeline_parallel": true,
+          "chunk_size_source_text": "32k"
+        }
+      },
+      "metrics": {
+        "ttft_ms": {
+          "value": 22500,
+          "unit": "ms",
+          "phase": "prefill",
+          "timer_boundary": null,
+          "aggregation": null,
+          "token_basis": "time to first output token",
+          "window": null
+        }
+      },
+      "evidence_kind": "measurement"
+    },
+    {
+      "id": "ascend-v31-w8a8-a3-prefill-static-pp",
+      "status": "public",
+      "source": "https://github.com/vllm-project/vllm-ascend/blob/c361fb4990aa9c32a9609e34595d787bb4144f2a/docs/source/tutorials/features/dynamic_chunked_pipeline_parallel.md ; checked 2026-10-22; blob 63541c4d2afeadba67c813ebb645748ce2d89014",
+      "context": {
+        "model": {
+          "name": "DeepSeek-V3.1-W8A8",
+          "revision": null
+        },
+        "hardware": {
+          "sku": "Atlas 800T A3",
+          "count": 16,
+          "topology": null,
+          "device_scope": "prefill instance",
+          "memory_per_device_gb": 64
+        },
+        "runtime": {
+          "name": "vLLM-Ascend",
+          "version": null,
+          "backend_version": null,
+          "documentation_revision": "c361fb4990aa9c32a9609e34595d787bb4144f2a"
+        },
+        "precision": {
+          "weights": "INT8",
+          "activations": "INT8",
+          "kv_cache": null,
+          "communication": null
+        },
+        "parallelism": {
+          "tp": 8,
+          "pp": 2,
+          "ep": null,
+          "dp": 1
+        },
+        "workload": {
+          "input_tokens": null,
+          "output_tokens": null,
+          "batch_size": null,
+          "batch_scope": null,
+          "concurrency": 1,
+          "arrival_process": null,
+          "cache_state": null,
+          "input_length_source_text": "128k",
+          "length_distribution": "fixed"
+        },
+        "execution": {
+          "speculative_decoding": null,
+          "chunked_prefill": true,
+          "dynamic_chunked_pipeline_parallel": false,
+          "chunk_size_source_text": "32k"
+        }
+      },
+      "metrics": {
+        "ttft_ms": {
+          "value": 27000,
+          "unit": "ms",
+          "phase": "prefill",
+          "timer_boundary": null,
+          "aggregation": null,
+          "token_basis": "time to first output token",
+          "window": null
+        }
+      },
+      "evidence_kind": "measurement"
+    },
+    {
+      "id": "deepinfer-v41-ep64-fixed5-conc60-estimate",
+      "status": "public",
+      "source": "https://github.com/deepseek-ai/DeepInfer/blob/774ce244b87cc0eb8d4b94ab9f5de2ab22049f01/doc/inference_deployment_qa.md ; checked 2026-10-22",
+      "context": {
+        "model": {
+          "name": "DeepSeek-V4.1-Flash",
+          "revision": null
+        },
+        "hardware": {
+          "sku": null,
+          "count": 64,
+          "topology": null
+        },
+        "runtime": {
+          "name": "DeepInfer",
+          "version": null,
+          "backend_version": null,
+          "documentation_revision": "774ce244b87cc0eb8d4b94ab9f5de2ab22049f01"
+        },
+        "precision": {
+          "weights": null,
+          "activations": null,
+          "kv_cache": null,
+          "communication": null
+        },
+        "parallelism": {
+          "tp": null,
+          "pp": null,
+          "ep": 64,
+          "dp": null
+        },
+        "workload": {
+          "input_tokens": null,
+          "output_tokens": null,
+          "batch_size": 60,
+          "batch_scope": "concurrent sequences per attention DP rank",
+          "concurrency": 60,
+          "arrival_process": null,
+          "cache_state": null,
+          "concurrency_scope": "per attention DP rank"
+        },
+        "execution": {
+          "speculative_decoding": true,
+          "chunked_prefill": null,
+          "draft_tokens": 5,
+          "verification_policy": "fixed length",
+          "mean_verified_draft_length": 5,
+          "mean_accepted_length": 3.3,
+          "accepted_length_includes_bonus": null
+        },
+        "native_parallelism": {
+          "attention_dp": 64,
+          "moe_ep": 64,
+          "semantics": "Attention DP and MoE EP share the same 64 devices; these are not independent complete-model replicas."
+        }
+      },
+      "metrics": {
+        "estimated_decode_tps_per_rank": {
+          "value": 13730,
+          "unit": "tokens/s/rank",
+          "phase": "decode",
+          "timer_boundary": null,
+          "aggregation": "author-estimated throughput derived from EP64/DP64 benchmark data",
+          "token_basis": "estimated effective output tokens; exact accepted-length bonus convention not disclosed",
+          "window": null
+        }
+      },
+      "evidence_kind": "estimate"
+    },
+    {
+      "id": "deepinfer-v41-ep64-dynamic-verification-conc60-estimate",
+      "status": "public",
+      "source": "https://github.com/deepseek-ai/DeepInfer/blob/774ce244b87cc0eb8d4b94ab9f5de2ab22049f01/doc/inference_deployment_qa.md ; checked 2026-10-22",
+      "context": {
+        "model": {
+          "name": "DeepSeek-V4.1-Flash",
+          "revision": null
+        },
+        "hardware": {
+          "sku": null,
+          "count": 64,
+          "topology": null
+        },
+        "runtime": {
+          "name": "DeepInfer",
+          "version": null,
+          "backend_version": null,
+          "documentation_revision": "774ce244b87cc0eb8d4b94ab9f5de2ab22049f01"
+        },
+        "precision": {
+          "weights": null,
+          "activations": null,
+          "kv_cache": null,
+          "communication": null
+        },
+        "parallelism": {
+          "tp": null,
+          "pp": null,
+          "ep": 64,
+          "dp": null
+        },
+        "workload": {
+          "input_tokens": null,
+          "output_tokens": null,
+          "batch_size": 60,
+          "batch_scope": "concurrent sequences per attention DP rank",
+          "concurrency": 60,
+          "arrival_process": null,
+          "cache_state": null,
+          "concurrency_scope": "per attention DP rank"
+        },
+        "execution": {
+          "speculative_decoding": true,
+          "chunked_prefill": null,
+          "draft_tokens": 5,
+          "verification_policy": "confidence-scheduled variable length",
+          "mean_verified_draft_length": 3.58,
+          "mean_accepted_length": 3.21,
+          "accepted_length_includes_bonus": null
+        },
+        "native_parallelism": {
+          "attention_dp": 64,
+          "moe_ep": 64,
+          "semantics": "Attention DP and MoE EP share the same 64 devices; these are not independent complete-model replicas."
+        }
+      },
+      "metrics": {
+        "estimated_decode_tps_per_rank": {
+          "value": 14466,
+          "unit": "tokens/s/rank",
+          "phase": "decode",
+          "timer_boundary": null,
+          "aggregation": "author-estimated throughput derived from EP64/DP64 benchmark data",
+          "token_basis": "estimated effective output tokens; exact accepted-length bonus convention not disclosed",
+          "window": null
+        }
+      },
+      "evidence_kind": "estimate"
+    },
+    {
+      "id": "deepep-v1-h800-cx7-ep64-low-latency",
+      "status": "public",
+      "evidence_kind": "measurement",
+      "source": "https://github.com/deepseek-ai/DeepEP/blob/a56d6156febcd9976e55adc85b5155bfac9f28f8/docs/legacy.md ; checked 2026-10-22; source describes DeepEP V1 measurements; a56d615 is the documentation snapshot, not an identified benchmark runtime commit",
+      "context": {
+        "model": {
+          "name": null,
+          "revision": null
+        },
+        "hardware": {
+          "sku": "NVIDIA H800",
+          "count": 64,
+          "topology": null,
+          "nic": "ConnectX-7 InfiniBand",
+          "nic_bandwidth_gbps_per_gpu": 400,
+          "transport": "RDMA"
+        },
+        "runtime": {
+          "name": "DeepEP",
+          "version": null,
+          "backend_version": null,
+          "backend": "NVSHMEM",
+          "implementation_generation": "V1",
+          "documentation_revision": "a56d6156febcd9976e55adc85b5155bfac9f28f8"
+        },
+        "precision": {
+          "weights": null,
+          "activations": null,
+          "kv_cache": null,
+          "communication": {
+            "dispatch": "fp8",
+            "combine": "bf16"
+          }
+        },
+        "parallelism": {
+          "tp": null,
+          "pp": null,
+          "ep": 64,
+          "dp": null
+        },
+        "workload": {
+          "input_tokens": null,
+          "output_tokens": null,
+          "batch_size": 128,
+          "batch_scope": null,
+          "concurrency": null,
+          "arrival_process": null,
+          "cache_state": null,
+          "hidden_size": 7168,
+          "top_k": 8,
+          "workload_type": "communication microbenchmark",
+          "source_workload_description": "128 tokens per batch; typical DeepSeek-V3/R1 production setting"
+        },
+        "execution": {
+          "speculative_decoding": null,
+          "chunked_prefill": null,
+          "kernel_mode": "low-latency pure RDMA"
+        }
+      },
+      "metrics": {
+        "dispatch_latency_us": {
+          "value": 173,
+          "unit": "us",
+          "phase": "dispatch",
+          "timer_boundary": null,
+          "aggregation": null,
+          "token_basis": null,
+          "window": null
+        },
+        "combine_latency_us": {
+          "value": 314,
+          "unit": "us",
+          "phase": "combine",
+          "timer_boundary": null,
+          "aggregation": null,
+          "token_basis": null,
+          "window": null
+        }
+      }
+    }
+  ]
+}
