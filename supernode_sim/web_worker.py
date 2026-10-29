@@ -27,6 +27,49 @@ def _bounded(value, limit: int = 40):
     return value
 
 
+def execution_summary(result: dict) -> dict:
+    """Aggregate the full observed trace before sampling rows for display.
+
+    Phase windows can overlap; event durations are summed service spans, not
+    elapsed execution time. Events without phase metadata remain unclassified.
+    """
+    simulation = result.get('simulation', {})
+    trace = simulation.get('trace', [])
+    phases = {}
+    overflow = None
+    phase_limit = 40
+    for event in trace:
+        phase = str(event.get('metadata', {}).get('phase') or 'unclassified')
+        if phase not in phases and len(phases) >= phase_limit - 1:
+            if overflow is None:
+                overflow = {'phase': 'other_phases', 'grouped': True, 'event_count': 0,
+                            'start_s': None, 'end_s': None, 'event_duration_sum_s': 0.0}
+            row = overflow
+        else:
+            if phase not in phases:
+                phases[phase] = {'phase': phase[:2000], 'event_count': 0,
+                    'start_s': None, 'end_s': None, 'event_duration_sum_s': 0.0}
+            row = phases[phase]
+        row['event_count'] += 1
+        start, end = event.get('start_s'), event.get('end_s')
+        if start is not None:
+            row['start_s'] = start if row['start_s'] is None else min(row['start_s'], start)
+        if end is not None:
+            row['end_s'] = end if row['end_s'] is None else max(row['end_s'], end)
+        row['event_duration_sum_s'] += event.get('duration_s') or 0.0
+    rows = list(phases.values()) + ([overflow] if overflow is not None else [])
+    rows.sort(key=lambda row: (row['start_s'] is None, row['start_s'] or 0, row['phase']))
+    estimate_only = result.get('mode') == 'estimate'
+    return {
+        'basis': 'estimate_only' if estimate_only else 'completed_trace' if simulation else 'unavailable',
+        'complete': None if estimate_only or not simulation else simulation.get('status') == 'feasible',
+        'planned_events': result.get('estimate', {}).get('event_count'),
+        'completed_events': simulation.get('completed_events') if simulation else None,
+        'trace_events': len(trace), 'phases': rows,
+        'phase_limit': phase_limit, 'grouped_phases': overflow is not None,
+    }
+
+
 def compact_result(result: dict) -> dict:
     """A bounded display view; all exact tables remain in report artifacts."""
     estimate = result.get('estimate', {})
@@ -44,7 +87,9 @@ def compact_result(result: dict) -> dict:
     indices = (range(len(trace)) if len(trace) <= 300 else
                sorted({round(i * (len(trace) - 1) / 299) for i in range(300)}))
     metadata_keys = ('kind', 'category', 'operation', 'phase', 'layer', 'rank', 'semantic', 'collective',
-                     'payload_bytes', 'physical_bytes_by_domain', 'component', 'replica', 'token')
+                     'payload_bytes', 'physical_bytes_by_domain', 'component', 'replica', 'token',
+                     'token_index', 'step', 'microbatch', 'src', 'dst', 'kernel', 'direction',
+                     'round_index', 'pd_role')
     events = []
     for i in indices:
         row = trace[i]
@@ -62,6 +107,7 @@ def compact_result(result: dict) -> dict:
                    'logical_component_state_bytes': memory.get('logical_component_state_bytes', {}),
                    'cluster': memory.get('cluster', {}), 'notes': memory.get('notes', [])},
         'resources': resources[:160], 'resource_count': len(resources),
+        'execution_summary': execution_summary(result),
         'trace': {'events': events, 'total_events': len(trace), 'sampled': len(trace) > len(events)},
         'simulation': {'duration_s': simulation.get('duration_s'), 'completed_events': simulation.get('completed_events')},
         'diagnostics': _bounded(simulation.get('diagnostics', [])),

@@ -1,0 +1,312 @@
+<div id="sn-flow-animation">
+  <div class="sn-heading">
+    <h2>流量仿真 · 从输入到决策</h2>
+    <div class="text-small text-muted">supernode-modeling · 全流程动画</div>
+  </div>
+  <div class="sn-toolbar viz-controls">
+    <button type="button" class="btn btn-primary" id="sn-play">暂停</button>
+    <label class="form-label" for="sn-chapter">阶段
+      <select class="form-select" id="sn-chapter" aria-label="选择仿真阶段"></select>
+    </label>
+    <span id="sn-time" class="text-small tabular-nums">00:00 / 02:00</span>
+  </div>
+  <div class="sn-stage-heading">
+    <h3 id="sn-title">01 · 收集场景与目标</h3>
+    <span class="text-small text-muted" id="sn-scope">输入</span>
+  </div>
+  <svg id="sn-canvas" class="sn-canvas" role="img" aria-labelledby="sn-svg-title sn-svg-desc">
+    <title id="sn-svg-title">超节点流量仿真流程</title>
+    <desc id="sn-svg-desc">从场景输入、事件构图与拓扑映射，到资源调度、内存跟踪和结果搜索。</desc>
+  </svg>
+  <div id="sn-detail" class="sn-detail" aria-live="polite"></div>
+  <label for="sn-progress" class="sr-only">动画进度</label>
+  <input id="sn-progress" class="form-range" type="range" min="0" max="120" step="0.1" value="0" aria-label="动画进度（秒）">
+  <div class="sn-footer text-small text-muted"><span id="sn-chapter-count">01 / 12</span><span>流程示意 · 粒子表示逻辑流量 · 非实测时序</span></div>
+</div>
+<style>
+  #sn-flow-animation { width:100%; color:var(--foreground); }
+  #sn-flow-animation .sn-heading { padding-right:94px; margin-bottom:20px; }
+  #sn-flow-animation h2, #sn-flow-animation h3 { margin:0 0 6px; }
+  #sn-flow-animation .sn-toolbar { margin-bottom:22px; }
+  #sn-flow-animation .sn-stage-heading { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px; }
+  #sn-flow-animation .sn-canvas { display:block; width:100%; overflow:visible; }
+  #sn-flow-animation .sn-canvas text { fill:var(--foreground); font-weight:400; }
+  #sn-flow-animation .sn-canvas .sn-secondary { fill:var(--muted-foreground); }
+  #sn-flow-animation .sn-detail { min-height:3em; padding:12px 0 8px; }
+  #sn-flow-animation .sn-footer { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  #sn-flow-animation .sn-node { fill:var(--muted); }
+  #sn-flow-animation .sn-wire { stroke:var(--border); fill:none; stroke-width:1.5; }
+  #sn-flow-animation .sn-active { fill:color-mix(in srgb, var(--viz-series-1) 15%, var(--background)); }
+  #sn-flow-animation .sn-dot { fill:var(--viz-series-1); }
+  #sn-flow-animation .sn-bar { fill:var(--viz-series-1); }
+  #sn-flow-animation .sn-secondary-bar { fill:var(--viz-series-2); }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('sn-flow-animation');
+  const svg = root.querySelector('#sn-canvas');
+  const play = root.querySelector('#sn-play');
+  const chooser = root.querySelector('#sn-chapter');
+  const slider = root.querySelector('#sn-progress');
+  const stageTitle = root.querySelector('#sn-title');
+  const scope = root.querySelector('#sn-scope');
+  const detail = root.querySelector('#sn-detail');
+  const clock = root.querySelector('#sn-time');
+  const count = root.querySelector('#sn-chapter-count');
+  const chapters = [
+    ['收集场景与目标','Skill / Web / CLI','模型、负载、并行、拓扑和目标共同定义场景；参数保留来源与假设。'],
+    ['规范化配置与校验','Config','校验精度、单位、并行度及特性组合；配置通过后，构图仍需检查路径与依赖。'],
+    ['映射设备与网络拓扑','Topology','逻辑 rank 映射到物理 NPU，再绑定 SU / SO 路径、端点注入与共享链路。'],
+    ['编译训练与推理事件图','Graph','层与组件转换为计算、通信、分配和释放事件；依赖决定哪些事件可以重叠。'],
+    ['把可选策略落实为事件','Features','每项策略改变实际工作量、依赖或驻留状态；开启特性并不保证更快。'],
+    ['展开集合通信与实际路径','Collective → Transfer','通信先按算法展开，再沿实际路径计资源；payload 与逐跳物理字节量分别统计。'],
+    ['应用校准并计算必要下界','Profiles / Estimate','匹配的 profile 约束服务时间；estimate 给出必要下界，不能证明 SLO 已满足。'],
+    ['推进离散事件与资源争用','Simulate','就绪事件经槽位与内存准入后启动；共享资源分配速率，推进到启动结束或工作完成边界。'],
+    ['跟踪内存的分配与释放','Memory lifecycle','同一时刻的存活分配决定容量峰值；offload 减少设备驻留，同时增加搬运。'],
+    ['处理大规模执行与恢复','可选执行路径','流式按屏障分块并携带存活状态；参考检查点用于恢复已完成数值执行后的导出。'],
+    ['归因指标并导出可追溯报告','Metrics / Report','由完成事件计算指标，沿关键依赖路径拆解时延；失败原因和输入快照一并保留。'],
+    ['枚举候选，形成反馈闭环','可选 · Sweep / Search','每个候选重新校验和计算；推荐仅在已声明的候选集合、约束和调度策略内成立。']
+  ];
+  chooser.innerHTML = chapters.map((c,i)=>'<option value="'+i+'">'+String(i+1).padStart(2,'0')+' · '+c[0]+'</option>').join('');
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let position = 0, running = !reduced.matches, last = null, previousChapter = -1;
+  let width = Math.max(280, root.clientWidth || 736), height = 380, markup = '', motions = [];
+  const esc = value => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const clamp = (v,a=0,b=1) => Math.max(a,Math.min(b,v));
+  const lerp = (a,b,t) => a+(b-a)*t;
+  const activeAt = (p,index,n) => Math.min(n-1,Math.floor(p*n))===index;
+  function text(x,y,value,secondary=false,anchor='middle') {
+    markup += '<text x="'+x+'" y="'+y+'" text-anchor="'+anchor+'" class="'+(secondary?'text-small sn-secondary':'')+'">'+esc(value)+'</text>';
+  }
+  function rect(x,y,w,h,cls='sn-node',radius=9) { markup += '<rect x="'+x+'" y="'+y+'" width="'+Math.max(0,w)+'" height="'+h+'" rx="'+radius+'" class="'+cls+'"/>'; }
+  function node(x,y,w,h,title,sub='',active=false) {
+    rect(x-w/2,y-h/2,w,h,active?'sn-active':'sn-node');
+    const titles=Array.isArray(title)?title:[title];
+    const lines=Array.isArray(sub)?sub:sub?[sub]:[];
+    const total=titles.length*21+lines.length*19;
+    let yy=y-total/2+15;
+    titles.forEach(v=>{text(x,yy,v);yy+=21;});
+    lines.forEach(v=>{text(x,yy,v,true);yy+=19;});
+    return {x,y,w,h};
+  }
+  function line(points,animate=false,start=0,end=1) {
+    markup += '<path class="sn-wire" d="M'+points.map(v=>v.join(',')).join(' L')+'" marker-end="url(#sn-arrow)"/>';
+    if(animate) motions.push({points,start,end});
+  }
+  function link(a,b,animate=false,vertical=true,start=0,end=1) {
+    if(vertical) line([[a.x,a.y+a.h/2],[a.x,(a.y+b.y)/2],[b.x,(a.y+b.y)/2],[b.x,b.y-b.h/2]],animate,start,end);
+    else line([[a.x+a.w/2,a.y],[b.x-b.w/2,b.y]],animate,start,end);
+  }
+  function linearFlow(items,p,opts={}) {
+    const vertical=width<610 || opts.vertical;
+    const n=items.length, nw=vertical?Math.min(width-48,280):(width-48-(n-1)*28)/n;
+    height=vertical?n*102+58:330;
+    const nodes=items.map((v,i)=>node(vertical?width/2:24+nw/2+i*(nw+28),vertical?62+i*102:160,nw,72,v[0],v[1],activeAt(p,i,n)));
+    for(let i=0;i<n-1;i++) link(nodes[i],nodes[i+1],p>=i/n,vertical,i/n,(i+1.6)/n);
+    return nodes;
+  }
+  function sceneInput(p) {
+    height=380;
+    const cols=width<570?2:3, nw=(width-32-(cols-1)*14)/cols;
+    const labels=[['模型结构','Dense / MoE'],['训练或推理负载','步数·批次·长度'],['并行与策略','TP·PP·EP·DP'],['硬件与拓扑','HBM / SU / SO'],['精度与实测来源','假设·公开·实测'],['分析目标','容量·吞吐·SLO']];
+    const rows=Math.ceil(labels.length/cols), nodes=[];
+    labels.forEach((v,i)=>nodes.push(node(16+nw/2+(i%cols)*(nw+14),52+Math.floor(i/cols)*84,nw,64,v[0],v[1],activeAt(p,i,7))));
+    const dst=node(width/2,rows*84+73,Math.min(width-40,280),64,'完整场景配置','编辑输入 → 保存快照',p>0.75);
+    nodes.forEach((n,i)=>{if(i>=labels.length-cols)link(n,dst,p>i/8,true,i/8,1);});
+    height=dst.y+57;
+  }
+  function sceneValidate(p) {
+    const n=linearFlow([['配置解析',['features 归一化','合并校准覆盖项']],['严格校验',['单位 / 字段 / 约束','并行度 / 特性组合']],['可重跑配置',['canonical 字段','来源与配置快照']]],p);
+    const bottom=width<610?height-12:260;
+    text(width/2,bottom,'普通布局：TP × PP × EP × DP = NPU 数',true);
+    text(width/2,bottom+22,'FSDP 是 DP 子组；SP 复用 TP ranks',true);
+    if(width<610)height+=30;
+    text(width/2,height-6,'PD 双池使用独立的卡数与映射规则',true);
+  }
+  function sceneTopology(p) {
+    const narrow=width<550;
+    height=narrow?435:365;
+    text(width/2,25,'拓扑示意：2 个 SU 域，每域 2 张 NPU',true);
+    let a,b,c,d;
+    if(narrow) {
+      text(width/2,65,'SU 域 A');
+      a=node(width*.25,110,110,62,'NPU 0','rank 0',p<.35);b=node(width*.75,110,110,62,'NPU 1','rank 1',p<.35);
+      text(width/2,271,'SU 域 B');
+      c=node(width*.25,315,110,62,'NPU 2','rank 2',p>=.35);d=node(width*.75,315,110,62,'NPU 3','rank 3',p>=.7);
+      link(a,b,p<.35,false,0,.35);link(c,d,p>.7,false,.7,1);
+      line([[b.x,b.y+31],[b.x,205],[c.x,205],[c.x,c.y-31]],p>=.35&&p<.7,.35,.7);
+      text(width/2,192,'SO 跨域路径');text(width/2,368,'域内走 SU · 跨域走 SO',true);
+    } else {
+      text(width*.25,68,'SU 域 A');text(width*.75,68,'SU 域 B');
+      a=node(width*.14,128,104,64,'NPU 0','rank 0',p<.35);b=node(width*.36,128,104,64,'NPU 1','rank 1',p<.35);
+      c=node(width*.64,128,104,64,'NPU 2','rank 2',p>=.35);d=node(width*.86,128,104,64,'NPU 3','rank 3',p>=.7);
+      link(a,b,p<.35,false,0,.35);link(c,d,p>.7,false,.7,1);
+      line([[b.x,b.y+32],[b.x,232],[c.x,232],[c.x,c.y+32]],p>=.35&&p<.7,.35,.7);
+      text(width*.25,190,'SU 域内通信',true);text(width*.75,190,'SU 域内通信',true);text(width/2,263,'SO 跨域通信');
+    }
+    text(width/2,height-24,'链路 / NIC / 注入 / 上联共同限速',true);
+  }
+  function sceneGraph(p) {
+    height=437;
+    const xs=[width*.25,width*.75], nw=Math.min(244,width/2-20);
+    const train=[['前向 F',['计算 + TP / EP']],['反向 B',['Checkpoint 重算']],['梯度同步',['FSDP / DP / EP']],['优化器更新',['Adam / Muon']]];
+    const infer=[['Prefill',['建立 KV / 状态']],['首 token 完成',['记录完成时刻']],['逐 token 解码',['读写 KV / 状态']],['各请求完成',['停止已完成序列计算']]];
+    text(xs[0],22,'训练 · 非交错1F1B');text(xs[1],22,'推理 · 固定 batch');
+    [train,infer].forEach((chain,j)=>{
+      let lastNode;
+      chain.forEach((v,i)=>{const n=node(xs[j],68+i*91,nw,64,v[0],v[1],activeAt(p,i,4));if(lastNode)link(lastNode,n,p>=i/5,true,(i-1)/4,(i+.4)/4);lastNode=n;});
+    });
+    text(width/2,411,'事件：依赖 · 工作量 · 分配 / 释放',true);
+  }
+  function sceneFeatures(p) {
+    height=430;const nw=Math.min(250,width/2-20), xs=[width*.25,width*.75];
+    const entries=[['量化',['分别配置张量精度','显式转换与元数据']],['Checkpoint',['少存激活','反向增加重算']],['状态 Offload',['Optimizer / KV','HBM ↔ Host 搬运']],['MoE / SP',['分发 / 聚合','AG / RS 通信']],['Megakernel',['融合合法局部链','保留容量与依赖']],['投机 / PD 分离',['draft → verify','commit；PD 交接']]];
+    entries.forEach((v,i)=>node(xs[i%2],68+Math.floor(i/2)*112,nw,92,v[0],v[1],activeAt(p,i,6)));
+    text(width/2,412,'按配置选择；兼容性由校验器约束',true);
+  }
+  function sceneCollective(p) {
+    height=414;
+    const nw=Math.min(290,width-40), center=node(width/2,49,nw,58,'集合通信语义','AllReduce / AG / RS / AllToAllV',p<.25);
+    const mid=node(width/2,153,nw,64,'算法展开','Ring 轮次 / Pairwise 收发',p>=.25&&p<.5);
+    const low=node(width/2,259,nw,70,'点对点传输事件',['pack → 路径 → unpack','资源：HBM / SU / SO / NIC'],p>=.5);
+    link(center,mid,p<.5,true,0,.5);link(mid,low,p>=.5,true,.5,1);
+    text(width/2,331,'AllReduce = ReduceScatter + AllGather',true);
+    text(width/2,356,'dispatch / combine 是 A2AV 语义视图',true);
+    text(width/2,382,'统计不重复相加；跨多跳路径另计物理字节',true);
+  }
+  function sceneEstimate(p) {
+    height=416;const nw=Math.min(width-40,300);
+    const first=node(width/2,60,nw,82,'匹配实测 profile',['kernel / collective / 响应曲线','核对环境、工作量与适用范围'],p<.3);
+    const next=node(width/2,181,nw,70,'计算必要下界',['DAG 依赖 + 资源工作量','驻留容量 + 通信总量'],p>=.3&&p<.6);
+    link(first,next,p<.6,true,0,.6);
+    const bw=Math.min(240,width/2-20);
+    const a=node(width*.25,315,bw,84,'estimate',['下界与诊断','不能证明达标'],p>=.6&&p<.8);
+    const b=node(width*.75,315,bw,84,'simulate',['进入资源调度','执行后判断可行'],p>=.8);
+    link(next,a,p>=.6&&p<.8,true,.6,.8);link(next,b,p>=.8,true,.8,1);
+    text(width/2,400,'未命中 profile 的部分保留解析模型并报告',true);
+  }
+  function sceneSchedule(p) {
+    height=440;const nw=Math.min(205,width/2-22), xs=[width*.25,width*.75];
+    const labels=[['依赖就绪',['进入 ready']],['准入检查',['槽位 / 内存准入']],['启动与执行',['计入启动开销']],['共享资源',['归一化 max-min']],['最近事件边界',['启动结束·工作完成']],['释放与解锁',['完成时释放与解锁']]];
+    const grid=[[0,0],[1,0],[1,1],[0,1],[0,2],[1,2]], nodes=[];
+    labels.forEach((v,i)=>nodes.push(node(xs[grid[i][0]],58+grid[i][1]*109,nw,70,v[0],v[1],activeAt(p,i,6))));
+    for(let i=0;i<5;i++) {
+      const a=nodes[i],b=nodes[i+1];
+      if(a.y===b.y)line([[a.x+(b.x>a.x?a.w/2:-a.w/2),a.y],[b.x+(b.x>a.x?-b.w/2:b.w/2),b.y]],activeAt(p,i,6),i/6,(i+1)/6);
+      else link(a,b,activeAt(p,i,6),true,i/6,(i+1)/6);
+    }
+    text(width/2,352,'计算 / HBM / 链路同时参与速率约束',true);
+    text(width/2,376,'完成 → 解锁后继 → 重算共享速率',true);
+    text(width/2,410,'依赖、槽位或容量不足的事件继续等待',true);
+  }
+  function sceneMemory(p) {
+    height=411;const left=24,right=width-24,barWidth=right-left;
+    const t=p*5, temp=t<1?0:t<2?(t-1)*.2:t<3?.2:t<4?.2-(t-3)*.2:0;
+    const kv=.06+Math.min(t/4,1)*.16;
+    text(left,39,'同一时刻 · 设备 HBM',false,'start');
+    rect(left,65,barWidth,62,'sn-node',4);
+    rect(left,65,barWidth*.38,62,'sn-bar',4);
+    rect(left+barWidth*.38+3,65,barWidth*kv,62,'sn-secondary-bar',4);
+    if(temp>.002)rect(left+barWidth*(.38+kv)+6,65,barWidth*temp,62,'sn-active',4);
+    text(left+barWidth*.19,102,'权重');text(left+barWidth*.52,151,'KV / 状态');
+    text(left,181,'占用比例仅作生命周期示意',true,'start');
+    const nw=Math.min(240,width/2-20);
+    node(width*.25,241,nw,70,'持久状态',['权重·优化器·KV'],p<.3);
+    node(width*.75,241,nw,70,'临时工作集',['activation','通信 buffer'],p>=.3&&p<.7);
+    text(width/2,304,p<.2?'准备：检查驻留容量':p<.4?'分配：事件开始前申请临时内存':p<.6?'执行：并发工作集共同占用 HBM':p<.8?'释放：消费结束后归还临时内存':'记录：保存真实并发峰值构成');
+    text(width/2,349,'设备容量不足 → 等待；无法推进 → 不可行',true);
+    text(width/2,383,'各组件的独立峰值不能直接相加',true);
+  }
+  function sceneScaling(p) {
+    height=463;const nw=Math.min(250,width/2-20),xs=[width*.25,width*.75];
+    text(xs[0],27,'受限结构化流式');text(xs[1],27,'参考实验检查点');
+    const left=[['按屏障分块',['结构化推理','DP = PP = 1']],['执行 / 安全复用',['携带存活状态','保持容量准入']],['合并块结果',['时延·流量·峰值','继续下一块']]];
+    const right=[['完整数值执行',['普通完整事件图','完成后提交记录']],['检查配置与指纹',['读取匹配检查点','跳过已完成数值调用']],['继续分析与导出',['重建图与账本','恢复报告产物']]];
+    [left,right].forEach((items,j)=>{let prev;items.forEach((v,i)=>{const n=node(xs[j],92+i*119,nw,86,v[0],v[1],activeAt(p,i,3));if(prev)link(prev,n,p>=i/4,true,(i-1)/3,(i+.4)/3);prev=n;});});
+    text(width/2,410,'流式不支持 Megakernel / PD；组合受约束',true);
+    text(width/2,438,'检查点不支持从数值循环中途续算',true);
+  }
+  function sceneReport(p) {
+    height=440;const nw=Math.min(240,width/2-20), xs=[width*.25,width*.75];
+    const n=node(width/2,51,Math.min(310,width-40),64,'完成事件 + 资源 / 内存日志','成功、不可行与 SLO 失败均保留',p<.25);
+    const a=node(xs[0],164,nw,86,'性能指标',['推理 TTFT·TPOT','训练：逐步耗时'],p>=.25&&p<.5);
+    const b=node(xs[1],164,nw,86,'资源与通信',['容量·峰值·利用率','流量 · SU / SO'],p>=.25&&p<.5);
+    link(n,a,p>=.15&&p<.5,true,.15,.5);link(n,b,p>=.15&&p<.5,true,.15,.5);
+    const c=node(xs[0],296,nw,90,'时延归因',['关键依赖路径','计算·通信·等待'],p>=.5&&p<.75);
+    const d=node(xs[1],296,nw,90,'结果产物',['JSON / CSV','报告 / 时间线','配置快照'],p>=.75);
+    link(a,c,p>=.5,true,.5,.75);link(b,d,p>=.5,true,.5,1);
+    text(width/2,390,'TTFT 从开始执行计时；无在线排队 / P99',true);
+    text(width/2,418,'未知或未定义指标保留不可用，不补零',true);
+  }
+  function sceneSearch(p) {
+    height=474;const nw=Math.min(250,width/2-20),xs=[width*.25,width*.75];
+    node(xs[0],64,nw,92,'SU 搜索 / 扫描',['卡数 / SU / 并行','size-su 可用','必要下界剪枝'],p<.2);
+    node(xs[1],64,nw,92,'feedback',['TP / EP / SP','长度 / batch','固定模型与硬件'],p<.2);
+    const center=node(width/2,203,Math.min(310,width-40),92,'逐候选校验与计算',['feedback：Prefill + Decode','保留非法、不可行和 SLO 失败'],p>=.2&&p<.7);
+    line([[xs[0],110],[xs[0],132],[width/2,132],[width/2,157]],p<.5,0,.5);
+    line([[xs[1],110],[xs[1],132],[width/2,132],[width/2,157]],p<.5,0,.5);
+    const end=node(width/2,351,Math.min(330,width-40),104,'推荐 + 可重跑配置',['size-su：候选集内最小 SU','feedback：达标的最高 Decode 吞吐','候选明细 / Pareto / best.config'],p>=.7);
+    link(center,end,p>=.5,true,.5,1);
+    text(width/2,435,'显式拓扑改变卡数或域划分时，逐候选重新编译',true);
+    text(width/2,460,'feedback 完整仿真，不做下界剪枝',true);
+  }
+  const scenes=[sceneInput,sceneValidate,sceneTopology,sceneGraph,sceneFeatures,sceneCollective,sceneEstimate,sceneSchedule,sceneMemory,sceneScaling,sceneReport,sceneSearch];
+  function movingDots(p) {
+    for(const m of motions) {
+      if(p<m.start || p>m.end)continue;
+      const lengths=m.points.slice(1).map((b,i)=>Math.hypot(b[0]-m.points[i][0],b[1]-m.points[i][1]));
+      const sum=lengths.reduce((a,b)=>a+b,0);
+      let dist=clamp((p-m.start)/(m.end-m.start))*sum;
+      for(let i=0;i<lengths.length;i++) {
+        if(dist<=lengths[i] || i===lengths.length-1) {
+          const q=lengths[i]?dist/lengths[i]:0;
+          markup+='<circle class="sn-dot" cx="'+lerp(m.points[i][0],m.points[i+1][0],q)+'" cy="'+lerp(m.points[i][1],m.points[i+1][1],q)+'" r="4.5"/>';
+          break;
+        }dist-=lengths[i];
+      }
+    }
+  }
+  function formatTime(t) { return String(Math.floor(t/60)).padStart(2,'0')+':'+String(Math.floor(t%60)).padStart(2,'0'); }
+  function draw() {
+    const chapter=Math.min(11,Math.floor(position/10)), p=clamp((position-chapter*10)/10);
+    if(chapter!==previousChapter) {
+      chooser.value=String(chapter);stageTitle.textContent=String(chapter+1).padStart(2,'0')+' · '+chapters[chapter][0];
+      scope.textContent=chapters[chapter][1];detail.textContent=chapters[chapter][2];count.textContent=String(chapter+1).padStart(2,'0')+' / 12';previousChapter=chapter;
+    }
+    markup='<title id="sn-svg-title">'+esc(chapters[chapter][0])+'</title><desc id="sn-svg-desc">'+esc(chapters[chapter][2])+'</desc><defs><marker id="sn-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--border)"/></marker></defs>';
+    motions=[];scenes[chapter](p);movingDots(p);
+    svg.setAttribute('viewBox','0 0 '+width+' '+height);svg.style.height=height+'px';svg.innerHTML=markup;
+    slider.value=String(position);slider.setAttribute('aria-valuetext',formatTime(position)+'，'+chapters[chapter][0]);clock.textContent=formatTime(position)+' / 02:00';
+    play.textContent=position>=120?'重新播放':running?'暂停':'播放';play.setAttribute('aria-label',play.textContent+'流程动画');
+    root.dataset.chapter=String(chapter);root.dataset.playing=String(running);
+  }
+  function save() {
+    if(window.openai && typeof window.openai.setWidgetState==='function') {
+      const result=window.openai.setWidgetState({modelContent:{stage:chapters[Math.min(11,Math.floor(position/10))][0]},privateContent:{position,running}});
+      if(result && typeof result.catch==='function')result.catch(()=>{});
+    }
+  }
+  function restore(state) {
+    const s=state && state.privateContent;if(!s)return;
+    if(Number.isFinite(s.position))position=clamp(s.position,0,120);
+    if(typeof s.running==='boolean')running=s.running&&!reduced.matches&&position<120;
+    last=null;draw();
+  }
+  play.addEventListener('click',()=>{if(position>=120){position=0;running=true;}else running=!running;last=null;draw();save();});
+  chooser.addEventListener('change',()=>{position=Number(chooser.value)*10;last=null;draw();save();});
+  slider.addEventListener('input',()=>{position=clamp(Number(slider.value),0,120);last=null;if(position>=120)running=false;draw();});
+  slider.addEventListener('change',save);
+  window.addEventListener('openai:set_globals',e=>{if(e.detail&&e.detail.globals&&e.detail.globals.widgetState)restore(e.detail.globals.widgetState);});
+  document.addEventListener('visibilitychange',()=>{last=null;});
+  reduced.addEventListener('change',()=>{if(reduced.matches){running=false;draw();}});
+  const observer=new ResizeObserver(entries=>{width=Math.max(280,entries[0].contentRect.width);draw();});observer.observe(root);
+  function tick(now) {
+    if(running&&!document.hidden) {
+      if(last!==null)position=Math.min(120,position+Math.min((now-last)/1000,.15));
+      last=now;if(position>=120)running=false;draw();
+    } else last=null;
+    requestAnimationFrame(tick);
+  }
+  restore(window.openai && window.openai.widgetState);draw();requestAnimationFrame(tick);
+})();
+</script>

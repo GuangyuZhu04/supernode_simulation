@@ -56,7 +56,9 @@ python -m supernode_sim web --port 8766 --output outputs/web
 
 ## 图表口径
 
-- 拓扑示意依据当前配置的 NPU 数、SU 划分与拓扑类型绘制，不代表实测报文路径或拥塞动画。实际通信量来自引擎结果。
+- “展示依据”统一控制集群拓扑和执行计划：草稿修改即刷新；选择运行时读取其独立快照，异步响应不会覆盖较新选择。
+- 拓扑按 Full mesh / Mesh / Clos / Fat tree / Explicit 分别绘制。SO 独立面板默认位于 SU 图上方，持续展示卡组接入、SU gateway、SO spine 和共享上联；支持点击 SU 下钻、分别分页和设备 rank/host/并行坐标详情。显式图的 SO 面板只提取 `domain=SO` 的真实边，无 SO 边时明确留空；显式图展示有向边与孤立设备，大图明确标注截取数量。Clos / Fat tree 按当前引擎均为单 spine 模型；图形不代表实测报文路径或拥塞动画。
+- 执行计划根据训练/推理负载、并行配置及加速特性生成；任务服务状态独立呈现。结果的 `execution_summary` 从全部已保留轨迹聚合，最多 40 个阶段，超出部分合并；阶段时间跨度可能重叠，不能加和当作墙钟耗时。部分执行、仅估算和旧任务无摘要均明确标注。
 - 逻辑 transport payload 与 SU/SO 等链路类别的逐跳物理字节量是不同口径，不能直接相加。通信语义分类和 collective 分类是同一 payload 的不同视角。
 - 通信汇总来自完整计划事件图。容量失败时，不能把完整图的计划流量当作已完成传输量。
 - `estimate` 仅给出必要耗时下界；乐观调度的内存峰值忽略争用，不能证明容量或 SLO 可行。
@@ -93,7 +95,7 @@ python -m supernode_sim web --port 8766 --output outputs/web
 输入编辑的定向回归检查使用 Node.js 内置测试工具，无需安装前端依赖：
 
 ```powershell
-node --test tests/test_web_input_edit.cjs
+node --test tests/test_web_input_edit.cjs tests/test_web_views.cjs
 ```
 
 检查包含五类参数同步至校验/仿真请求、显示单位换算、无效草稿保留、结构化模型派生参数、历史快照复制及异步响应处理。该测试不替代真实浏览器的布局和交互验收。

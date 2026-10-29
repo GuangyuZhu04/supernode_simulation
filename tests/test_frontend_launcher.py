@@ -45,7 +45,7 @@ def project_at(path, *, static=True):
     if static:
         assets = package / "web_static"
         assets.mkdir()
-        for filename in ("index.html", "app.js", "styles.css"):
+        for filename in ("index.html", "app.js", "topology.js", "execution.js", "styles.css"):
             (assets / filename).write_text("fixture", encoding="utf-8")
     return path.resolve()
 
@@ -179,7 +179,7 @@ def test_real_launch_serves_healthy_assets_and_reuses_the_exact_server(launcher,
     assert Path(health["root"]).resolve() == ROOT
     assert Path(health["output"]).resolve() == (base / str(port)).resolve()
     assert Path(health["python"]).resolve() == launcher.select_python(ROOT).resolve()
-    for asset, expected_type in (("/", "text/html"), ("/app.js", "javascript"), ("/styles.css", "text/css")):
+    for asset, expected_type in (("/", "text/html"), ("/app.js", "javascript"), ("/topology.js", "javascript"), ("/execution.js", "javascript"), ("/styles.css", "text/css")):
         with urlopen(first["url"] + asset, timeout=5) as response:
             assert response.status == 200
             assert expected_type in response.headers["Content-Type"]
@@ -228,12 +228,15 @@ def test_occupied_port_chooses_another_without_stopping_its_owner(launcher, owne
         assert launched_health["launch_token"] == owned_server_processes[0].launcher_environment["SUPERNODE_WEB_LAUNCH_TOKEN"]
 
 
-def test_missing_static_assets_report_paths_without_starting_a_server(launcher, owned_server_processes, tmp_path):
-    project = project_at(tmp_path / "missing-assets", static=False)
+@pytest.mark.parametrize("missing_asset", [None, "topology.js", "execution.js"])
+def test_missing_static_assets_report_paths_without_starting_a_server(launcher, owned_server_processes, tmp_path, missing_asset):
+    project = project_at(tmp_path / "missing-assets", static=missing_asset is not None)
+    if missing_asset:
+        (project / "supernode_sim" / "web_static" / missing_asset).unlink()
     result = launcher.launch(project_root=project, port=available_port(), output_root=tmp_path / "unused-output")
     assert result["status"] == "error", result
     missing = {Path(path).name for path in result["missing_assets"]}
-    assert missing == {"index.html", "app.js", "styles.css"}
+    assert missing == ({missing_asset} if missing_asset else {"index.html", "app.js", "topology.js", "execution.js", "styles.css"})
     assert "web_static" in result["repair"]
     assert owned_server_processes == []
 
@@ -297,3 +300,17 @@ def test_startup_timeout_stops_only_the_process_it_created_and_closes_the_port(l
         time.sleep(.05)
     assert launcher._available(port), "The failed launch left its server listening"
 
+
+
+@pytest.mark.parametrize("missing_asset", ["topology.js", "execution.js"])
+def test_health_reports_missing_visualization_script(launcher, tmp_path, missing_asset):
+    from supernode_sim.web import create_server
+
+    assets = project_at(tmp_path / "static-fixture") / "supernode_sim" / "web_static"
+    (assets / missing_asset).unlink()
+    server = create_server("127.0.0.1", 0, tmp_path / "health-output", static_dir=assets)
+    with serving(server):
+        url = f"http://127.0.0.1:{server.server_address[1]}/"
+        assert get_json(url + "api/health")["static_ready"] is False
+        (assets / missing_asset).write_text("fixture", encoding="utf-8")
+        assert get_json(url + "api/health")["static_ready"] is True

@@ -54,6 +54,8 @@ function markJsonChanges(previous, next, prefix = '') {
 }
 function markModified() {
   state.modified = true;
+  simulationView.source = 'draft';
+  renderSimulationViews();
   text('#config-state', '已修改');
   $('#config-state').className = 'mini-badge warning';
   $('#validation-message').textContent = '';
@@ -144,7 +146,7 @@ function renderForm() {
   $('#validate-button').disabled = state.busy;
   updateRunButton();
   renderInputNotes();
-  renderTopology();
+  renderSimulationViews();
   syncJson();
   scheduleInputOverview();
 }
@@ -184,6 +186,7 @@ async function loadPreset(id) {
   try {
     const data = await api('/api/presets/' + encodeURIComponent(id));
     if (token !== state.loadingPreset) return;
+    simulationView.source = 'draft';
     state.config = data.config; state.presetId = id; state.modified = false; state.jsonDirty = false;
     const preset = state.presets.find(item => item.id === id);
     text('#preset-description', preset && preset.description || '保留预设中的全部模型、硬件、精度与来源信息。');
@@ -238,7 +241,8 @@ function selectJob(job) {
   $('#process-artifact-links').replaceChildren();
   clearTimeout(state.pollTimer);
   state.pollVersion++;
-  state.currentJob = job; state.pollFailures = 0;
+  state.currentJob = job; state.pollFailures = 0; state.result = null;
+  loadSimulationSnapshot(job);
   renderJob(job);
   renderHistory();
   pollJob(job.id, state.pollVersion);
@@ -256,7 +260,7 @@ async function pollJob(id, version) {
         try {
           const result = await api('/api/jobs/' + encodeURIComponent(id) + '/result');
           if (version !== state.pollVersion) return;
-          state.result = result; renderResults(result, job);
+          state.result = result; renderResults(result, job); renderSimulationViews();
         } catch (error) {
           if (version !== state.pollVersion) return;
           text('#process-message', '运行已完成，但结果读取失败：' + errorText(error) + '。可点击历史记录重试。');
@@ -286,6 +290,7 @@ function renderJob(job) {
   status.className = 'mini-badge ' + (job.status === 'completed' ? 'success' : job.status === 'failed' ? 'error' : job.status === 'cancelled' ? 'warning' : 'running');
   text('#elapsed', '墙钟 ' + duration(job.elapsed_s));
   text('#engine-phase-label', job.mode === 'estimate' ? '解析估算' : '引擎计算');
+  text('#runtime-context', '任务 ' + job.id + ' · ' + (job.mode === 'estimate' ? '解析估算' : '事件仿真') + ' · 实际服务状态');
   const active = !terminal.has(job.status);
   $('#cancel-button').hidden = !active;
   $('#cancel-button').disabled = false;
@@ -293,7 +298,7 @@ function renderJob(job) {
   const mapping = {queued: -1, validating: 0, simulating: 1, estimating: 1, exporting: 2, summarizing: 2, completed: 4};
   const index = mapping[job.phase] == null ? -1 : mapping[job.phase];
   $$('#phase-track > div').forEach((node, i) => {
-    node.className = i < index ? 'complete' : active && i === index ? 'current' : '';
+    node.className = i < index ? 'complete' : active && i === index ? 'current' : job.status === 'failed' && i === index ? 'failed' : '';
     node.firstElementChild.textContent = i < index ? '✓' : String(i + 1);
   });
   const logs = Array.isArray(job.logs) ? job.logs : [];
@@ -339,62 +344,6 @@ function svgEl(name, attrs = {}, label) {
   Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, String(value)));
   if (label !== undefined) node.textContent = label;
   return node;
-}
-function renderTopology() {
-  if (!state.config) return;
-  const h = state.config.hardware || {}, npu = Number(h.npu_count) || 0, size = Number(h.su_size) || 0, groups = size > 0 ? Math.ceil(npu / size) : 0;
-  text('#topology-npu', number(npu, 0) + ' NPU');
-  text('#topology-su', number(groups, 0) + ' × ' + number(size, 0));
-  text('#topology-hbm', number(h.npu && h.npu.hbm_bytes / 1e9, 1) + ' GB');
-  text('#topology-bandwidth', number(h.scale_up && h.scale_up.bandwidth_Bps / 1e9, 1) + ' / ' + number(h.scale_out && h.scale_out.bandwidth_Bps / 1e9, 1) + ' GB/s');
-  const host = $('#topology-visual'); host.replaceChildren();
-  const svg = svgEl('svg', {viewBox: '0 0 530 170', role: 'presentation'});
-  host.append(svg);
-  const explicit = h.topology === 'explicit';
-  text('#topology-type', explicit ? '显式有向图' : (h.topology || '—') + ' · 示意');
-  if (explicit) {
-    const links = Array.isArray(h.explicit_links) ? h.explicit_links : [];
-    const allNames = [...new Set(links.flatMap(link => [link.src, link.dst]))];
-    const names = allNames.slice(0, 24);
-    const positions = new Map(names.map((name, i) => [name, {x: 35 + (i % 8) * 66, y: 30 + Math.floor(i / 8) * 56}]));
-    const defs = svgEl('defs'); const marker = svgEl('marker', {id: 'arrow', markerWidth: 5, markerHeight: 5, refX: 4, refY: 2.5, orient: 'auto'});
-    marker.append(svgEl('path', {d: 'M0 0 L5 2.5 L0 5', fill: '#9ab1c9'})); defs.append(marker); svg.append(defs);
-    let drawn = 0;
-    links.slice(0, 160).forEach(link => {
-      const a = positions.get(link.src), b = positions.get(link.dst);
-      if (!a || !b) return;
-      const line = svgEl('line', {x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: link.domain === 'SU' ? '#78bcab' : '#a6b7d1', 'stroke-width': 1, opacity: .5, 'marker-end': 'url(#arrow)'});
-      line.append(svgEl('title', {}, link.src + ' → ' + link.dst + ' · ' + link.domain + ' · ' + number(link.bandwidth_Bps / 1e9) + ' GB/s'));
-      svg.append(line); drawn++;
-    });
-    names.forEach(name => {
-      const p = positions.get(name);
-      svg.append(svgEl('rect', {x: p.x - 20, y: p.y - 11, width: 40, height: 22, rx: 5, fill: '#f3f9f7', stroke: '#8cbdaf'}));
-      const label = svgEl('text', {x: p.x, y: p.y + 3, 'text-anchor': 'middle', 'font-size': 7, fill: '#4d887a', 'font-family': 'Consolas,monospace'}, String(name).slice(0, 10));
-      label.append(svgEl('title', {}, name)); svg.append(label);
-    });
-    text('#topology-note', '真实显式链路：展示 ' + names.length + ' / ' + allNames.length + ' 个端点、' + drawn + ' / ' + links.length + ' 条有向边。完整链路与路由见 JSON；图中位置不代表物理距离。');
-    host.setAttribute('aria-label', '显式拓扑：' + allNames.length + ' 个端点，' + links.length + ' 条有向链路，部分大图节点可能未展示');
-  } else {
-    const shown = Math.min(4, Math.max(1, groups)), groupWidth = Math.min(150, (500 - (shown - 1) * 18) / shown), overall = shown * groupWidth + (shown - 1) * 18, x0 = (530 - overall) / 2;
-    if (shown > 1) svg.append(svgEl('line', {x1: x0 + groupWidth / 2, x2: x0 + overall - groupWidth / 2, y1: 137, y2: 137, stroke: '#acc0d8', 'stroke-dasharray': '4 4'}));
-    for (let i = 0; i < shown; i++) {
-      const x = x0 + i * (groupWidth + 18);
-      svg.append(svgEl('rect', {x, y: 18, width: groupWidth, height: 104, rx: 7, fill: '#f9fcfc', stroke: '#cae2dc', 'stroke-width': 1}));
-      svg.append(svgEl('text', {x: x + 11, y: 36, 'font-family': 'Consolas,monospace', 'font-size': 8, fill: '#88a99f'}, 'SU ' + String(i).padStart(2, '0')));
-      const count = Math.min(8, size), cols = groupWidth > 120 ? 4 : 2, chipWidth = Math.min(27, (groupWidth - 25) / cols - 4);
-      for (let k = 0; k < count; k++) {
-        const cx = x + 10 + (k % cols) * (chipWidth + 5), cy = 46 + Math.floor(k / cols) * 15;
-        svg.append(svgEl('rect', {x: cx, y: cy, width: chipWidth, height: 11, rx: 2, fill: '#e2f3ed', stroke: '#a5cfc1', 'stroke-width': .7}));
-        svg.append(svgEl('text', {x: cx + chipWidth / 2, y: cy + 8, 'text-anchor': 'middle', 'font-family': 'Consolas,monospace', 'font-size': 5.8, fill: '#4d9681'}, String(i * size + k)));
-      }
-      svg.append(svgEl('text', {x: x + groupWidth - 10, y: 113, 'text-anchor': 'end', 'font-size': 6.5, fill: '#9db2b0'}, size + ' NPU'));
-      if (shown > 1) svg.append(svgEl('line', {x1: x + groupWidth / 2, x2: x + groupWidth / 2, y1: 122, y2: 137, stroke: '#acc0d8'}));
-    }
-    if (shown > 1) svg.append(svgEl('text', {x: 265, y: 156, 'text-anchor': 'middle', 'font-size': 7, 'font-family': 'Consolas,monospace', fill: '#a3b4c8'}, 'SCALE-OUT INTERCONNECT'));
-    text('#topology-note', '模板分组示意 · 最多展示 4 个 SU / 每组 8 卡；连线仅表示域间互联，不代表逐跳路径。实际拓扑为 ' + (h.topology || '未设置') + '。');
-    host.setAttribute('aria-label', '集群分组示意：' + npu + ' 张 NPU，' + groups + ' 个 Scale-up 域，每域 ' + size + ' 张卡');
-  }
 }
 function metricCard(label, value, unit, note, stateClass = '') {
   const card = el('div', 'kpi-card');
@@ -638,7 +587,7 @@ function attachEvents() {
   });
   $('#run-mode').addEventListener('change', () => {
     text('#mode-note', $('#run-mode').value === 'estimate' ? '仅计算资源与时间必要下界，不能证明 SLO 可行。' : '模拟依赖、资源争用与内存生命周期。');
-    updateRunButton();
+    updateRunButton(); renderSimulationViews();
   });
   $('#import-json').addEventListener('click', () => $('#config-file').click());
   $('#config-file').addEventListener('change', async event => {
@@ -676,6 +625,7 @@ function attachEvents() {
 }
 async function initialize() {
   attachEvents();
+  attachSimulationViews();
   attachInputOverview();
   attachInputEditors();
   try {
@@ -1483,6 +1433,70 @@ function refreshInputLiveViews() {
     if (node.dataset.inputLiveNote === 'inference-batch') node.textContent = inputPositiveInt(w.batch_size) && inputPositiveInt(e.dp) ? '配置请求总数 = 每副本 Batch × DP = ' + number(w.batch_size * e.dp, 0) + '。这是固定负载，不包含请求到达排队。' : '请求总数需有效 Batch 与 DP 才能推导。';
     if (node.dataset.inputLiveNote === 'length-count') node.textContent = Array.isArray(w.input_lengths) && Array.isArray(w.output_lengths) && w.input_lengths.length === w.batch_size && w.output_lengths.length === w.batch_size ? '显式长度列表与每副本 Batch 数量一致；保留每条请求的差异。' : '显式列表数量与 Batch 不一致或仍未展开；此页面不补齐、不覆盖请求长度。';
   });
+}
+
+
+// Both diagrams use one explicit source; job snapshots never borrow the editable draft.
+const simulationView = {source: 'draft', snapshot: null, jobId: '', loading: false, error: '', version: 0};
+async function loadSimulationSnapshot(job) {
+  const version = ++simulationView.version;
+  simulationView.source = 'job'; simulationView.jobId = job.id;
+  simulationView.snapshot = null; simulationView.loading = true; simulationView.error = '';
+  renderSimulationViews();
+  try {
+    const response = await api('/api/jobs/' + encodeURIComponent(job.id) + '/config');
+    if (version !== simulationView.version || state.currentJob?.id !== job.id) return;
+    if (!response.config || typeof response.config !== 'object' || Array.isArray(response.config)) throw new Error('该运行没有有效配置快照。');
+    assertInputFinite(response.config);
+    simulationView.snapshot = response.config;
+  } catch (error) {
+    if (version === simulationView.version) simulationView.error = errorText(error);
+  } finally {
+    if (version === simulationView.version) { simulationView.loading = false; renderSimulationViews(); }
+  }
+}
+function renderSimulationViews() {
+  const jobView = simulationView.source === 'job';
+  const select = $('#simulation-source'); if (!select) return;
+  select.value = simulationView.source;
+  $('#simulation-job-option').disabled = !state.currentJob;
+  $('#simulation-retry').hidden = !(jobView && simulationView.error);
+  let config, note, mode = $('#run-mode').value || 'simulate';
+  if (jobView) {
+    config = simulationView.jobId === state.currentJob?.id ? simulationView.snapshot : null;
+    mode = state.currentJob?.mode || mode;
+    note = simulationView.loading ? '正在读取运行快照…' : simulationView.error ? '快照读取失败：' + simulationView.error : '运行 ' + simulationView.jobId + ' 的提交配置 · 拓扑与执行计划共用此快照';
+    if (simulationView.loading || simulationView.error) config = null;
+  } else {
+    try { config = currentInputDraft(); note = '当前编辑配置 · 修改参数后同步生成拓扑与执行计划'; }
+    catch (error) { config = null; note = '当前配置暂不可预览：' + errorText(error); }
+    if (state.jsonDirty || hasUnappliedInputEdits()) note += ' · 含未校验或未应用内容，提交前请完成校验';
+  }
+  text('#simulation-source-note', note);
+  text('#topology-source', jobView ? '运行快照' : '当前草稿');
+  if (config) {
+    try {
+      renderTopology(config);
+      renderExecutionPlan(config, mode, jobView && !simulationView.loading && !simulationView.error && simulationView.jobId === state.currentJob?.id ? state.result : null);
+    } catch (error) {
+      config = null; note = '配置字段暂不可预览，请完成校验：' + errorText(error);
+      text('#simulation-source-note', note);
+    }
+  }
+  if (!config) {
+    empty($('#topology-visual'), note);
+    for (const id of ['topology-npu','topology-su','topology-hbm','topology-bandwidth']) text('#' + id, '—');
+    text('#topology-type', '等待配置'); text('#topology-note', '配置可用后生成拓扑。');
+    renderExecutionPlan(null, mode);
+  }
+}
+function attachSimulationViews() {
+  $('#simulation-source').addEventListener('change', event => {
+    simulationView.source = event.target.value === 'job' && state.currentJob ? 'job' : 'draft';
+    if (simulationView.source === 'job' && simulationView.jobId !== state.currentJob.id) loadSimulationSnapshot(state.currentJob);
+    else renderSimulationViews();
+  });
+  $('#simulation-retry').addEventListener('click', () => { if (state.currentJob) loadSimulationSnapshot(state.currentJob); });
 }
 
 initialize();

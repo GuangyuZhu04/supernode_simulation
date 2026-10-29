@@ -6,6 +6,8 @@
   <meta name="color-scheme" content="light">
   <title>超节点 · 流量仿真实验室</title>
   <link rel="stylesheet" href="/styles.css">
+  <script src="/topology.js" defer></script>
+  <script src="/execution.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -108,14 +110,17 @@
         </aside>
 
         <section class="main-column" aria-label="仿真工作区">
+          <section class="card simulation-source-panel" aria-label="拓扑与执行流程的数据来源"><div><label for="simulation-source">展示依据</label><select id="simulation-source"><option value="draft">当前编辑配置</option><option id="simulation-job-option" value="job" disabled>所选运行快照</option></select><button id="simulation-retry" type="button" class="text-button" hidden>重试读取</button></div><p id="simulation-source-note" role="status">载入配置后生成拓扑与执行计划。</p></section>
           <section class="card topology-panel">
-            <div class="panel-heading"><div><span class="section-index">02</span><h2>集群拓扑</h2><span class="mini-badge" id="topology-type">输入预览</span></div><span class="subtle">当前配置</span></div>
-            <div class="topology-layout"><div id="topology-visual" class="topology-visual" role="img" aria-label="等待载入集群配置"></div><div class="topology-facts"><div><span>集群规模</span><strong id="topology-npu">—</strong></div><div><span>Scale-up 域</span><strong id="topology-su">—</strong></div><div><span>每卡 HBM</span><strong id="topology-hbm">—</strong></div><div><span>SU / SO 链路</span><strong id="topology-bandwidth">—</strong></div></div></div>
+            <div class="panel-heading"><div><span class="section-index">02</span><h2>集群拓扑</h2><span class="mini-badge" id="topology-type">输入预览</span></div><span id="topology-source" class="subtle">当前草稿</span></div>
+            <div class="topology-layout"><div id="topology-visual" class="topology-visual" role="region" aria-label="等待载入集群配置"></div><div class="topology-facts"><div><span>集群规模</span><strong id="topology-npu">—</strong></div><div><span>Scale-up 域</span><strong id="topology-su">—</strong></div><div><span>每卡 HBM</span><strong id="topology-hbm">—</strong></div><div><span>SU / SO 链路</span><strong id="topology-bandwidth">—</strong></div></div></div>
             <p id="topology-note" class="chart-caption">拓扑随输入更新；运行结果对应提交时的配置快照。</p>
           </section>
 
           <section class="card progress-panel" aria-labelledby="progress-heading">
-            <div class="panel-heading"><div><span class="section-index">03</span><h2 id="progress-heading">执行过程</h2><span id="job-status" class="mini-badge">就绪</span></div><div class="progress-actions"><span id="elapsed" class="mono">—</span><button id="cancel-button" type="button" class="text-button danger" hidden>取消运行</button></div></div>
+            <div class="panel-heading"><div><span class="section-index">03</span><h2 id="progress-heading">执行过程</h2></div><div class="progress-actions"><span id="elapsed" class="mono">—</span><button id="cancel-button" type="button" class="text-button danger" hidden>取消运行</button></div></div>
+            <div class="execution-plan"><div class="execution-section-heading"><h3 id="execution-plan-label">配置执行计划</h3><span class="subtle">由模型、负载与执行策略生成</span></div><div id="execution-facts" class="execution-facts"></div><ol id="execution-flow" class="execution-flow"></ol><div id="execution-notes" class="execution-notes"></div><div id="execution-observed" class="execution-observed"></div></div>
+            <div class="runtime-status-line"><p id="runtime-context" class="runtime-context">任务服务状态 · 尚未运行</p><span id="job-status" class="mini-badge">就绪</span></div>
             <div class="phase-track" id="phase-track"><div data-phase="validating"><span>1</span><strong>配置校验</strong></div><i></i><div data-phase="simulating"><span>2</span><strong id="engine-phase-label">引擎计算</strong></div><i></i><div data-phase="exporting"><span>3</span><strong>导出报告</strong></div><i></i><div data-phase="completed"><span>4</span><strong>结果就绪</strong></div></div>
             <div id="process-message" class="process-message" role="status">选择输入配置后开始运行。这里展示实际执行阶段与日志。</div>
             <div id="process-artifact-links" class="artifact-links process-artifacts"></div>

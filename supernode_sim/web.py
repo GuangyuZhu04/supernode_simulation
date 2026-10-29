@@ -433,7 +433,7 @@ class WebHandler(BaseHTTPRequestHandler):
                         'output': str(manager.output), 'pid': os.getpid(),
                         'launch_token': os.environ.get('SUPERNODE_WEB_LAUNCH_TOKEN'),
                         'static_ready': all((self.server.static_dir / name).is_file() and (self.server.static_dir / name).stat().st_size > 0
-                                            for name in ('index.html', 'app.js', 'styles.css'))})
+                                            for name in ('index.html', 'app.js', 'topology.js', 'execution.js', 'styles.css'))})
             return
         if len(parts) == 3 and parts[:2] == ['api', 'presets']:
             if parts[2] not in self.server.presets:
