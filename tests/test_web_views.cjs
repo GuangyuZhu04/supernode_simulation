@@ -139,7 +139,7 @@ test('execution preview uses pending feature overrides but never mutates the inp
   config.features = {parallelism: {tp: 4, ep: 1, pp: 1, dp: 2}, kv_offload: {location: 'remote', fraction: .25}, sequence_parallel: true};
   const before = structuredClone(config), h = harness(config);
   const plan = h.call('buildExecutionPlan', config, 'estimate');
-  assert.equal(factValue(plan, '并行布局'), 'TP 4 / PP 1 / EP 1 / DP 2');
+  assert.equal(factValue(plan, '并行布局'), 'TP 4 / PP 1 / EP 1 / DP 2 / SP 4（随 TP）');
   assert.match(plan.steps.find(step => step.key === 'kv-fetch').detail, /远程内存.*25%/);
   assert.match(plan.notes.join(' '), /未实际执行/);
   assert.deepEqual(config, before);
@@ -251,7 +251,7 @@ test('pending parallelism features drive the same rank mapping and execution lay
   const rank = h.call('topologyRank', config, 0);
   assert.equal(rank.rank, 3); assert.equal(rank.tp, 0); assert.equal(rank.ep, 3); assert.equal(rank.pp, 0); assert.equal(rank.dp, 0);
   const plan = h.call('buildExecutionPlan', config);
-  assert.equal(factValue(plan, '并行布局'), 'TP 1 / PP 1 / EP 4 / DP 1');
+  assert.equal(factValue(plan, '并行布局'), 'TP 1 / PP 1 / EP 4 / DP 1 / SP 1（关闭）');
   h.call('renderSimulationViews');
   assert.match(h.node('execution-facts').textContent, /TP 1/);
   assert.deepEqual(config, before);
@@ -349,4 +349,52 @@ test('Scale-out remains visible beside default SU detail and after domain change
   assert.match(suCanvas.textContent, /NPU 8/); assert.match(suCanvas.textContent, /NPU 9/);
   h.call('renderTopology', config);
   assert.equal(host.querySelectorAll('.so-topology-canvas').length, 1);
+});
+
+
+test('SP degree shares TP ranks, preserves explicit false and follows pending feature selections', () => {
+  const config = fixture(), h = harness(config);
+  assert.equal(h.call('sequenceParallelInfo', config).label, 'SP 1（关闭）');
+  config.execution.sequence_parallel = true;
+  assert.equal(h.call('sequenceParallelInfo', config).degree, 2);
+  config.execution.tp = 8;
+  assert.equal(h.call('sequenceParallelInfo', config).label, 'SP 8（随 TP）');
+  config.features = {sequence_parallel: false, parallelism: {tp: 4}};
+  const disabled = h.call('sequenceParallelInfo', config);
+  assert.equal(disabled.enabled, false); assert.equal(disabled.degree, 1); assert.equal(disabled.label, 'SP 1（关闭）');
+  config.features.sequence_parallel = true;
+  assert.equal(h.call('sequenceParallelInfo', config).label, 'SP 4（随 TP）');
+  config.features.sequence_parallel = 'false';
+  assert.equal(h.call('sequenceParallelInfo', config).degree, null);
+  assert.match(h.call('sequenceParallelInfo', config).label, /待校验/);
+  config.features.sequence_parallel = true; config.features.parallelism.tp = 0;
+  assert.equal(h.call('sequenceParallelInfo', config).degree, null);
+});
+
+test('SP edits update derived degree, execution summary and topology without adding devices', async () => {
+  const config = fixture();
+  config.model.architecture = {vocab_size: 256, attention_by_layer: ['GQA', 'GQA', 'GQA', 'GQA'], ffn_by_layer: ['Dense', 'Dense', 'Dense', 'Dense']};
+  const h = harness(config, {views: true});
+  h.evaluate('renderInputNotes = realRenderInputNotes');
+  await h.call('beginInputEditing');
+  await h.call('commitInputValue', ['execution', 'sequence_parallel'], true);
+  assert.equal(h.node('sp-degree').textContent, '2');
+  assert.equal(h.node('sequence-parallel').checked, true);
+  await h.call('commitInputValue', ['execution', 'tp'], 4);
+  await h.call('commitInputValue', ['execution', 'ep'], 1);
+  assert.equal(h.node('sp-degree').textContent, '4');
+  const computed = h.node('input-parallel-body').querySelector('[data-input-computed-label="SP 并行度"]');
+  assert.equal(computed.querySelector('.input-display-value').textContent, 'SP 4（随 TP）');
+  assert.match(h.node('execution-facts').textContent, /SP 4（随 TP）/);
+  assert.ok(h.node('parallel-note').textContent.includes('并行乘积 4 / 4 NPU'));
+  assert.equal(h.node('parallel-note').classList.contains('error'), false);
+  assert.equal(h.evaluate('state.config.hardware.npu_count'), 4);
+  const canvas = h.node('topology-visual').querySelector('.topology-canvas');
+  await canvas.querySelectorAll('.topology-node')[1].fire('click');
+  assert.match(h.node('topology-visual').querySelector('.topology-inspector').textContent, /SP 4（随 TP）.*SP 分片索引 1/);
+  await h.call('commitInputValue', ['execution', 'sequence_parallel'], false);
+  assert.equal(h.node('sp-degree').textContent, '1');
+  assert.equal(computed.querySelector('.input-display-value').textContent, 'SP 1（关闭）');
+  assert.match(h.node('execution-facts').textContent, /SP 1（关闭）/);
+  assert.ok(h.node('parallel-note').textContent.includes('并行乘积 4 / 4 NPU'));
 });

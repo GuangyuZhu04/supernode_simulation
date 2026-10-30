@@ -145,17 +145,33 @@ function renderForm() {
   text('#model-layers', number(config.model && config.model.layers, 0) + ' 层');
   $('#validate-button').disabled = state.busy;
   updateRunButton();
+  renderSequenceParallelControl();
   renderInputNotes();
   renderSimulationViews();
   syncJson();
   scheduleInputOverview();
 }
+function sequenceParallelInfo(config) {
+  const setting = config.features?.sequence_parallel ?? config.execution?.sequence_parallel ?? false;
+  const tp = config.features?.parallelism?.tp ?? config.execution?.tp ?? 1;
+  const enabled = typeof setting === 'boolean' ? setting : null;
+  const degree = enabled === false ? 1 : enabled && Number.isSafeInteger(tp) && tp > 0 ? tp : null;
+  return {enabled, degree, label: degree == null ? 'SP 待校验' : 'SP ' + number(degree, 0) + (enabled ? '（随 TP）' : '（关闭）')};
+}
+function renderSequenceParallelControl() {
+  const sp = sequenceParallelInfo(state.config);
+  $('#sequence-parallel').checked = sp.enabled === true;
+  text('#sp-degree', sp.degree == null ? '—' : number(sp.degree, 0));
+  $('#sp-degree').setAttribute('aria-label', sp.label);
+}
+
 function renderInputNotes() {
   if (!state.config) return;
   const e = state.config.execution || {}, h = state.config.hardware || {}, w = state.config.workload || {};
+  renderSequenceParallelControl();
   const pd = pdEnabled(state.config);
   const product = (pd ? 2 : 1) * ['tp', 'pp', 'ep', 'dp'].reduce((a, key) => a * (e[key] || 1), 1);
-  text('#parallel-note', (pd ? 'PD 双池总卡数 ' : '并行乘积 ') + number(product, 0) + ' / ' + number(h.npu_count, 0) + ' NPU · FSDP 为 DP 子组');
+  text('#parallel-note', (pd ? 'PD 双池总卡数 ' : '并行乘积 ') + number(product, 0) + ' / ' + number(h.npu_count, 0) + ' NPU · ' + sequenceParallelInfo(state.config).label + ' · SP 不增加卡数，FSDP 为 DP 子组');
   $('#parallel-note').classList.toggle('error', product !== h.npu_count || (e.dp || 1) % (e.fsdp || 1) !== 0 || pd && (e.dp !== 1 || e.pp !== 1));
   const inCount = Array.isArray(w.input_lengths) ? w.input_lengths.length : 0;
   const outCount = Array.isArray(w.output_lengths) ? w.output_lengths.length : 0;
@@ -568,6 +584,7 @@ function attachEvents() {
     else if (input.type === 'number') value = editedValue === '' ? null : Number(editedValue) * (Number(input.dataset.scale) || 1);
     else value = editedValue;
     setPath(input.dataset.path, value);
+    if (input.dataset.path === 'execution.sequence_parallel' && state.config.features?.sequence_parallel != null) setPath('features.sequence_parallel', value);
     if (input.dataset.path === 'workload.batch_size' && state.scenario === 'training') {
       setPath('workload.input_lengths', []); setPath('workload.output_lengths', []);
     }
@@ -923,7 +940,7 @@ function parallelInputNote(config) {
 function renderInputParallel(config) {
   const host = $('#input-parallel-body'); host.replaceChildren();
   const e = inputObject(config.execution), h = inputObject(config.hardware), precision = inputObject(e.precision), features = inputObject(e.features), optimizer = inputObject(e.optimizer);
-  inputFacts(host, [['TP · 张量并行', e.tp, 'execution.tp'], ['PP · 流水线并行', e.pp, 'execution.pp'], ['EP · 专家并行', e.ep, 'execution.ep'], ['DP · 数据并行', e.dp, 'execution.dp'], ['FSDP · DP 子组', e.fsdp, 'execution.fsdp'], ['Sequence parallel', e.sequence_parallel, 'execution.sequence_parallel']]);
+  inputFacts(host, [['TP · 张量并行', e.tp, 'execution.tp'], ['PP · 流水线并行', e.pp, 'execution.pp'], ['EP · 专家并行', e.ep, 'execution.ep'], ['DP · 数据并行', e.dp, 'execution.dp'], ['FSDP · DP 子组', e.fsdp, 'execution.fsdp'], ['SP · 序列并行开关', e.sequence_parallel, 'execution.sequence_parallel'], ['SP 并行度', sequenceParallelInfo(config).label]]);
   inputNote(host, parallelInputNote(config), 'parallel');
   const precisionLabels = {weight: '权重驻留', compute: '计算', gradient: '梯度', master: '主权重', optimizer: '优化器状态', kv: 'KV', weight_transfer: '权重回传', activation: '激活', communication: '通信', recurrent: '循环状态', routed_expert_weight: '路由专家权重覆盖'};
   inputTable(host, ['独立精度项', '数据类型'], Object.entries(precision).map(([key, value]) => [(precisionLabels[key] || key) + ' · ' + key, inputEditableValue(['execution', 'precision', key], value)]), '各精度独立配置；未设置的覆盖项保留 null');
@@ -1152,6 +1169,10 @@ function commitInputValue(tokens, value) {
   const next = tokens.length ? clone(previous) : clone(value);
   if (!next || typeof next !== 'object' || Array.isArray(next)) throw new Error('完整配置必须是 JSON 对象。');
   if (tokens.length) inputSetOwn(next, tokens, value);
+  if (tokens.join('.') === 'execution.sequence_parallel' && next.features?.sequence_parallel != null) {
+    next.features.sequence_parallel = value;
+    inputMarkSource(next, ['features', 'sequence_parallel'], 'SP 开关修改同步至已有的顶层同名配置。');
+  }
   if (tokens.join('.') === 'workload.batch_size' && inputObject(next.workload).scenario === 'training') {
     next.workload.input_lengths = []; next.workload.output_lengths = [];
     inputMarkSource(next, ['workload', 'input_lengths'], '训练 Batch 修改后清空不参与训练的推理长度列表，完整校验时归一化。');
@@ -1425,6 +1446,7 @@ function refreshInputLiveViews() {
   $$('[data-input-computed-label]').forEach(node => {
     const target = $('.input-display-value', node); if (!target) return;
     if (node.dataset.inputComputedLabel === 'Scale-up 域数') target.textContent = inputPositiveInt(h.npu_count) && inputPositiveInt(h.su_size) && h.npu_count % h.su_size === 0 ? number(h.npu_count / h.su_size, 0) + '（由 NPU / SU 卡数推导）' : '无法推导：需要可整除的正整数 NPU / SU 卡数';
+    if (node.dataset.inputComputedLabel === 'SP 并行度') target.textContent = sequenceParallelInfo(state.config).label;
     if (node.dataset.inputComputedLabel === '主机数') target.textContent = inputPositiveInt(h.npu_count) && inputPositiveInt(h.npus_per_host) ? number(Math.ceil(h.npu_count / h.npus_per_host), 0) + '（向上取整）' : '无法推导：NPU / 每主机卡数未就绪';
   });
   $$('[data-input-live-note]').forEach(node => {

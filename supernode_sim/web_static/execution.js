@@ -35,7 +35,7 @@ function buildExecutionPlan(config, mode = 'simulate') {
   const add = (key, title, detail) => plan.steps.push({key, title, detail});
   const count = value => number(value, 0);
   const range = stat => !stat ? '待校验' : (stat.min === stat.max ? count(stat.min) : count(stat.min) + '–' + count(stat.max)) + ' tokens / 请求';
-  plan.facts.push(['场景', w.scenario === 'training' ? '训练' : '推理'], ['模型', (m.name || '自定义模型') + ' · ' + count(m.layers) + ' 层'], ['并行布局', ['tp', 'pp', 'ep', 'dp'].map(key => key.toUpperCase() + ' ' + count(parallel[key] ?? 1)).join(' / ')]);
+  plan.facts.push(['场景', w.scenario === 'training' ? '训练' : '推理'], ['模型', (m.name || '自定义模型') + ' · ' + count(m.layers) + ' 层'], ['并行布局', ['tp', 'pp', 'ep', 'dp'].map(key => key.toUpperCase() + ' ' + count(parallel[key] ?? 1)).join(' / ') + ' / ' + sequenceParallelInfo(config).label]);
   if (selected && Object.keys(selected).length) plan.notes.push('含待解析的顶层 features；此处为配置预览，完整校验后以 resolved 配置为准。');
   if (mode === 'estimate') plan.notes.push('解析估算只计算计划事件与必要耗时下界；下列流程未实际执行，不产生完成进度或实际阶段耗时。');
   if (w.scenario === 'training') {

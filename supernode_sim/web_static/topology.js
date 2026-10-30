@@ -197,9 +197,10 @@ function renderTopology(config = state.config) {
     if (node.kind === 'su') { topologyView.view = 'domain'; topologyView.domain = node.domain; topologyView.page = 0; renderTopology(config); return; }
     inspector.append(el('strong', '', node.label));
     if (node.kind === 'npu') {
-      const r = node.rank;
+      const r = node.rank, sp = sequenceParallelInfo(config);
       inspector.append(el('span', '', '物理 NPU ' + node.physical + ' · SU ' + node.su + ' · Host ' + node.host));
       inspector.append(el('span', '', r ? (r.pool ? r.pool + ' 池 · ' : '') + 'Rank ' + r.rank + ' · TP ' + r.tp + ' / EP ' + r.ep + ' / PP ' + r.pp + ' / DP ' + r.dp : '未找到合法的 rank 映射，请校验并行配置。'));
+      inspector.append(el('span', '', sp.label + (sp.enabled && r ? ' · SP 分片索引 ' + r.tp + '（与 TP 索引共用，从 0 开始）' : '')));
       const groups = (h.io_groups || []).filter(group => (group.members || []).includes(node.physical));
       if (groups.length) inspector.append(el('span', '', 'I/O 共享约束：' + groups.map(group => group.id + ' (' + number(group.bandwidth_Bps / 1e9) + ' GB/s)').join('、')));
       if (model.kind !== 'explicit') inspector.append(el('span', '', 'SO 接入 su' + node.su + '.gateway · H2D / D2H 接入 cpu' + node.host));
@@ -223,7 +224,7 @@ function renderTopology(config = state.config) {
   const legend = el('div', 'topology-legend'); legend.append(el('span', 'topology-su-legend', '● SU 域内'), el('span', 'topology-so-legend', '● SO 互联'), el('span', '', model.kind === 'explicit' ? '箭头为单向边 · 虚线框为邻接端点' : '实线表示双向链路 · 带宽按方向计'), el('span', '', '点击节点查看详情'));
   host.append(legend, inspector);
   const selected = model.nodes.find(node => node.id === topologyView.selected && node.kind !== 'su');
-  if (selected) inspect(selected); else inspector.append(el('span', '', number(model.hostCount, 0) + ' 台主机 · 每主机 ' + number(h.npus_per_host, 0) + ' 卡 · 路由 ' + (h.routing_algorithm || 'shortest_hop') + ' / ' + (h.routing_policy || 'shortest_hop') + ((config.features?.sequence_parallel ?? config.execution?.sequence_parallel) ? ' · SP 复用 TP ranks' : '')));
+  if (selected) inspect(selected); else inspector.append(el('span', '', number(model.hostCount, 0) + ' 台主机 · 每主机 ' + number(h.npus_per_host, 0) + ' 卡 · 路由 ' + (h.routing_algorithm || 'shortest_hop') + ' / ' + (h.routing_policy || 'shortest_hop') + (' · ' + sequenceParallelInfo(config).label)));
 }
 
 

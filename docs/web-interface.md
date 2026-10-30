@@ -52,7 +52,7 @@ python -m supernode_sim web --port 8766 --output outputs/web
 
 这里编辑的是 `supernode-modeling` skill 调用 `supernode_sim` 时使用的场景 `Config`。结构化模型的参数量由张量形状派生，修改相关结构后经校验重新计算；硬件、精度和并行策略仍遵循原引擎的严格约束。
 
-模型总参数量、每 token 活跃参数量及公开约数分别展示。硬件容量和带宽使用十进制 GB、GB/s，保留原始字段与原始单位。并行关系仍为 `TP × PP × EP × DP = NPU 数`，FSDP 是 DP 子组，SP 复用 TP rank。推理逐请求的变长输入/输出长度保留；Batch 是每个 DP 副本的负载。SU 域数可以从总卡数与每 SU 卡数推导，原生配置未声明的 SO 域数不推测。
+模型总参数量、每 token 活跃参数量及公开约数分别展示。硬件容量和带宽使用十进制 GB、GB/s，保留原始字段与原始单位。并行关系仍为 `TP × PP × EP × DP = NPU 数`，FSDP 是 DP 子组，SP 复用 TP rank。并行区提供 SP 开关及派生度数（开启为 TP，关闭为 1），同步显示在执行摘要、输入总览及拓扑设备详情；当前引擎要求结构化推理、TP > 1、PP = 1。推理逐请求的变长输入/输出长度保留；Batch 是每个 DP 副本的负载。SU 域数可以从总卡数与每 SU 卡数推导，原生配置未声明的 SO 域数不推测。
 
 ## 图表口径
 

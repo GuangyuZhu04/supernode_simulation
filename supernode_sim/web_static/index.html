@@ -56,11 +56,13 @@
                 <p class="field-note">1 GB = 10⁹ byte。带宽为模板链路配置；端点注入与共享上联独立保留，可在 JSON 中调整。</p>
                 <div class="parallel-grid">
                   <div><label for="tp">TP</label><input id="tp" type="number" min="1" step="1" data-path="execution.tp"></div>
+                  <div><label for="sequence-parallel">SP</label><div class="sp-control"><input id="sequence-parallel" type="checkbox" data-path="execution.sequence_parallel" aria-label="启用 SP 序列并行" aria-describedby="sp-note"><output id="sp-degree" for="tp sequence-parallel" aria-live="polite">1</output></div></div>
                   <div><label for="pp">PP</label><input id="pp" type="number" min="1" step="1" data-path="execution.pp"></div>
                   <div><label for="ep">EP</label><input id="ep" type="number" min="1" step="1" data-path="execution.ep"></div>
                   <div><label for="dp">DP</label><input id="dp" type="number" min="1" step="1" data-path="execution.dp"></div>
                   <div><label for="fsdp">FSDP</label><input id="fsdp" type="number" min="1" step="1" data-path="execution.fsdp"></div>
                 </div>
+                <p id="sp-note" class="field-note">SP 开启时等于 TP，关闭时为 1，共用 TP ranks。当前支持结构化推理、TP &gt; 1、PP = 1。</p>
                 <p id="parallel-note" class="field-note">TP × PP × EP × DP = NPU 总数；FSDP 是 DP 子组。</p>
                 <div class="field-grid"><div><label for="weight-dtype">权重驻留精度</label><select id="weight-dtype" data-path="execution.precision.weight"><option>fp4</option><option>fp8</option><option>fp16</option><option>bf16</option><option>fp32</option><option>int8</option></select></div><div><label for="kv-dtype">KV 精度</label><select id="kv-dtype" data-path="execution.precision.kv"><option>fp8</option><option>fp16</option><option>bf16</option><option>fp32</option><option>int8</option></select></div></div>
                 <p class="field-note">计算、通信、梯度与回传精度独立保留，可在完整配置中编辑。</p>

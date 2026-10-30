@@ -57,6 +57,7 @@ class Element {
     if (name.startsWith('data-')) this.dataset[dataName(name)] = String(value);
     else if (name === 'class') this.className = String(value);
     else if (name === 'id') this.id = String(value);
+    else if (name === 'type') this.type = String(value);
   }
   getAttribute(name) { return this.attributes.get(name) ?? null; }
   removeAttribute(name) { this.attributes.delete(name); }

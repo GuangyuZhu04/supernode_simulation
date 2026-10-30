@@ -321,3 +321,31 @@ test('expanding the full field tree after an edit displays the current configura
 
 
 
+
+
+test('the main SP checkbox submits boolean configuration for both enabled and disabled states', async () => {
+  for (const enabled of [true, false]) {
+    const config = fixture(); config.execution.sequence_parallel = !enabled;
+    const h = harness(config);
+    h.call('attachEvents');
+    const checkbox = h.node('sequence-parallel');
+    assert.equal(checkbox.type, 'checkbox');
+    checkbox.checked = enabled;
+    await checkbox.fire('change');
+    assert.equal(h.evaluate('state.config.execution.sequence_parallel'), enabled);
+    const requests = [];
+    h.context.fetch = async (url, options) => {
+      const body = JSON.parse(options.body); requests.push({url, body});
+      if (url === '/api/validate') return {ok: true, status: 200, json: async () => ({valid: true, config: body.config})};
+      if (url === '/api/jobs') return {ok: true, status: 202, json: async () => ({id: 'sp-boolean-job', status: 'queued', mode: body.mode})};
+      throw new Error('Unexpected request: ' + url);
+    };
+    await h.call('runSimulation', {preventDefault() {}});
+    assert.deepEqual(requests.map(request => request.url), ['/api/validate', '/api/jobs']);
+    for (const request of requests) {
+      assert.equal(request.body.config.execution.sequence_parallel, enabled);
+      assert.equal(typeof request.body.config.execution.sequence_parallel, 'boolean');
+      assert.equal(request.body.config.hardware.npu_count, 4);
+    }
+  }
+});

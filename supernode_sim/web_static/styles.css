@@ -434,7 +434,7 @@ h1 {
 }
 .parallel-grid {
   display:grid;
-  grid-template-columns:repeat(5,1fr);
+  grid-template-columns:repeat(3,minmax(0,1fr));
   gap:7px
 }
 .parallel-grid input {
@@ -2001,3 +2001,7 @@ h1 {
 .so-topology-node:hover rect,.so-topology-node:focus-visible rect { stroke:#3568b1; stroke-width:2.5; }
 .so-topology-link:hover line,.so-topology-link:focus-visible line { stroke:#3568b1; stroke-width:3.5; }
 .so-topology-link:focus-visible { outline:2px solid #4b78ba; outline-offset:3px; }
+
+.sp-control { display:flex; align-items:center; gap:8px; min-height:36px; padding:5px 9px; border:1px solid #dce4ee; border-radius:5px; background:#f7fbfa; }
+.parallel-grid .sp-control input { width:16px; height:16px; min-height:0; padding:0!important; margin:0; accent-color:var(--teal); cursor:pointer; flex:none; }
+.sp-control output { font:13px Consolas,monospace; color:#246e65; overflow-wrap:anywhere; }
