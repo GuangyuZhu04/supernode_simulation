@@ -55,6 +55,8 @@ PD 的总物理卡数是两个池的和，当前相同布局时为 `2 × TP × E
 
 ## 分项校准而非整体乘系数
 
+组件聚合边界无法对应真实 kernel 时，先按 [operator trace](operator-traces.md) 展开，再采集和匹配子算子服务时间。结构化 `workload_shape` 保留长度分布、query/context 与 signature；`matmul` 保留声明的 GEMM 维度。使用它们约束 profile，不用一个 token 数或全局效率跨 prefill/decode 复用测量。trace 覆盖与 profile 覆盖是不同指标，前者本身不构成校准证据。
+
 1. **建立 baseline。** 固定模型范围和软件路径，保存 resolved config。先对齐权重/KV/KDA 结构与存储精度，排除遗漏或重复复制。
 2. **测量 prefill 与 decode。** 按实际 batch、上下文长度、KV layout、矩阵形状与 dtype 采样。decode 采集多个输出位置；普通 decode 和投机验证分开。
 3. **拆开成本。** 算子服务时间、启动/图调度、HBM、collective、小消息延迟、host/remote 搬运、CPU 前后处理各自测量。共享资源重叠由事件依赖与争用决定，不把所有独立峰值耗时相加。公开优化的阶段收益不能重复相乘。
@@ -81,6 +83,8 @@ PD 的总物理卡数是两个池的和，当前相同布局时为 `2 × TP × E
 检查 `model_metadata.kernel_calibration` 的 `eligible_events`, `matched_events`, `coverage_fraction`, `by_phase`, `unmatched_kernels`, `unprofiled_kernels`。只有实际匹配才可标 `partially_kernel_calibrated`；全匹配也不是端到端验证。streaming 结果检查对应 `model_metadata` 与实际执行 phase；只校准 prefill 不能声称 decode 已校准。提前因容量失败的流式执行仅统计已构建部分，不能把它的覆盖率当完整运行覆盖率。
 
 ## 处理请求实测 trace
+
+逐请求记录可选 `admission_s`，必须位于 arrival 和首 token/完成之间。工具另报 admission wait 与 server TTFT；缺失保持未知，不推测零排队。`serve` 的模拟 token trace 可用同一工具复核，但仍不能标为实测。有限服务调度的时钟/cohort 见 [serving.md](serving.md)，ServingCast 门外等待排除问题见 [来源核验](msmodeling-servingcast.md)。
 
 使用随 skill 打包、仅依赖 Python 标准库的 [分析脚本](../scripts/analyze_inference_trace.py)。从项目根目录可运行：
 

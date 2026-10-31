@@ -344,6 +344,69 @@ class KernelProfile(Spec):
         return self
 
 
+class MatmulShape(Spec):
+    m: StrictInt = Field(gt=0)
+    n: StrictInt = Field(gt=0)
+    k: StrictInt = Field(gt=0)
+    batch: StrictInt = Field(default=1, gt=0)
+
+
+class KernelTraceOperation(Spec):
+    kernel: str = Field(min_length=1)
+    flops: float = Field(ge=0)
+    memory_bytes: float = Field(ge=0)
+    startup_s: float = Field(default=0.0, ge=0)
+    workspace_bytes: float = Field(default=0.0, ge=0)
+    matmul: MatmulShape | None = None
+
+    @model_validator(mode='after')
+    def explicit_work(self):
+        if not self.kernel.strip():
+            raise ValueError('kernel trace operation kernel must be nonempty')
+        if self.matmul is not None:
+            shape = self.matmul
+            expected = 2 * shape.batch * shape.m * shape.n * shape.k
+            try:
+                matches = math.isclose(self.flops, expected, rel_tol=1e-9, abs_tol=1e-6)
+            except OverflowError:
+                matches = False
+            if not matches:
+                raise ValueError('matmul FLOPs must equal 2 * batch * m * n * k')
+        return self
+
+
+class KernelTrace(Spec):
+    """A scoped serial operator trace refining one aggregate kernel event."""
+    id: str = Field(min_length=1)
+    source: str = Field(min_length=1)
+    hardware_name: str = Field(min_length=1)
+    phase: str = Field(min_length=1)
+    dtype: DType
+    flops: float = Field(ge=0, description='Original aggregate event FLOPs; exact-match guard.')
+    memory_bytes: float = Field(ge=0, description='Original aggregate HBM traffic; exact-match guard.')
+    metadata_match: dict[str, Any] = Field(min_length=1)
+    calibration_context: dict[str, StrictStr] = Field(default_factory=dict)
+    operations: list[KernelTraceOperation] = Field(min_length=1)
+
+    @model_validator(mode='after')
+    def conserved_work(self):
+        if any(not getattr(self, key).strip() for key in ('id', 'source', 'hardware_name', 'phase')):
+            raise ValueError('kernel trace identity, phase and source must be nonempty')
+        validate_json_metadata(self.metadata_match)
+        if self.calibration_context:
+            validate_calibration_context(self.calibration_context, require_complete=True)
+        try:
+            total_flops = math.fsum(op.flops for op in self.operations)
+            total_bytes = math.fsum(op.memory_bytes for op in self.operations)
+        except OverflowError as exc:
+            raise ValueError('kernel trace operation totals must be finite') from exc
+        if not math.isfinite(total_flops) or not math.isclose(total_flops, self.flops, rel_tol=1e-9, abs_tol=1e-6):
+            raise ValueError('kernel trace operations must conserve aggregate FLOPs')
+        if not math.isfinite(total_bytes) or total_bytes < self.memory_bytes - max(1e-6, self.memory_bytes * 1e-9):
+            raise ValueError('kernel trace operation HBM bytes must not undercount aggregate memory_bytes')
+        return self
+
+
 class CollectiveProfile(Spec):
     """Exact byte-vector applicability; call duration includes launch/startup."""
     id: str = Field(min_length=1)
@@ -446,6 +509,7 @@ class HardwareSpec(Spec):
     io_groups: list[IOGroupSpec] = Field(default_factory=list)
     routes: dict[str, list[str]] = Field(default_factory=dict)
     kernel_profiles: dict[str, list[KernelProfile]] = Field(default_factory=dict)
+    kernel_traces: dict[str, list[KernelTrace]] = Field(default_factory=dict)
     collective_profiles: list[CollectiveProfile] = Field(default_factory=list)
     calibration_context: dict[str, StrictStr] = Field(default_factory=dict)
     collective_models: list[CollectiveModel] = Field(default_factory=list)
@@ -464,6 +528,11 @@ class HardwareSpec(Spec):
         model_ids = [model.id for model in self.collective_models]
         if len(model_ids) != len(set(model_ids)):
             raise ValueError('collective model IDs must be unique')
+        trace_ids = [trace.id for traces in self.kernel_traces.values() for trace in traces]
+        if len(trace_ids) != len(set(trace_ids)):
+            raise ValueError('kernel trace IDs must be unique')
+        if any(not kernel.strip() or not traces for kernel, traces in self.kernel_traces.items()):
+            raise ValueError('kernel_traces requires nonempty kernel names and trace lists')
         return self
 
 

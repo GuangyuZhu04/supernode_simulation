@@ -1,0 +1,15 @@
+{
+  "id": "synthetic-dense-backward-six-gemms",
+  "source": {
+    "status": "assumed",
+    "description": "Synthetic serial GEMM-only Dense backward decomposition for the 16x32, eight-token example; excludes an exact nonlinear autograd trace and is not hardware measurement."
+  },
+  "operations": [
+    {"kernel": "dense.down.dgrad", "flops": 8192, "memory_bytes": 1792, "matmul": {"m": 8, "n": 32, "k": 16}, "startup_s": 0.000001, "workspace_bytes": 512},
+    {"kernel": "dense.down.wgrad", "flops": 8192, "memory_bytes": 1792, "matmul": {"m": 32, "n": 16, "k": 8}, "startup_s": 0.000001, "workspace_bytes": 512},
+    {"kernel": "dense.gate.dgrad", "flops": 8192, "memory_bytes": 1792, "matmul": {"m": 8, "n": 16, "k": 32}, "startup_s": 0.000001, "workspace_bytes": 512},
+    {"kernel": "dense.gate.wgrad", "flops": 8192, "memory_bytes": 1792, "matmul": {"m": 16, "n": 32, "k": 8}, "startup_s": 0.000001, "workspace_bytes": 512},
+    {"kernel": "dense.up.dgrad", "flops": 8192, "memory_bytes": 1792, "matmul": {"m": 8, "n": 16, "k": 32}, "startup_s": 0.000001, "workspace_bytes": 512},
+    {"kernel": "dense.up.wgrad", "flops": 8192, "memory_bytes": 1792, "matmul": {"m": 16, "n": 32, "k": 8}, "startup_s": 0.000001, "workspace_bytes": 512}
+  ]
+}

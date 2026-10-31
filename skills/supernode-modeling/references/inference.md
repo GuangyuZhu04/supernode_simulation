@@ -8,7 +8,9 @@
 
 这是预加载权重后的固定 batch 执行：完成的序列退出 decode，但没有新请求到达，不模拟 continuous batching、服务排队或冷启动权重加载。
 
-默认逐 token autoregressive decode；可通过 [features](features.md) 选择 `speculative_decode` 的 draft/verify/commit 轮次模型。该模式要求同步等长 batch、DP=PP=1、显式草稿成本/状态与接受数，不预测接受概率或输出正确性。普通图支持，streaming 显式拒绝。
+需要请求到达/排队时使用独立 [serve 服务仿真](serving.md)：显式到达 trace、FCFS 固定成批、隔离多实例，每批调用本节原引擎。服务指标区分客户端 TTFT、接纳等待和模型执行；仍不支持连续补位、逐轮 token budget、PD 队列或动态抢占。
+
+默认逐 token autoregressive decode；可通过 [features](features.md) 选择 `speculative_decode` 的 draft/verify/commit 轮次模型。该模式要求同步等长 batch、DP=PP=1、显式草稿成本/状态与接受数，不预测接受概率或输出正确性。普通图和 `run_streaming` API 均支持；流式路径沿组件边界保留原生投机轮次。
 
 `prefill_decode_disaggregation` 支持独立 P/D 物理池与同 TP/EP 布局的状态交接（DP=PP=1、总卡数为两池之和）。TTFT 截止 P 池首 token，传输 KV、KDA/CSA/HCA 状态、元数据和首 token ID 后 D 才开始；交接计入首个 decode 间隔。它不模拟在线到达队列，暂不与投机、KV offload、Engram 组合。`megakernel` 可在普通图中融合安全的局部 kernel 链；两者均须读 [feature 说明](features.md) 并使用普通 `simulate`。
 
@@ -63,6 +65,8 @@ KV offload 与查询会共享实际 host DRAM、host 链路或 remote 资源。�
 `total_params` 决定驻留权重；`active_params` 决定每 token 参数计算量。200B–800B 是活跃参数范围，不是 activation 容量。专家路由均匀、专家计算均衡，专家权重访存按均匀 top-k 触达专家的期望估算。真实路由倾斜需额外 trace 或实现扩展，不能据现有结果声称覆盖热点。
 
 当前是层级粗粒度算子图，TP reduction 位于层边界，Attention 假设融合/流式执行；不存在常驻的完整二次 attention score 矩阵。读实际输出中的 assumptions，结合 kernel profile 和平台实测校准后再讨论绝对精度。
+
+组件内部可按 [operator trace](operator-traces.md) 细化串行 kernel。结构化事件的 `workload_shape` 记录活跃请求的 query/context 长度统计及签名；同总 tokens、不同长度分布会有不同 attention 工作量，长 KV decode 也不能复用短上下文 profile。该描述用于 `metadata_match`，不是新的 workload 输入字段；`dense_causal_pairs_reference` 不能当作 KDA/CSA/HCA 的计算公式。子算子仍保留固定 batch 的边界，不新增请求到达或连续 batching。
 
 ## 大规模结构化推理
 

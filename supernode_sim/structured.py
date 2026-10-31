@@ -17,6 +17,7 @@ from .training import pipeline_schedule
 from .sparse_attention import sparse_attention_state, sparse_attention_work, position_bias_rows
 from .moe_wire import moe_payload_matrix, moe_wire_metadata, wire_payload_parts
 from .calibration import model_shape_signature
+from .kernel_workload import kernel_workload_shape
 
 
 class Builder:
@@ -444,6 +445,9 @@ class Builder:
             metadata={'kernel': component.lower(), 'component': component, 'layer': layer, 'phase': phase,
                       'flops': flops, 'working_set_bytes': weight_reads + working + cache_reads,
                       'tokens': tokens, 'sequence_parallel': self.sp,
+                      'workload_shape': kernel_workload_shape(phase=phase, tokens=tokens,
+                          lengths=list(lengths or []), query_lengths=query_lengths,
+                          training=self.training, ep=self.ep),
                       'model_shape_signature': self.model_shape_signature,
                       'tensor_parallel_degree': self.tp, 'expert_parallel_degree': self.ep,
                        'sequence_parallel_degree': self.tp if self.sp else 1,

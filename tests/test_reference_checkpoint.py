@@ -34,7 +34,8 @@ def small_config():
     }
 
 
-@pytest.mark.parametrize('module', ['sparse_attention', 'speculative', 'features', 'megakernel', 'disaggregated'])
+@pytest.mark.parametrize('module', ['sparse_attention', 'speculative', 'features', 'megakernel', 'disaggregated',
+                                    'operator_trace', 'kernel_workload', 'training_accounting'])
 def test_feature_implementation_change_invalidates_checkpoint_fingerprint(monkeypatch, module):
     from pathlib import Path
     config = Config.model_validate(small_config())

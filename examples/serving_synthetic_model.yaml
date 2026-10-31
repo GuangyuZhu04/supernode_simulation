@@ -1,0 +1,40 @@
+# Synthetic dimensions and device rates; not Ascend measurements.
+schema_version: '1.0'
+model:
+  name: synthetic-serving-gqa
+  layers: 1
+  hidden_dim: 16
+  num_heads: 4
+  kv_heads: 2
+  head_dim: 4
+  architecture:
+    vocab_size: 32
+    attention_by_layer: [GQA]
+    ffn_by_layer: [Dense]
+    dense_intermediate_dim: 32
+hardware:
+  name: synthetic-serving-device
+  npu_count: 1
+  su_size: 1
+  npus_per_host: 1
+  npu:
+    hbm_bytes: 67108864
+    hbm_Bps: 1000000000
+    flops: {fp16: 1000000000, bf16: 1000000000, fp32: 100000000}
+    efficiency: 1
+    runtime_bytes: 65536
+    workspace_bytes: 4096
+workload:
+  scenario: inference
+  batch_size: 1
+  input_length: 8
+  output_length: 3
+execution:
+  precision: {weight: bf16, compute: bf16, activation: bf16}
+sources:
+  '*':
+    status: assumed
+    description: Synthetic local example; all device rates and model dimensions are illustrative.
+assumptions:
+  - The serving wrapper replicates this entire hardware configuration into isolated instances.
+  - No measured serving calibration, client preprocessing or shared inter-instance network is implied.

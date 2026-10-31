@@ -41,6 +41,30 @@ def test_formula_and_finish_endpoint_are_explicit():
     assert result["throughput"] == {"completed_requests_per_s": 0.1, "output_tokens_per_s": 0.3}
 
 
+def test_observed_admission_separates_queue_and_service_without_changing_client_ttft():
+    document = trace([{'id': 'queued', 'arrival_s': 0, 'admission_s': 2,
+                       'token_times_s': [3, 4]}])
+    result = trace_tool.analyze_trace(document)
+    row = result['requests'][0]
+    assert row['ttft_s'] == 3
+    assert row['admission_wait_s'] == 2
+    assert row['server_ttft_s'] == 1
+    assert row['ttft_s'] == row['admission_wait_s'] + row['server_ttft_s']
+    assert result['metrics']['admission_wait']['mean_s'] == 2
+    assert result['metrics']['server_ttft']['mean_s'] == 1
+    assert result['counts']['cohort_admission_observed_requests'] == 1
+    old = trace_tool.analyze_trace(trace())
+    assert old['requests'][0]['admission_wait_s'] is None
+    assert old['metrics']['admission_wait']['sample_count'] == 0
+
+
+@pytest.mark.parametrize('admission', [-1, 0.5, 2.5, True, float('nan')])
+def test_invalid_admission_timestamp_is_rejected(admission):
+    with pytest.raises(trace_tool.TraceError):
+        trace_tool.analyze_trace(trace([{'id': 'a', 'arrival_s': 1,
+            'admission_s': admission, 'token_times_s': [2, 3]}]))
+
+
 def test_single_and_zero_token_requests_have_null_tpot():
     document = trace([
         {"id": "single", "arrival_s": 0, "token_times_s": [1]},

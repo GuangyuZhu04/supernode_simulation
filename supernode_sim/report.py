@@ -325,6 +325,20 @@ def markdown_report(result: dict) -> str:
             lines.append(f"| SLO {check['metric']} | {'满足' if check['passed'] else '不满足'}；目标 {_number(check['target'])} |")
         if result['mode'] == 'estimate':
             lines += ['', '解析结果提供必要下界，尚未证明资源争用下的 SLO 可行性。']
+        accounting = result.get('metrics', {}).get('training_accounting')
+        if accounting:
+            lines += ['', '## 训练计算量与利用率口径', '',
+                      '| 项目 | 数值 |', '|---|---:|']
+            for key, label in (
+                ('model_forward_backward_flops', '模型前向与反向 FLOPs'),
+                ('model_recompute_flops', '模型重计算 FLOPs'),
+                ('executed_npu_flops', 'NPU 全部执行 FLOPs'),
+                ('model_mfu', 'model_mfu（前向＋反向代理，比例）'),
+                ('executed_compute_utilization', '全部 NPU 工作的峰值归一比例'),
+            ):
+                lines.append(f"| {label} | {_number(accounting.get(key))} |")
+            lines += ['', 'model_mfu 排除重计算、优化器和转换/打包；各 dtype 分别除以裸峰值，再按完整卡数与执行时间归一。',
+                      '这是当前模型的计算量代理，不能不核对分子就与其他工具或论文的同名 MFU 比较。CPU 工作单独统计；详细阶段、角色与 dtype 账本见 metrics.training_accounting。']
         lines += latency_markdown(result.get('metrics', {}))
         logical = result.get('model_metadata', {}).get('logical_memory_bytes', {})
         if logical:

@@ -1,5 +1,7 @@
 # 配置与可复现运行
 
+请求级服务使用独立 `serve <模型配置> --serving <请求调度配置>`；`serving-schema` 输出请求 schema，不能混入原模型 Config。字段、SLO 和适用范围见 [serving.md](serving.md)。训练工作量/利用率在 `metrics.training_accounting`，口径见 [zhanlu-training.md](zhanlu-training.md)。
+
 调用 skill 时默认先按 [前端启动流程](frontend.md) 自动准备并打开可编辑网页。网页编辑与以下 CLI/API 使用同一 `Config` 契约；启动网页不等于提交仿真，数值任务仍按用户请求执行。
 
 ## 配置来源
@@ -80,3 +82,5 @@ MLA 的 `architecture.mla.cache_layout` 可设 `compressed` / `expanded`。导�
 配置顶层 `calibration` 可引用相对于场景文件的 YAML/JSON；校准文件支持 `hardware` 覆盖和 `source`。例如使用实测 `npu.efficiency`、`hbm_Bps`、链路效率和 CPU 有效 FLOPs。kernel 专用校准字段先检查当前 schema 的支持范围，不能默默将未支持字段忽略。复跑优先使用 `config.resolved.json`，避免外部校准文件改变结果。
 
 `hardware.kernel_profiles` 的条目按 kernel 名、FLOPs、HBM bytes 及可选 dtype/phase 匹配；`duration_s` 不含启动，新增可选 `startup_s` 显式替换原启动时间。检查实际匹配覆盖率与 prefill/decode 分项，不以配置了 profile 作为校准成功证明。实测数据契约、缓存命中口径及校准限制见 [runtime-calibration.md](runtime-calibration.md)。
+
+`hardware.kernel_traces` 可在校准前把匹配的组件展开为串行子算子，显式声明矩阵维度、FLOPs/HBM、启动和局部工作区；FLOPs 守恒、访存不得低估原事件，必填阶段/精度/硬件与元数据约束。使用 `scripts/build_operator_trace.py` 从真实编译事件绑定来源明确的算子列表；字段、命令与普通/流式报告口径见 [operator-traces.md](operator-traces.md)。这不是任意 profiler 文件的直接导入器。

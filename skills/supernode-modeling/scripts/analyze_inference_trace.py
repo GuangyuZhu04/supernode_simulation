@@ -8,7 +8,8 @@ Input JSON:
     Optional timestamp_granularity must be "token". Extra metadata is preserved.
   measurement_window_s: [start, end], finite nonnegative seconds, end > start.
   requests: [{id: nonempty string, arrival_s: seconds, token_times_s: [seconds],
-    finish_s?: seconds, status?: success | failed | cancelled | incomplete,
+    finish_s?: seconds, admission_s?: seconds,
+    status?: success | failed | cancelled | incomplete,
     warmup?: boolean, input_tokens?: integer, output_tokens?: integer}].
     status defaults to success; output_tokens must equal len(token_times_s).
     Each timestamp is an individual output token observed at the declared timer
@@ -16,6 +17,8 @@ Input JSON:
   slo?: {ttft_s: nonnegative seconds, tpot_s: nonnegative seconds}.
 
 TTFT = first token - arrival; TPOT = (last - first) / (output_tokens - 1).
+When admission_s is observed, admission wait = admission - arrival and server
+TTFT = first token - admission. Missing admission is unknown, not zero wait.
 TPOT is null for <=1 output token. E2E uses finish_s when supplied, otherwise
 last token for a successful request; the output records the endpoint. A successful empty
 response requires finish_s; its TTFT and TPOT are null.
@@ -51,7 +54,7 @@ REQUEST_STATUSES = {"success", "failed", "cancelled", "incomplete"}
 QUANTILE_METHOD = "linear interpolation at (n - 1) * p (Hyndman-Fan type 7)"
 REQUEST_FIELDS = {
     "id", "arrival_s", "token_times_s", "finish_s", "status", "warmup",
-    "input_tokens", "output_tokens",
+    "input_tokens", "output_tokens", "admission_s",
 }
 
 
@@ -171,6 +174,8 @@ def analyze_trace(document: Any) -> dict[str, Any]:
     tpots: list[float] = []
     e2es: list[float] = []
     itls: list[float] = []
+    admission_waits: list[float] = []
+    server_ttfts: list[float] = []
     counts = {
         "total_requests": len(requests),
         "warmup_requests": 0,
@@ -186,6 +191,7 @@ def analyze_trace(document: Any) -> dict[str, Any]:
         "cohort_arrived_before_window_requests": 0,
         "cohort_zero_token_requests": 0,
         "cohort_single_token_requests": 0,
+        "cohort_admission_observed_requests": 0,
         "observed_tokens_in_window": 0,
         "excluded_warmup_tokens_in_window": 0,
         "excluded_non_success_non_warmup_tokens_in_window": 0,
@@ -235,6 +241,15 @@ def analyze_trace(document: Any) -> dict[str, Any]:
         if status == "success" and completion is None:
             raise TraceError(f"{label}: a successful zero-token response requires finish_s")
 
+        admission = None
+        if 'admission_s' in request:
+            admission = _number(request['admission_s'], f'{label}.admission_s')
+            if admission < arrival or (tokens and admission > tokens[0]) or (
+                    completion is not None and admission > completion):
+                raise TraceError(f'{label}.admission_s must lie between arrival and first token/completion')
+        admission_wait = admission - arrival if admission is not None else None
+        server_ttft = tokens[0] - admission if tokens and admission is not None else None
+
         ttft = tokens[0] - arrival if tokens else None
         tpot = (tokens[-1] - tokens[0]) / (output_tokens - 1) if output_tokens > 1 else None
         e2e = completion - arrival if completion is not None else None
@@ -268,6 +283,11 @@ def analyze_trace(document: Any) -> dict[str, Any]:
                 counts["cohort_arrived_before_window_requests"] += int(arrival < start)
                 counts["cohort_zero_token_requests"] += int(output_tokens == 0)
                 counts["cohort_single_token_requests"] += int(output_tokens == 1)
+                if admission is not None:
+                    counts['cohort_admission_observed_requests'] += 1
+                    admission_waits.append(admission_wait)
+                if server_ttft is not None:
+                    server_ttfts.append(server_ttft)
                 if ttft is not None:
                     ttfts.append(ttft)
                 if tpot is not None:
@@ -284,6 +304,8 @@ def analyze_trace(document: Any) -> dict[str, Any]:
             "id": request_id, "status": status, "warmup": warmup,
             "input_tokens": request.get("input_tokens"), "output_tokens": output_tokens,
             "ttft_s": ttft, "tpot_s": tpot, "e2e_s": e2e,
+            "admission_s": admission, "admission_wait_s": admission_wait,
+            "server_ttft_s": server_ttft,
             "tpot_applicable": output_tokens > 1,
             "completion_s": completion, "completion_endpoint": endpoint,
             "in_latency_cohort": in_cohort, "latency_exclusion_reason": exclusion,
@@ -300,6 +322,8 @@ def analyze_trace(document: Any) -> dict[str, Any]:
             "window": "half-open [start, end)",
             "latency_cohort": "success, non-warmup, completion in window; arrivals before window are included",
             "ttft": "first output token time - arrival_s",
+            "admission_wait": "admission_s - arrival_s only when admission is observed; missing is unknown",
+            "server_ttft": "first output token time - admission_s; TTFT = admission_wait + server_ttft for observed admission",
             "request_tpot": "(last token time - first token time) / (output_tokens - 1); null for <=1 token",
             "pooled_token_itl": "all adjacent token intervals of latency-cohort requests; each interval has equal weight, including intervals before window start",
             "e2e": "finish_s - arrival_s when supplied, otherwise last token time - arrival_s for success only; see each request's completion_endpoint",
@@ -310,6 +334,7 @@ def analyze_trace(document: Any) -> dict[str, Any]:
         "metrics": {
             "ttft": summarize(ttfts), "request_tpot": summarize(tpots),
             "e2e": summarize(e2es), "pooled_token_itl": summarize(itls),
+            "admission_wait": summarize(admission_waits), "server_ttft": summarize(server_ttfts),
         },
         "throughput": {
             "completed_requests_per_s": _rate(completed, duration),

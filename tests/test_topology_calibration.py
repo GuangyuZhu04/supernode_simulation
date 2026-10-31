@@ -178,6 +178,23 @@ def test_topology_defaults_are_not_confused_with_config_model_defaults():
     assert fingerprint(same) == fingerprint(HardwareSpec.model_validate(same).model_dump())
 
 
+def test_empty_kernel_traces_preserve_identity_but_active_work_is_guarded():
+    hardware = params()
+    expected = fingerprint(hardware)
+    hardware['kernel_traces'] = {}
+    assert fingerprint(hardware) == expected
+    hardware['kernel_traces'] = {'component': [{
+        'id': 'synthetic-local-work', 'source': 'synthetic trace identity test',
+        'hardware_name': hardware['name'], 'phase': 'prefill', 'dtype': 'fp16',
+        'flops': 1, 'memory_bytes': 1, 'metadata_match': {'tokens': 1},
+        'operations': [{'kernel': 'part', 'flops': 1, 'memory_bytes': 1}],
+    }]}
+    first = fingerprint(hardware)
+    assert first != expected
+    hardware['kernel_traces']['component'][0]['operations'][0]['memory_bytes'] = 2
+    assert fingerprint(hardware) != first
+
+
 def test_legacy_profiles_still_apply_with_visible_unguarded_coverage():
     config = params()
     config["collective_profiles"] = [make_profile(config, guarded=False)]

@@ -8,7 +8,7 @@ flowchart TD
     SEED --> COMPILE
     DECODE -->|否| MACRO["before_component() → macro_key()<br/>尝试本 token 内同形组件宏重放"]
     MACRO --> ACCEPT["accept_event()<br/>state_hook() / after_component() 及 layer/token 屏障<br/>触发 flush()"]
-    ACCEPT --> FLUSH["flush()<br/>验证跨块依赖均为已完成屏障<br/>带存活分配建立 chunk → apply_kernel_profiles()"]
+    ACCEPT --> FLUSH["flush()<br/>验证跨块依赖均为已完成屏障<br/>带存活分配建立 chunk<br/>apply_kernel_traces() → apply_kernel_profiles()"]
     FLUSH --> KEY["内部：规范化层前缀构造 timing key<br/>保留容量/work、依赖、slot、dtype、alloc/release"]
     KEY --> HIT{"内部：已有 template 或宏？"}
     HIT -->|否且可缓存| TEMPLATE["simulate(unconstrained, retain_event_payload=False)<br/>记录 duration / work / peak与final delta"]

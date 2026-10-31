@@ -267,9 +267,12 @@ class _TrainingBuilder:
     def kernel(self, name: str, rank: str, deps, forward: bool, *, allocs=(), releases=(),
                recompute=False, layer=0) -> str:
         # 2 P_active FLOPs per token in forward; backward is twice forward.
-        # Attention adds a causal streaming attention term independent of P.
+        # Count QK and AV over the exact causal triangle, as in inference.
+        # The attention head width need not equal the residual hidden width.
         work = 2 * self.model["active_params"] / self.layers * self.tokens
-        work += 2 * self.wl["batch_size"] * self.wl["sequence_length"] ** 2 * self.model["hidden_dim"]
+        sequence = self.wl["sequence_length"]
+        pairs = self.wl["batch_size"] * sequence * (sequence + 1) / 2
+        work += 4 * self.model["num_heads"] * self.model["head_dim"] * pairs
         flops = work / self.tp / self.ep * (1 if forward else 2)
         reads = self.size("weight", self.params_per_layer) + 2 * self.activation_size()
         if not forward:

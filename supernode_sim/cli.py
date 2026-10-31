@@ -68,6 +68,13 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument('--output', '-o', type=Path)
     p = sub.add_parser('list-features', help='List modeled options, required scopes and unsupported serving features')
     p.add_argument('--output', '-o', type=Path)
+    p = sub.add_parser('serve', help='显式到达 trace + 隔离实例的 FCFS 成批服务仿真')
+    p.add_argument('config', type=Path)
+    p.add_argument('--serving', required=True, type=Path, help='请求、实例、成批与服务 SLO 配置')
+    p.add_argument('--features', type=Path)
+    p.add_argument('--output', '-o', type=Path, default=Path('outputs') / 'serving')
+    p = sub.add_parser('serving-schema', help='输出服务请求与调度参数 schema；与模型 schema 分开')
+    p.add_argument('--output', '-o', type=Path)
     return root
 
 
@@ -80,8 +87,12 @@ def _main(argv: list[str] | None = None) -> int:
         if args.command == 'web':
             from .web import main as web_main
             return web_main(['--host', args.host, '--port', str(args.port), '--output', str(args.output)])
-        if args.command in ('schema', 'list-features'):
-            payload = Config.model_json_schema() if args.command == 'schema' else feature_catalog()
+        if args.command in ('schema', 'list-features', 'serving-schema'):
+            if args.command == 'serving-schema':
+                from .serving import ServingSpec
+                payload = ServingSpec.model_json_schema()
+            else:
+                payload = Config.model_json_schema() if args.command == 'schema' else feature_catalog()
             data = json.dumps(payload, ensure_ascii=False, indent=2)
             if args.output:
                 args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -97,6 +108,17 @@ def _main(argv: list[str] | None = None) -> int:
             print(json.dumps({'status': 'missing_input' if result['missing_fields'] else 'imported', 'missing_fields': result['missing_fields'], 'path': str(args.output)}, ensure_ascii=False))
             return 2 if result['missing_fields'] else 0
         config = load_config(args.config, features=args.features)
+        if args.command == 'serve':
+            from .serving import simulate_serving
+            from .serving_report import write_serving_report
+            result = simulate_serving(config, read_data(args.serving))
+            output = write_serving_report(result, args.output)
+            goodput = result['goodput']
+            passed = (goodput['passed_requests'] == len(result['requests'])) if goodput['specified'] else None
+            print(json.dumps({'status': result['status'], 'output': str(output),
+                'hardware': result['hardware'], 'throughput': result['throughput'],
+                'slo_satisfied': passed}, ensure_ascii=False, allow_nan=False))
+            return 3 if result['status'] == 'completed_with_failures' or passed is False else 0
         if args.command == 'validate':
             print(json.dumps({'status': 'valid', 'schema_version': config.schema_version, 'model': config.model.name,
                               'feature_plan': build_feature_plan(config)}, ensure_ascii=False))

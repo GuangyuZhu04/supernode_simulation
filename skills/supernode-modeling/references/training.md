@@ -10,6 +10,10 @@
 - `execution.features.optimizer_offload` 将主权重和所选优化器状态放在主机，生成梯度 D2H、CPU 更新和权重 H2D；`activation_checkpointing` 用重计算换 activation 驻留量。`execution.optimizer.kind: muon` 使用矩阵 momentum 与辅助 Adam 参数组，详情见 [memory-breakdown.md](memory-breakdown.md)。
 - PP 调度为非交错 1F1B。MoE 使用均匀路由和均衡专家计算；不能用合成结果证明热点专家场景可行。
 
+结构化训练当前不支持 `prefetch`，训练 SP 也未实现；不要将预算路径的预取或推理 SP 能力套入结构化训练。反向组件默认仍采用前向计算量的 2 倍近似。需要细分时使用 [operator trace](operator-traces.md)，分别绑定 forward/backward/recompute，显式描述 dgrad/wgrad 等子算子、矩阵形状、访存、启动与局部 workspace，再提供相应实测 profile。拆分保持原依赖，梯度同步/优化器不能提前启动；原预算守恒不证明真实 autograd 已完整复现。
+
+预算训练的标准 attention 使用每序列 `S*(S+1)/2` 个因果 query-key 对和实际 `num_heads*head_dim`，与推理 prefill 保持相同口径。该修正不改变 checkpoint 重算次数，也不取消 backward 的现有近似。
+
 并行模式影响不同张量：Dense 权重会在 EP 间复制，expert 权重按 EP 分片；FSDP 并非把所有状态除以总卡数。实际 HBM 峰值还包括 gathered 权重、通信缓冲、activation、预取窗口和 workspace。
 
 ## 10T FP8/FP16 交叉检查
@@ -32,6 +36,8 @@
 训练权重 FP8 scale 在当前参数预算模型中使用连续块数量近似；真实张量分块、对齐和更新实现需要校准。用 `extra_weight_copy_dtype` 表示明确需要的额外驻留副本，不默认假设所有 FP8 训练都没有高精度副本。
 
 ## 结果解释
+
+完整训练新增 `metrics.training_accounting`：分别记录模型 F+B、重计算、optimizer 和辅助工作，按 dtype 使用裸峰值归一。`model_mfu` 排除重算与辅助工作，`executed_compute_utilization` 包含 NPU 所有计算，CPU 独立核算；二者不是实测 busy fraction。SimuMax-Zhanlu 特定 revision 的同名 MFU 包含重算，比较前必须对齐分子，详见 [训练参考](zhanlu-training.md)。
 
 `step_time_s` 是总时间除以训练步数；`throughput_tokens_s` 为整个集群训练 tokens/s，另报每副本值。搜索若改变 DP，会改变整体 batch 和每步 tokens，必须同时展示这一变化。
 

@@ -136,7 +136,11 @@ def _effective_hardware(hardware):
                             "bandwidth_Bps": value.get("bandwidth_Bps", 1e11 if name == "remote" else 1e10),
                             "latency_s": value.get("latency_s", 5e-6), "iops": value.get("iops", 1e7 if name == "remote" else 1e6)}
     # New runtime hardware controls fail conservatively until their defaults are normalized.
-    handled = set(result) | {"mesh_width", "leaf_size", "explicit_links", "remote", "ssd"}
+    # Empty optional traces retain the existing profile identity. An active
+    # decomposition can change local service/contending work, so guard it.
+    if hardware.get('kernel_traces'):
+        result['kernel_traces'] = hardware['kernel_traces']
+    handled = set(result) | {"mesh_width", "leaf_size", "explicit_links", "remote", "ssd", "kernel_traces"}
     if hardware.get('calibration_context'):
         result['calibration_context'] = hardware['calibration_context']
     ignored = {"collective_profiles", "collective_models", "calibration_context", "source", "description", "notes", "metadata"}

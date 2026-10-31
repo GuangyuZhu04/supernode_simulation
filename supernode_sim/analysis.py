@@ -14,11 +14,13 @@ from .core import Allocation, Graph
 from .engine import simulate as simulate_graph
 from .topology import Topology
 from .calibration import apply_kernel_profiles
+from .operator_trace import apply_kernel_traces
 from .collective_calibration import collective_calibration_summary, summarize_collective_calibration
 from .components import inventory_summary
 from .memory_breakdown import build_memory_breakdown
 from .latency_breakdown import build_latency_breakdown, latency_breakdown_metadata
 from .features import build_feature_plan
+from .training_accounting import training_accounting
 
 
 def model_fidelity(config: Config, calibration: dict, collective_calibration: dict | None = None) -> dict:
@@ -79,6 +81,7 @@ def compile_graph(config: Config | dict) -> Graph:
             else:
                 initial.append(allocation)
         graph.initial_allocations = initial
+    apply_kernel_traces(graph, data)
     if spec.execution.features.megakernel.enabled:
         from .megakernel import apply_megakernel
         apply_megakernel(graph, data)
@@ -229,6 +232,7 @@ def execution_metrics(config: Config, graph: Graph, simulation: dict) -> dict:
         metrics['step_times_s'] = step_times
         metrics['first_step_time_s'] = step_times[0] if step_times else duration
         metrics['steady_step_time_s'] = sum(step_times[1:]) / len(step_times[1:]) if len(step_times) > 1 else None
+        metrics['training_accounting'] = training_accounting(config, graph, simulation)
     else:
         completion = meta.get('sequence_token_completion_events', {})
         needed = {eid for sequences in completion.values() for ids in sequences.values() for eid in ids}

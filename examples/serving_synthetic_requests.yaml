@@ -1,0 +1,14 @@
+# Explicit arrivals in seconds: no implicit Poisson/periodic distribution.
+instance_count: 1
+max_batch_size: 2
+max_batch_wait_s: 0.000005
+scheduler_overhead_s: 0.000002
+slo:
+  ttft_s: 0.001
+  tpot_s: 0.001
+requests:
+  - {id: r0, arrival_s: 0, input_tokens: 8, output_tokens: 3}
+  - {id: r1, arrival_s: 0, input_tokens: 4, output_tokens: 2}
+  - {id: r2, arrival_s: 0.000005, input_tokens: 8, output_tokens: 4}
+  - {id: r3, arrival_s: 0.000008, input_tokens: 4, output_tokens: 1}
+  - {id: r4, arrival_s: 0.0002, input_tokens: 8, output_tokens: 2}

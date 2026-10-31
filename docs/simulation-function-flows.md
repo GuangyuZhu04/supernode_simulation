@@ -17,10 +17,12 @@ flowchart TD
     CLI["snmodel / python -m supernode_sim"] --> MAIN["cli.main() → _main() → parser()"]
     MAIN --> CMD{"内部：命令类型"}
     CMD -->|web| WEB["web.main() → create_server()<br/>见图 14"]
+    CMD -->|serving-schema| SSCHEMA["ServingSpec.model_json_schema()"]
     CMD -->|schema| SCHEMA["Config.model_json_schema() → 写出 schema"]
     CMD -->|import-hf| HF["import_hf_config() → read_data()<br/>模型片段 + missing_fields"]
     CMD -->|其余命令| LOAD["load_config() → read_data()<br/>可选校准 deep_merge() → Config.model_validate()"]
     LOAD --> SUB{"内部：命令分派"}
+    SUB -->|serve| SERVE["simulate_serving()<br/>arrival → FCFS 成批 → 每批 analysis.run()<br/>相对时钟与请求指标 → write_serving_report()"]
     SUB -->|validate| VALID["返回 valid；不构图"]
     SUB -->|feedback| FB["FeedbackSpec.model_validate() → feedback()<br/>见图 12"]
     SUB -->|sweep / size-su| SEARCH["sweep() / size_su()<br/>见图 10"]
@@ -33,11 +35,12 @@ flowchart TD
     ARCH -->|是| STRUCT["build_structured()<br/>Builder.training_graph() / inference()"]
     ARCH -->|否，training| TRAIN["build_training() → _TrainingBuilder.build()"]
     ARCH -->|否，inference| INFER["build_inference()"]
-    STRUCT --> FUSE["可选 apply_megakernel()<br/>安全局部链融合"]
-    TRAIN --> FUSE
-    INFER --> FUSE
-    PD --> FUSE
-    SPEC --> FUSE
+    STRUCT --> TRACE["可选 apply_kernel_traces()<br/>匹配后展开串行子算子"]
+    TRACE --> FUSE["可选 apply_megakernel()<br/>安全局部链融合"]
+    TRAIN --> TRACE
+    INFER --> TRACE
+    PD --> TRACE
+    SPEC --> TRACE
     FUSE --> CAL["apply_kernel_profiles()<br/>内部：assumptions / fidelity / feature_plan"]
     CAL --> EST["graph_estimate(graph)<br/>DAG 与资源下界、驻留容量、通信总量"]
     EST --> REQ["device_requirements()<br/>内部：快照、SHA-256、目标窗口、requirements"]
@@ -463,7 +466,7 @@ flowchart TD
     SEED --> COMPILE
     DECODE -->|否| MACRO["before_component() → macro_key()<br/>尝试本 token 内同形组件宏重放"]
     MACRO --> ACCEPT["accept_event()<br/>state_hook() / after_component() 及 layer/token 屏障<br/>触发 flush()"]
-    ACCEPT --> FLUSH["flush()<br/>验证跨块依赖均为已完成屏障<br/>带存活分配建立 chunk → apply_kernel_profiles()"]
+    ACCEPT --> FLUSH["flush()<br/>验证跨块依赖均为已完成屏障<br/>带存活分配建立 chunk<br/>apply_kernel_traces() → apply_kernel_profiles()"]
     FLUSH --> KEY["内部：规范化层前缀构造 timing key<br/>保留容量/work、依赖、slot、dtype、alloc/release"]
     KEY --> HIT{"内部：已有 template 或宏？"}
     HIT -->|否且可缓存| TEMPLATE["simulate(unconstrained, retain_event_payload=False)<br/>记录 duration / work / peak与final delta"]

@@ -6,6 +6,10 @@
 
 配套文件：[函数级仿真流程图](simulation-function-flows.md)。图中区分真实函数调用、函数内部控制流和运行时事件依赖；各张图也提供独立 `.mmd` 源文件。
 
+2026-10-31 增补：编译组件图后，`operator_trace.apply_kernel_traces()` 可按精确工作量、阶段、精度、硬件和形状约束展开串行子算子，再执行 megakernel 与 kernel profiles。普通图与 streaming 共用展开器；原依赖完成点、保守张量生命周期及显式局部 workspace 保留。`kernel_workload.py` 提供 query/context 分布签名，供 trace/profile 限定适用范围。见 [子算子契约](../skills/supernode-modeling/references/operator-traces.md)。
+
+同日补充用户指定参考：`serving.simulate_serving()` 在原固定 batch 引擎上增加显式请求到达、FCFS 非抢占成批和隔离实例，使用相对时钟计算排队与请求指标；独立 `serve`/`serving-schema` 入口与原 Config 分开。`training_accounting` 记录训练分阶段、角色与 dtype 工作，区分模型 F+B 利用率和额外执行。见 [服务契约](../skills/supernode-modeling/references/serving.md) 与 [训练来源](../skills/supernode-modeling/references/zhanlu-training.md)。
+
 ## 1. 整体定位
 
 项目是面向超节点架构分析的**配置驱动、算子粒度的解析模型与离散事件仿真器**。它把模型结构、硬件拓扑、并行策略和负载编译成事件 DAG，再计算容量、计算/访存/通信需求、执行时序及 SLO。

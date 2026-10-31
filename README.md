@@ -6,6 +6,23 @@
 
 支持训练与固定负载推理、FP8/FP16 权重、FSDP2/CPU optimizer offload、MoE、标准与 latent KV、KV offload、Engram 查询、SU/SO 拓扑和有限候选搜索。Demo 与 10T 容量锚点是明确标注的合成配置；Kimi K3 / Ascend 950DT 案例使用公开结构和硬件资料，并分别标明运行时、拓扑及效率假设，不将型号名称当作实测校准。
 
+训练与推理可通过 `hardware.kernel_traces` 将匹配的组件展开为串行子算子，显式输入 GEMM M/N/K、启动、HBM 访问和局部工作区，再使用现有 `kernel_profiles` 校准。结构化事件新增 `workload_shape`，区分 prefill 长度分布、decode 上下文及训练微批；预算训练的因果 attention 计算量也已与推理口径对齐。[参考仿真器映射](skills/supernode-modeling/references/reference-simulators.md) 和 [输入/复现说明](skills/supernode-modeling/references/operator-traces.md) 说明来源与边界；细化本身不证明实机预测误差下降。
+
+```powershell
+python skills/supernode-modeling/scripts/evaluate_operator_traces.py --output outputs/operator-traces
+```
+
+该实验生成训练/推理的前后配置、结果和流式一致性比较，全部为 synthetic，不用于硬件准确率声明。
+
+按用户指定的 [msModeling/ServingCast](skills/supernode-modeling/references/msmodeling-servingcast.md) 与 [湛卢训练参考](skills/supernode-modeling/references/zhanlu-training.md) 继续细化：新增 `serve` 请求到达、FCFS 成批与隔离多实例调度；训练新增 `metrics.training_accounting`，分开模型 F+B、重算、optimizer、辅助工作和各精度峰值归一指标。来源已固定到具体 revision，未照搬 mock 硬件参数或论文误差。服务能力及局限见 [serving.md](skills/supernode-modeling/references/serving.md)。
+
+```powershell
+python -m supernode_sim serve examples/serving_synthetic_model.yaml --serving examples/serving_synthetic_requests.yaml -o outputs/serving-example
+python skills/supernode-modeling/scripts/evaluate_reference_simulators.py --output outputs/reference-simulators
+```
+
+第二条命令复跑 checkpoint 开关与 1/2 个隔离实例的 synthetic 对比。增加实例同时增加总硬件，不代表同资源加速；服务 P99 是指定输入和 FCFS 策略的有限样本分位数。
+
 ## 仓库内容与本地产物
 
 `main` 保留仿真引擎与网页源码、`skills/` 中的 skill 代码和文档、运行/汇总脚本及 HTML 报告模板、示例配置、硬件配置、测试、架构说明和 `docs/sources/` 中的参考资料。

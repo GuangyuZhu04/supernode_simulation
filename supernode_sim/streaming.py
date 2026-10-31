@@ -17,6 +17,8 @@ from typing import Callable
 
 from .analysis import execution_metrics, model_fidelity
 from .calibration import apply_kernel_profiles, calibration_summary, merge_calibration_summaries
+from .operator_trace import (apply_kernel_traces, operator_trace_summary,
+                             merge_operator_trace_summaries)
 from .collective_calibration import (collective_calibration_summary, summarize_collective_calibration,
                                      merge_collective_calibration_summaries)
 from .cache import BoundedCache
@@ -196,6 +198,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         graph.metadata['initial_resident_cache'] = {'enabled': False, 'hit': False}
     component_macros = {}
     kernel_calibration = calibration_summary()
+    operator_trace = operator_trace_summary() if data['hardware'].get('kernel_traces') else None
     collective_calibration = collective_calibration_summary()
     phases = {}
     peaks = defaultdict(float)
@@ -272,8 +275,13 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         if replay:
             chunk_calibration = replay['kernel_calibration']
         else:
+            apply_kernel_traces(chunk, data)
             apply_kernel_profiles(chunk, data)
             chunk_calibration = chunk.metadata['kernel_calibration']
+        if operator_trace is not None:
+            chunk_trace = replay['operator_trace'] if replay else chunk.metadata['operator_trace']
+            merge_operator_trace_summaries(operator_trace, chunk_trace)
+            chunk.metadata['operator_trace'] = chunk_trace
         merge_calibration_summaries(kernel_calibration, chunk_calibration)
         chunk.metadata['collective_calibration'] = (replay['collective_calibration'] if replay
             else summarize_collective_calibration(chunk))
@@ -401,7 +409,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         if macro_key is not None and fits and not survivors and not (released & named.keys()):
             component_macros[macro_key] = {'template': cached, 'communication': traffic,
                                            'kernel_calibration': chunk_calibration,
-                                           'collective_calibration': result['_collective_calibration']}
+                                           'collective_calibration': result['_collective_calibration'],
+                                           'operator_trace': chunk.metadata.get('operator_trace')}
         for aid in released:
             named.pop(aid, None)
         for event in sink:
@@ -441,7 +450,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         # parameter shapes. Measured limiters additionally have event-specific
         # IDs, so preserve those IDs by avoiding cross-layer replay for profiles.
         return (step, component, shapes, layer // block + 1 if component == 'AttnRes' and block else None,
-                engram_lookup, layer if data['hardware'].get('kernel_profiles') else None)
+                engram_lookup, layer if (data['hardware'].get('kernel_profiles') or
+                                        data['hardware'].get('kernel_traces')) else None)
 
     def before_component(prefix, layer, component, ready, step):
         if phase == 'decode' and step == 0:
@@ -550,6 +560,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         phase_result['peak_hbm_bytes'] = max((v for k, v in phase_result['memory_peaks_bytes'].items() if k.endswith('.hbm')), default=0)
         phase_result['communication']['classification_note'] = 'Semantic and collective payloads are two views; physical bytes count link hops.'
     graph.metadata['kernel_calibration'] = kernel_calibration
+    if operator_trace is not None:
+        graph.metadata['operator_trace'] = operator_trace
     graph.metadata['collective_calibration'] = collective_calibration
     graph.metadata['fidelity'] = model_fidelity(spec, kernel_calibration, collective_calibration)
     graph.metadata['feature_plan'] = build_feature_plan(spec, kernel_calibration)
