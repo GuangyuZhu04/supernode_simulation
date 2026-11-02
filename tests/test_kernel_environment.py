@@ -3,7 +3,7 @@ from copy import deepcopy
 
 import pytest
 
-from supernode_sim.calibration import (apply_kernel_profiles, calibration_summary,
+from supernode_sim.calibration import (_same_declaration, apply_kernel_profiles, calibration_summary,
                                       merge_calibration_summaries, model_shape_signature)
 from supernode_sim.config import KernelProfile
 from supernode_sim.core import Event, Graph, Resource
@@ -81,6 +81,41 @@ def test_missing_metadata_and_bool_integer_confusion_are_rejected():
     graph.events[0].metadata.pop('shape')
     apply_kernel_profiles(graph, config)
     assert graph.metadata['kernel_calibration']['matched_events'] == 0
+
+
+@pytest.mark.parametrize('left,right,expected', [
+    (8.0, 8, True), (0, -0.0, True), (8, 8.000000001, False),
+    (True, 1, False), (False, 0.0, False), (True, True, True),
+    ({'shape': [8.0, {'tokens': 16.0, 'enabled': True}], 'empty': None},
+     {'empty': None, 'shape': [8, {'enabled': True, 'tokens': 16}]}, True),
+    ({'shape': [8, 16]}, {'shape': [16, 8]}, False),
+    ({'flag': True}, {'flag': 1.0}, False), ({'x': None}, {}, False),
+    ([8, 16], (8, 16), False), ('8', 8, False),
+    (2 ** 53 + 1, float(2 ** 53 + 1), False),
+    (float('inf'), float('inf'), False), (float('nan'), float('nan'), False),
+])
+def test_json_declaration_equivalence_is_numeric_but_not_boolean_or_structural(left, right, expected):
+    assert _same_declaration(left, right) is expected
+    assert _same_declaration(right, left) is expected
+
+
+def test_kernel_and_operator_trace_guards_survive_browser_integer_serialization():
+    from tests.test_operator_trace import fixture as trace_fixture
+    from supernode_sim.operator_trace import apply_kernel_traces
+
+    graph, config = fixture()
+    graph.events[0].metadata.update(tokens=8.0, shape=[8.0, 16.0],
+                                    workload={'tokens': 8.0, 'shape': [8.0, 16.0], 'flag': True})
+    profile = config['hardware']['kernel_profiles']['test_gemm'][0]
+    profile['metadata_match']['workload'] = {'tokens': 8, 'shape': [8, 16], 'flag': True}
+    apply_kernel_profiles(graph, config)
+    assert graph.metadata['kernel_calibration']['matched_events'] == 1
+    assert simulate(graph)['duration_s'] == pytest.approx(3.1)
+    graph, config = trace_fixture()
+    graph.events[1].metadata['shape'] = [4.0, 4.0]
+    apply_kernel_traces(graph, config)
+    assert graph.metadata['operator_trace']['matched_events'] == 1
+    assert graph.metadata['operator_trace']['generated_operations'] == 2
 
 
 def test_legacy_is_compatible_and_summary_merges_cached_scoped_counts():

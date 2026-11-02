@@ -39,6 +39,8 @@ python skills/supernode-modeling/scripts/evaluate_reference_simulators.py --outp
 
 浏览器打开 **http://127.0.0.1:8765**。选择训练或推理预设，调整负载、并行布局、硬件、精度及 offload 选项，校验后点击开始运行。网页调用现有 Python 引擎，展示真实运行阶段、通信流量、容量、资源使用和事件时间线，并提供历史任务及报告下载。完整配置可通过高级 JSON 编辑器修改或导入。
 
+新版网页提供“请求级服务”模式，支持独立请求表/JSON、隔离实例与成批参数、服务 SLO、双快照恢复、请求分位数和相对批次时间线。训练结果新增 FLOPs/MFU 账本，普通与服务结果均可查看实际算子展开和计时校准覆盖。所有指标来自原引擎；页面区分任务完成、请求失败和 SLO 未达标。详见 [网页使用说明](docs/web-interface.md)。
+
 左侧“输入”页提供模型、拓扑、硬件、并行度和 Workload 的完整总览与编辑。修改同步到当前实验配置，统一校验后可直接运行；历史输入可以复制为新的可编辑配置，原任务快照保留。
 
 也可运行 `snmodel web` 或 `python -m supernode_sim.web`；`--port 8766` 修改端口，`--output outputs/web` 指定任务保存目录。详细操作和指标口径见 [网页工作台使用说明](docs/web-interface.md)。

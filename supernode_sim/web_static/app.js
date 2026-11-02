@@ -3,8 +3,10 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const state = {config: null, presets: [], scenario: 'inference', presetId: '', jsonDirty: false, modified: false, busy: false, currentJob: null, result: null, pollTimer: null, pollFailures: 0, pollVersion: 0, commView: 'physical_bytes_by_domain', history: [], loadingPreset: 0};
+const servingDraft = {value: null, jsonDirty: false, modified: false, revision: 0, visibleRows: 100};
+const servingOutcomes = new Map();
 const terminal = new Set(['completed', 'failed', 'cancelled']);
-const statusNames = {queued: '排队中', running: '运行中', completed: '已完成', failed: '运行失败', cancelled: '已取消', feasible: '满足模型约束', infeasible: '资源不可行', slo_failed: '未满足 SLO', error: '引擎执行错误', estimated: '解析估算'};
+const statusNames = {queued: '排队中', running: '运行中', completed: '已完成', completed_with_failures: '完成 · 含失败请求', failed: '运行失败', cancelled: '已取消', feasible: '满足模型约束', infeasible: '资源不可行', slo_failed: '未满足 SLO', error: '引擎执行错误', estimated: '解析估算'};
 const phaseNames = {queued: '等待本地引擎', validating: '校验输入配置', simulating: '执行离散事件仿真', estimating: '计算解析必要下界', exporting: '导出报告与原始统计', summarizing: '整理可视化结果', completed: '计算与导出完成', failed: '执行失败', cancelled: '运行已取消'};
 const sourceLabel = {assumed: '假设', public: '公开资料', user: '用户输入', measured: '实测'};
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -143,6 +145,7 @@ function renderForm() {
   text('#model-name', config.model && config.model.name || '自定义模型');
   text('#model-params', compact(config.model && config.model.total_params) + ' 参数');
   text('#model-layers', number(config.model && config.model.layers, 0) + ' 层');
+  renderServingEditor();
   $('#validate-button').disabled = state.busy;
   updateRunButton();
   renderSequenceParallelControl();
@@ -182,10 +185,15 @@ function updateRunButton() {
   syncInputEditorControls();
   $('#config-fields').disabled = state.busy;
   $('#run-mode').disabled = state.busy;
+  syncServingMode();
+  const serviceDisabled = state.busy || servingDraft.jsonDirty || $('#run-mode').value !== 'serve';
+  $$('[data-serving-path]').forEach(control => { control.disabled = serviceDisabled; });
+  $$('input, button', $('#serving-request-rows')).forEach(control => { control.disabled = serviceDisabled; });
+  $('#serving-add-request').disabled = serviceDisabled;
   const running = state.currentJob && !terminal.has(state.currentJob.status);
   $('#run-button').disabled = state.busy || running || hasUnappliedInputEdits() || (!state.config && !state.jsonDirty);
   $('#validate-button').disabled = state.busy || (!state.config && !state.jsonDirty);
-  $('#run-button').lastChild.textContent = state.busy ? ' 处理中…' : running ? ' 正在运行' : $('#run-mode').value === 'estimate' ? ' 开始估算' : ' 开始模拟';
+  $('#run-button').lastChild.textContent = state.busy ? ' 处理中…' : running ? ' 正在运行' : $('#run-mode').value === 'serve' ? ' 开始服务仿真' : $('#run-mode').value === 'estimate' ? ' 开始估算' : ' 开始模拟';
 }
 function populatePresets() {
   const select = $('#preset'); select.replaceChildren();
@@ -218,9 +226,17 @@ async function loadPreset(id) {
 }
 async function validateConfig(showSuccess = true) {
   const candidate = readConfig();
-  const response = await api('/api/validate', {method: 'POST', body: JSON.stringify({config: candidate})});
+  const mode = $('#run-mode').value;
+  const payload = {config: candidate};
+  if (mode === 'serve') { payload.mode = mode; payload.serving = readServing(); }
+  const response = await api('/api/validate', {method: 'POST', body: JSON.stringify(payload)});
+  if (mode === 'serve' && !response.serving) throw new Error('服务校验响应缺少完整 serving 配置，请更新本地服务后重试。');
   state.config = response.config;
   state.jsonDirty = false;
+  if (mode === 'serve') {
+    servingDraft.value = clone(response.serving); servingDraft.jsonDirty = false;
+    servingDraft.revision++;
+  }
   renderForm();
   text('#config-state', '校验通过'); $('#config-state').className = 'mini-badge success';
   if (showSuccess) feedback('配置校验通过。可以提交至本地引擎运行。');
@@ -239,14 +255,16 @@ async function runSimulation(event) {
   try {
     const config = await validateConfig(false);
     const mode = $('#run-mode').value;
-    const job = await api('/api/jobs', {method: 'POST', body: JSON.stringify({config, mode})});
+    const payload = {config, mode};
+    if (mode === 'serve') payload.serving = readServing();
+    const job = await api('/api/jobs', {method: 'POST', body: JSON.stringify(payload)});
     state.result = null;
     $('#process-artifact-links').replaceChildren();
     $('#result-content').hidden = true; $('#empty-results').hidden = false;
     text('#empty-results h3', '引擎正在计算这一次实验');
     text('#empty-results p', '结果生成后自动展示。当前输入修改不会改变已提交的运行。');
     $('#result-status').hidden = true;
-    text('#result-mode', '本次运行：' + (mode === 'estimate' ? '解析估算' : '离散事件仿真'));
+    text('#result-mode', '本次运行：' + modeName(mode));
     feedback('配置已提交。正在执行的任务使用提交时的独立快照。');
     selectJob(job);
     refreshHistory();
@@ -302,11 +320,12 @@ async function pollJob(id, version) {
 }
 function renderJob(job) {
   const status = $('#job-status');
-  status.textContent = statusNames[job.status] || job.status;
-  status.className = 'mini-badge ' + (job.status === 'completed' ? 'success' : job.status === 'failed' ? 'error' : job.status === 'cancelled' ? 'warning' : 'running');
+  const outcome = servingJobOutcome(job);
+  status.textContent = outcome?.label || statusNames[job.status] || job.status;
+  status.className = 'mini-badge ' + (outcome ? outcome.tone : job.status === 'completed' ? 'success' : job.status === 'failed' ? 'error' : job.status === 'cancelled' ? 'warning' : 'running');
   text('#elapsed', '墙钟 ' + duration(job.elapsed_s));
   text('#engine-phase-label', job.mode === 'estimate' ? '解析估算' : '引擎计算');
-  text('#runtime-context', '任务 ' + job.id + ' · ' + (job.mode === 'estimate' ? '解析估算' : '事件仿真') + ' · 实际服务状态');
+  text('#runtime-context', '任务 ' + job.id + ' · ' + modeName(job.mode) + ' · 实际服务状态');
   const active = !terminal.has(job.status);
   $('#cancel-button').hidden = !active;
   $('#cancel-button').disabled = false;
@@ -344,8 +363,9 @@ function renderHistory() {
     const row = el('button', 'history-row' + (state.currentJob && job.id === state.currentJob.id ? ' selected' : ''));
     row.type = 'button'; row.disabled = Boolean(active && job.id !== state.currentJob.id);
     row.title = '查看运行 ' + job.id + '；输入面板保留当前编辑内容';
-    row.append(el('span', 'history-id', job.id), el('span', 'history-mode', job.mode === 'estimate' ? '解析估算' : '仿真'));
-    const badge = el('span', 'mini-badge ' + (job.status === 'completed' ? 'success' : job.status === 'failed' ? 'error' : ''), statusNames[job.result_status] || statusNames[job.status] || job.status);
+    row.append(el('span', 'history-id', job.id), el('span', 'history-mode', modeName(job.mode)));
+    const outcome = servingJobOutcome(job);
+    const badge = el('span', 'mini-badge ' + (outcome ? outcome.tone : job.status === 'completed' ? 'success' : job.status === 'failed' ? 'error' : ''), outcome?.label || statusNames[job.result_status] || statusNames[job.status] || job.status);
     row.append(badge, el('span', 'history-time', formatTime(job.created_at)));
     row.addEventListener('click', () => {
       state.result = null; $('#result-content').hidden = true; $('#empty-results').hidden = false;
@@ -368,7 +388,18 @@ function metricCard(label, value, unit, note, stateClass = '') {
   return card;
 }
 function renderResults(result, job) {
+  state.result = result;
   $('#empty-results').hidden = true; $('#result-content').hidden = false;
+  const serving = isServingResult(result);
+  $('#ordinary-result-panels').hidden = serving;
+  $('#serving-results').hidden = !serving;
+  $('#restore-run-status').textContent = '历史浏览不会改变当前草稿。';
+  if (serving) {
+    renderServingResults(result, job); renderTrainingAccounting(result);
+    renderExecutionEvidence(result); renderArtifactLinks(job); renderHistory();
+    if (state.currentJob?.id === job.id) renderJob(state.currentJob);
+    return;
+  }
   const isEstimate = result.mode === 'estimate', config = result.config || {}, metrics = result.metrics || {};
   const status = $('#result-status'); status.hidden = false;
   status.textContent = statusNames[result.status] || result.status || '结果已生成';
@@ -408,6 +439,7 @@ function renderResults(result, job) {
     }
   }
   renderLatencyBreakdown(); renderCommunication(); renderMemoryFilter(); renderMemory(); renderResources(); renderTrace(); renderDiagnostics(); renderArtifactLinks(job);
+  renderTrainingAccounting(result); renderExecutionEvidence(result);
 }
 function renderLatencyBreakdown() {
   const breakdown = (state.result.metrics || {}).latency_breakdown || {};
@@ -603,7 +635,7 @@ function attachEvents() {
     } catch (error) { feedback(errorText(error), true); }
   });
   $('#run-mode').addEventListener('change', () => {
-    text('#mode-note', $('#run-mode').value === 'estimate' ? '仅计算资源与时间必要下界，不能证明 SLO 可行。' : '模拟依赖、资源争用与内存生命周期。');
+    renderServingEditor();
     updateRunButton(); renderSimulationViews();
   });
   $('#import-json').addEventListener('click', () => $('#config-file').click());
@@ -642,6 +674,7 @@ function attachEvents() {
 }
 async function initialize() {
   attachEvents();
+  attachServingEvents();
   attachSimulationViews();
   attachInputOverview();
   attachInputEditors();
@@ -821,15 +854,21 @@ function inputJobOptions() {
 }
 async function loadInputSnapshot(id) {
   const version = ++inputView.version;
-  inputView.jobId = id; inputView.snapshot = null; inputView.error = '';
+  inputView.jobId = id; inputView.snapshot = null; inputView.servingSnapshot = null; inputView.error = '';
+  inputView.mode = (state.history.find(job => job.id === id) || (state.currentJob?.id === id ? state.currentJob : null))?.mode || 'simulate';
   inputView.loading = Boolean(id); inputJobOptions(); renderInputOverview();
   if (!id) return;
   try {
-    const response = await api('/api/jobs/' + encodeURIComponent(id) + '/config');
+    const [response, service] = await Promise.all([api('/api/jobs/' + encodeURIComponent(id) + '/config'),
+      inputView.mode === 'serve' ? api('/api/jobs/' + encodeURIComponent(id) + '/serving') : Promise.resolve(null)]);
     if (version !== inputView.version || inputView.source !== 'job' || id !== inputView.jobId) return;
     if (!response.config || typeof response.config !== 'object' || Array.isArray(response.config)) throw new Error('该任务未返回有效配置对象。');
     assertInputFinite(response.config);
     inputView.snapshot = response.config;
+    if (inputView.mode === 'serve') {
+      if (!service?.serving) throw new Error('此运行缺少服务请求快照。');
+      assertInputFinite(service.serving); inputView.servingSnapshot = service.serving;
+    }
   } catch (error) {
     if (version !== inputView.version || inputView.source !== 'job') return;
     inputView.error = errorText(error);
@@ -1078,6 +1117,13 @@ function renderInputOverview() {
   }
   $('#input-view-empty').hidden = true; $('#input-view-content').hidden = false;
   renderInputModel(config); renderInputTopology(config); renderInputHardware(config); renderInputParallel(config); renderInputWorkload(config); renderInputMetadata(config);
+  const service = inputView.source === 'job' ? inputView.servingSnapshot : $('#run-mode').value === 'serve' ? servingDraft.value : null;
+  if (service) {
+    const host = $('#input-workload-body');
+    inputNote(host, '当前运行使用独立服务请求替代上述固定 batch；服务 SLO 位于 serving.slo，模型 targets 不参与服务判定。');
+    inputFacts(host,[['服务请求数',service.requests?.length],['独立实例',service.instance_count],['每批上限',service.max_batch_size]]);
+    const details = el('details'), summary = el('summary','','完整服务请求快照（只读）'); details.append(summary,el('pre','',JSON.stringify(service,null,2))); host.append(details);
+  }
   inputView.viewedConfig = config; $('#download-viewed-input').disabled = false;
   syncInputEditorControls();
 }
@@ -1400,14 +1446,19 @@ function copySnapshotForEditing() {
     if (state.busy || inputView.loading || !inputView.snapshot) throw new Error('请等待有效运行快照读取完成。');
     requireAppliedInputEdits();
     if (state.jsonDirty) throw new Error('实验页尚有未应用的完整 JSON，请先应用或明确放弃，避免复制快照时丢失草稿。');
+    if (servingDraft.jsonDirty) throw new Error('服务 JSON 尚未应用，请先校验或放弃，当前草稿已保留。');
+    if (inputView.mode === 'serve' && !inputView.servingSnapshot) throw new Error('服务快照不完整，不能只复制模型输入。');
     const config = clone(inputView.snapshot); assertInputFinite(config);
     inputView.source = 'draft'; inputView.version++; inputView.loading = false;
     state.config = config; state.jsonDirty = false; state.modified = true; state.presetId = '';
+    servingDraft.value = inputView.mode === 'serve' ? clone(inputView.servingSnapshot) : null;
+    servingDraft.jsonDirty = false; servingDraft.revision++;
+    $('#run-mode').value = inputView.mode === 'serve' ? 'serve' : inputView.mode === 'estimate' ? 'estimate' : 'simulate';
     inputEdit.editing = true;
     markModified(); renderForm(); $('#preset').value = '';
     text('#preset-description', '从运行 ' + inputView.jobId + ' 复制的独立当前配置；原始运行保持不变。');
     renderInputOverview();
-    inputEditMessage('已深拷贝运行 ' + inputView.jobId + ' 的配置。后续修改只影响当前 Config 与下一次运行。');
+    inputEditMessage('已深拷贝运行 ' + inputView.jobId + ' 的完整输入' + (inputView.mode === 'serve' ? '（模型＋服务请求）' : '') + '。后续修改只影响下一次运行。');
   } catch (error) { inputEditMessage(errorText(error), true); }
 }
 function attachInputEditors() {
@@ -1464,13 +1515,19 @@ async function loadSimulationSnapshot(job) {
   const version = ++simulationView.version;
   simulationView.source = 'job'; simulationView.jobId = job.id;
   simulationView.snapshot = null; simulationView.loading = true; simulationView.error = '';
+  simulationView.serving = null;
   renderSimulationViews();
   try {
-    const response = await api('/api/jobs/' + encodeURIComponent(job.id) + '/config');
+    const [response, service] = await Promise.all([api('/api/jobs/' + encodeURIComponent(job.id) + '/config'),
+      job.mode === 'serve' ? api('/api/jobs/' + encodeURIComponent(job.id) + '/serving') : Promise.resolve(null)]);
     if (version !== simulationView.version || state.currentJob?.id !== job.id) return;
     if (!response.config || typeof response.config !== 'object' || Array.isArray(response.config)) throw new Error('该运行没有有效配置快照。');
     assertInputFinite(response.config);
     simulationView.snapshot = response.config;
+    if (job.mode === 'serve') {
+      if (!service?.serving) throw new Error('此运行缺少完整服务快照。');
+      assertInputFinite(service.serving); simulationView.serving = service.serving;
+    }
   } catch (error) {
     if (version === simulationView.version) simulationView.error = errorText(error);
   } finally {
@@ -1492,14 +1549,19 @@ function renderSimulationViews() {
   } else {
     try { config = currentInputDraft(); note = '当前编辑配置 · 修改参数后同步生成拓扑与执行计划'; }
     catch (error) { config = null; note = '当前配置暂不可预览：' + errorText(error); }
-    if (state.jsonDirty || hasUnappliedInputEdits()) note += ' · 含未校验或未应用内容，提交前请完成校验';
+    if (state.jsonDirty || hasUnappliedInputEdits() || mode === 'serve' && servingDraft.jsonDirty) note += ' · 含未校验或未应用内容，提交前请完成校验';
   }
   text('#simulation-source-note', note);
   text('#topology-source', jobView ? '运行快照' : '当前草稿');
   if (config) {
     try {
       renderTopology(config);
-      renderExecutionPlan(config, mode, jobView && !simulationView.loading && !simulationView.error && simulationView.jobId === state.currentJob?.id ? state.result : null);
+      const observed = jobView && !simulationView.loading && !simulationView.error && simulationView.jobId === state.currentJob?.id ? state.result : null;
+      if (mode === 'serve') {
+        const service = jobView ? simulationView.serving : readServing();
+        renderServingPlan(config,service,observed);
+        text('#topology-note','图中为单实例的完整拓扑。服务部署复制 ' + number(service?.instance_count,0) + ' 份，实例间没有共享设备、主机或网络资源。');
+      } else renderExecutionPlan(config, mode, observed);
     } catch (error) {
       config = null; note = '配置字段暂不可预览，请完成校验：' + errorText(error);
       text('#simulation-source-note', note);
@@ -1519,6 +1581,349 @@ function attachSimulationViews() {
     else renderSimulationViews();
   });
   $('#simulation-retry').addEventListener('click', () => { if (state.currentJob) loadSimulationSnapshot(state.currentJob); });
+}
+
+// Serving input is intentionally separate from the model Config.
+function modeName(mode) { return mode === 'serve' ? '请求级服务' : mode === 'estimate' ? '解析估算' : '离散事件仿真'; }
+function servingTime(value) {
+  if (value == null || !Number.isFinite(Number(value))) return '—';
+  const time = Number(value);
+  if (time === 0) return '0 s';
+  if (time < 1e-6) return number(time * 1e9,3) + ' ns';
+  if (time < 1e-3) return number(time * 1e6,3) + ' μs';
+  if (time < 1) return number(time * 1000,3) + ' ms';
+  return number(time,6) + ' s';
+}
+function isServingResult(result) { return result?.mode === 'serve' || result?.mode === 'serving' || result?.engine_mode === 'serving'; }
+function servingOutcome(result) {
+  const metrics = result.metrics || {}, goodput = result.goodput || {};
+  const failed = Number.isFinite(metrics.failed_requests) ? metrics.failed_requests : null;
+  const missed = goodput.specified && Number.isFinite(metrics.completed_requests) && Number.isFinite(goodput.passed_requests)
+    ? Math.max(0, metrics.completed_requests - goodput.passed_requests) : null;
+  const partial = failed > 0 || result.status === 'completed_with_failures';
+  return {engineFailed: failed, sloMissed: missed,
+    label: partial ? '完成 · 含执行失败' + (missed > 0 ? ' / SLO 未全达标' : '') : missed > 0 ? '执行完成 · SLO 未达标' : goodput.specified ? '执行完成 · SLO 达标' : '执行完成 · 未设置 SLO',
+    tone: partial || missed > 0 ? 'warning' : goodput.specified && missed === 0 ? 'success' : ''};
+}
+function servingJobOutcome(job) {
+  if (job.mode !== 'serve' || job.status !== 'completed') return null;
+  if (servingOutcomes.has(job.id)) return servingOutcomes.get(job.id);
+  return job.result_status === 'completed_with_failures'
+    ? {label:'完成 · 含执行失败 / SLO 待查看',tone:'warning'}
+    : {label:'计算完成 · 查看 SLO',tone:''};
+}
+function syncServingMode() {
+  const training = state.config?.workload?.scenario === 'training';
+  $('#serve-mode-option').disabled = training;
+  if (training && $('#run-mode').value === 'serve') {
+    $('#run-mode').value = 'simulate';
+    text('#serving-editor-status', '训练场景已切回离散事件仿真，服务请求草稿仍保留。');
+  }
+  const active = $('#run-mode').value === 'serve';
+  $('#serving-editor').hidden = !active;
+  text('#npu-count-label',active ? '每实例 NPU 数' : 'NPU 总数');
+  for (const id of ['batch','input-lengths','output-lengths','uniform-lengths','ttft-target','tpot-target','throughput-target']) {
+    const control = $('#' + id);
+    control.disabled = active || state.busy || training && ['input-lengths','output-lengths','uniform-lengths','ttft-target','tpot-target'].includes(id);
+    control.title = active ? '服务模式使用独立 serving 请求与 SLO；此固定负载字段保留但不参与服务批次。' : '';
+  }
+  text('#mode-note', active ? '独立实例上的 FCFS 固定成批服务；base Config 的 Batch / 长度 / targets 不用于服务调度。要求推理、DP=1；暂不支持投机或 P/D 分池。' : $('#run-mode').value === 'estimate' ? '仅计算资源与时间必要下界，不能证明 SLO 可行。' : '模拟依赖、资源争用与内存生命周期。');
+}
+function ensureServingDraft() {
+  if (servingDraft.value) return;
+  const workload = state.config?.workload || {};
+  const inputs = Array.isArray(workload.input_lengths) && workload.input_lengths.length ? workload.input_lengths : null;
+  const outputs = Array.isArray(workload.output_lengths) && workload.output_lengths.length ? workload.output_lengths : null;
+  const batch = Number.isSafeInteger(workload.batch_size) && workload.batch_size > 0 ? workload.batch_size : inputs?.length || 1;
+  const bounded = batch <= 10000;
+  servingDraft.value = {instance_count: 1, max_batch_size: Math.min(batch, 1024), max_batch_wait_s: 0,
+    scheduler_overhead_s: 0, requests: bounded ? Array.from({length:batch},(_,index) => ({id: 'request-' + (index + 1), arrival_s: 0,
+      input_tokens: inputs ? inputs[index] ?? null : workload.input_length ?? 128,
+      output_tokens: outputs ? outputs[index] ?? null : workload.output_length ?? 4})) : []};
+  text('#serving-editor-status', bounded ? '初始请求由当前固定负载复制，到达时间与调度参数为显式初始假设。' : '当前 batch 超过 10,000 条网页请求上限，未自动展开或截断。请载入服务示例或导入较小的显式请求集。');
+}
+function syncServingJson() {
+  if (servingDraft.value && !servingDraft.jsonDirty) $('#serving-json').value = JSON.stringify(servingDraft.value, null, 2);
+}
+function servingChanged() {
+  servingDraft.modified = true; servingDraft.revision++;
+  syncServingJson(); renderServingResourceNote();
+  text('#serving-editor-status', servingDraft.jsonDirty ? '服务 JSON 草稿尚未应用；校验或运行将读取该草稿。' : '服务参数已修改，提交前将单独校验。');
+  simulationView.source = 'draft'; renderSimulationViews();
+}
+function readServing() {
+  ensureServingDraft();
+  let candidate = servingDraft.value;
+  if (servingDraft.jsonDirty) {
+    try { candidate = JSON.parse($('#serving-json').value); }
+    catch (error) { throw new Error('服务配置不是有效 JSON：' + error.message); }
+  }
+  if (!candidate || Array.isArray(candidate) || typeof candidate !== 'object') throw new Error('服务配置必须为独立 JSON 对象。');
+  assertInputFinite(candidate);
+  if (!Array.isArray(candidate.requests) || !candidate.requests.length) throw new Error('服务配置必须包含非空 requests 请求列表。');
+  return clone(candidate);
+}
+function renderServingResourceNote() {
+  const value = servingDraft.value || {}, npus = state.config?.hardware?.npu_count;
+  const total = typeof npus === 'number' && typeof value.instance_count === 'number' ? npus * value.instance_count : null;
+  text('#serving-resource-note', '每实例完整复制 ' + number(npus, 0) + ' 张卡，合计 ' + number(total, 0) + ' 张卡；主机与网络同样隔离复制。上方固定 batch 目标不会替代服务 SLO。');
+  text('#serving-request-count', '共 ' + number(value.requests?.length, 0) + ' 条请求；按到达时间 FCFS，同到达按列表顺序。');
+}
+function renderServingEditor() {
+  syncServingMode();
+  if ($('#run-mode').value !== 'serve') return;
+  ensureServingDraft();
+  $$('[data-serving-path]').forEach(control => {
+    const value = getPath(servingDraft.value, control.dataset.servingPath);
+    control.value = value == null ? '' : typeof value === 'number' ? String(value / (Number(control.dataset.servingScale) || 1)) : value;
+    control.disabled = state.busy || servingDraft.jsonDirty;
+  });
+  $('#serving-add-request').disabled = state.busy || servingDraft.jsonDirty;
+  renderServingResourceNote(); renderServingRequestRows(); syncServingJson();
+}
+function renderServingRequestRows() {
+  const host = $('#serving-request-rows'); host.replaceChildren();
+  const rows = servingDraft.value?.requests || [];
+  const visible = rows.map((request,index) => ({request,index})).filter(({index}) => index < servingDraft.visibleRows || index === servingDraft.addedRowIndex);
+  visible.forEach(({request,index}) => {
+    const row = el('tr');
+    for (const [key, label] of [['id','请求 ID'],['arrival_s','到达秒'],['input_tokens','输入 tokens'],['output_tokens','输出 tokens']]) {
+      const cell = el('td'), input = el('input');
+      input.type = key === 'id' ? 'text' : 'number'; input.value = request[key] ?? '';
+      input.setAttribute('aria-label', '第 ' + (index + 1) + ' 条 · ' + label);
+      input.dataset.servingRequest = String(index); input.dataset.servingField = key;
+      if (key !== 'id') { input.min = key === 'arrival_s' ? '0' : '1'; input.step = key === 'arrival_s' ? 'any' : '1'; }
+      input.disabled = state.busy || servingDraft.jsonDirty;
+      input.addEventListener('input', () => {
+        request[key] = key === 'id' ? input.value : input.value === '' ? null : Number(input.value);
+        servingChanged();
+      });
+      cell.append(input); row.append(cell);
+    }
+    const action = el('td'), remove = el('button', 'text-button danger', '移除'); remove.type = 'button';
+    remove.setAttribute('aria-label', '移除第 ' + (index + 1) + ' 条请求'); remove.disabled = state.busy || servingDraft.jsonDirty;
+    remove.addEventListener('click', () => { rows.splice(index, 1); servingChanged(); renderServingRequestRows(); });
+    action.append(remove); row.append(action); host.append(row);
+  });
+  $('#serving-more-requests').hidden = rows.length <= servingDraft.visibleRows;
+  $('#serving-more-requests').textContent = '继续显示请求（已显示 ' + Math.min(rows.length, servingDraft.visibleRows) + ' / ' + rows.length + '）';
+}
+function protectUnappliedDrafts() {
+  requireAppliedInputEdits();
+  if (state.jsonDirty || servingDraft.jsonDirty) throw new Error('尚有未应用的模型或服务 JSON。请先校验应用或明确放弃草稿，当前编辑内容已保留。');
+}
+async function loadServingExample() {
+  if (state.busy) return;
+  try {
+    protectUnappliedDrafts(); state.busy = true; updateRunButton();
+    const revision = servingDraft.revision, previous = JSON.stringify(state.config);
+    const data = await api('/api/serving-presets/serving_synthetic');
+    if (revision !== servingDraft.revision || previous !== JSON.stringify(state.config) || state.jsonDirty || servingDraft.jsonDirty) throw new Error('读取示例期间草稿发生修改，未替换当前输入。');
+    if (!data.config || !data.serving) throw new Error('服务示例未返回成对的模型与服务配置。');
+    assertInputFinite(data);
+    state.config = clone(data.config); state.jsonDirty = false; state.modified = true; state.presetId = '';
+    servingDraft.value = clone(data.serving); servingDraft.jsonDirty = false; servingDraft.modified = true; servingDraft.revision++;
+    simulationView.source = 'draft';
+    $('#run-mode').value = 'serve'; renderForm(); $('#preset').value = '';
+    text('#preset-description', '已载入服务合成示例的完整模型；不代表实测硬件性能。');
+    text('#serving-editor-status', '模型与请求已成对载入，可编辑、校验并运行。');
+  } catch (error) { feedback(errorText(error), true); }
+  finally { state.busy = false; renderServingEditor(); updateRunButton(); }
+}
+async function restoreRunInputs() {
+  const job = state.currentJob;
+  if (!job || state.busy) return;
+  try {
+    protectUnappliedDrafts(); state.busy = true; updateRunButton();
+    text('#restore-run-status', '正在读取模型与服务快照…');
+    const revision = servingDraft.revision, previous = JSON.stringify(state.config);
+    const responses = await Promise.all([api('/api/jobs/' + encodeURIComponent(job.id) + '/config'),
+      job.mode === 'serve' ? api('/api/jobs/' + encodeURIComponent(job.id) + '/serving') : Promise.resolve(null)]);
+    if (state.currentJob?.id !== job.id || servingDraft.revision !== revision || previous !== JSON.stringify(state.config) || state.jsonDirty || servingDraft.jsonDirty) throw new Error('读取期间所选运行或草稿改变，已保留当前输入，请重新复制。');
+    const config = responses[0].config, serving = responses[1]?.serving;
+    if (!config || job.mode === 'serve' && !serving) throw new Error('运行缺少完整输入快照，未替换草稿。');
+    assertInputFinite(config); if (serving) assertInputFinite(serving);
+    state.config = clone(config); state.jsonDirty = false; state.modified = true; state.presetId = '';
+    servingDraft.value = serving ? clone(serving) : null; servingDraft.jsonDirty = false; servingDraft.modified = Boolean(serving); servingDraft.revision++;
+    $('#run-mode').value = job.mode === 'serve' ? 'serve' : job.mode === 'estimate' ? 'estimate' : 'simulate';
+    simulationView.source = 'draft'; inputView.source = 'draft';
+    renderForm(); $('#preset').value = ''; text('#restore-run-status', '已复制运行 ' + job.id + ' 的完整输入；原运行保持不变。');
+  } catch (error) { text('#restore-run-status', errorText(error)); feedback(errorText(error), true); }
+  finally { state.busy = false; renderServingEditor(); updateRunButton(); }
+}
+function resultTable(host, headers, rows, caption) {
+  if (caption) host.append(el('h4', '', caption));
+  const table = el('table', 'memory-matrix result-detail-table'), head = el('thead'), tr = el('tr');
+  headers.forEach(label => { const th = el('th', '', label); th.setAttribute('scope', 'col'); tr.append(th); });
+  head.append(tr); table.append(head); const body = el('tbody');
+  rows.forEach(values => { const row = el('tr'); values.forEach(value => row.append(el('td', '', value == null ? '—' : String(value)))); body.append(row); });
+  table.append(body); host.append(table);
+}
+function renderServingPlan(config, service, observed) {
+  text('#execution-plan-label','服务调度计划 · 固定成批');
+  const facts = $('#execution-facts'); facts.replaceChildren();
+  for (const [label,value] of [['请求数',number(service?.requests?.length ?? service?.request_count,0)],['独立实例',number(service?.instance_count,0)],['每批上限',number(service?.max_batch_size,0)],['成批等待',servingTime(service?.max_batch_wait_s)],['每批调度开销',servingTime(service?.scheduler_overhead_s)],['部署总卡数',number(service?.instance_count * config.hardware?.npu_count,0)]]) {
+    const item = el('div','execution-fact'); item.append(el('span','',label),el('strong','',value)); facts.append(item);
+  }
+  const flow = $('#execution-flow'); flow.replaceChildren();
+  [['请求到达','按 arrival_s 排序，同到达保留输入顺序；先到先接纳。'],['接纳与成批','选择可用独立实例，按 max_batch_size 与等待窗口组成固定批。'],['完整模型执行','逐批调用当前算子、通信与内存引擎；请求不会中途加入。'],['请求计时与释放','记录逐 token 完成，整批结束后释放实例；失败批不缩批、不计成功输出。']].forEach(([title,body],index) => {
+    const row = el('li','execution-step'), content = el('div'); content.append(el('h4','',title),el('p','',body)); row.append(el('span','execution-step-index',String(index+1).padStart(2,'0')),content); flow.append(row);
+  });
+  text('#execution-notes','上方模型的固定 batch / 长度 / targets 不用于服务调度。没有连续 batching、抢占或生产尾延迟校准。');
+  const actual = $('#execution-observed'); actual.replaceChildren();
+  if (observed && isServingResult(observed)) actual.append(el('p','','已观测：' + number(observed.metrics?.completed_requests,0) + ' 个完成请求，' + number(observed.metrics?.failed_requests,0) + ' 个失败请求。批次与请求的真实模型时序见服务结果。'));
+  else empty(actual,'尚无本次服务运行的实际结果；以上仅为配置调度计划。');
+}
+function renderServingResults(result, job) {
+  const metrics = result.metrics || {}, hardware = result.hardware || {}, window = result.time_window_relative_s || {}, throughput = result.throughput || {};
+  const outcome = servingOutcome(result); servingOutcomes.set(job.id,outcome);
+  $('#result-status').hidden = false;
+  $('#result-status').textContent = outcome.label;
+  $('#result-status').className = 'mini-badge ' + outcome.tone;
+  text('#result-mode', '请求级服务 · FCFS 固定成批');
+  text('#result-context', '运行 ' + job.id + ' · ' + (result.config?.model?.name || '模型') + ' · ' + number(hardware.instance_count, 0) + ' 个独立实例 × ' + number(hardware.npus_per_instance, 0) + ' NPU = ' + number(hardware.total_npus, 0) + ' NPU · 提交时完整快照');
+  const notices = [];
+  if (outcome.engineFailed > 0) notices.push('有 ' + number(outcome.engineFailed, 0) + ' 个请求所在批次执行失败。失败请求不计入成功吞吐，详情见批次诊断；不会自动缩批。');
+  if (outcome.sloMissed > 0) notices.push('另有 ' + number(outcome.sloMissed,0) + ' 个成功完成的请求未满足服务 SLO；这是延迟目标未达标，不是引擎执行失败。');
+  $('#result-alert').hidden = !notices.length;
+  $('#result-alert').className = 'notice'; text('#result-alert',notices.join('\n'));
+  const kpis = $('#kpi-grid'); kpis.replaceChildren();
+  kpis.append(metricCard('成功 / 总请求', number(metrics.completed_requests, 0) + ' / ' + number(metrics.request_count, 0), '', '失败 ' + number(metrics.failed_requests, 0) + ' · 全部提交请求'));
+  kpis.append(metricCard('服务观察窗口', servingTime(window.duration ?? result.time_window_s?.duration), '', '包含排队、成批等待与失败尝试'));
+  kpis.append(metricCard('成功输出吞吐', number(throughput.output_tokens_per_s, 2), 'tok/s', '成功输出 token / 完整窗口'));
+  kpis.append(metricCard('请求完成吞吐', number(throughput.completed_requests_per_s, 3), 'req/s', '每实例资源完全隔离'));
+  text('#serving-result-note', '客户端 TTFT = 接纳等待 + 服务端 TTFT；服务端 TTFT 包含每批一次调度开销。接纳等待统计全部已接纳请求；其余延迟只统计成功且指标有定义的请求。单 token 的 TPOT 不适用。此有限到达样本的预测不是生产 P99 保证。');
+  const distribution = $('#serving-percentiles'); distribution.replaceChildren();
+  const labels = {admission_wait_s:'接纳等待', model_ttft_s:'模型 TTFT', server_ttft_s:'服务端 TTFT', client_ttft_s:'客户端 TTFT', tpot_s:'请求平均 TPOT', e2e_s:'端到端延迟'};
+  resultTable(distribution, ['指标','样本数','平均','P50','P90','P95','P99'], Object.entries(metrics.distributions || {}).map(([key,value]) => [labels[key] || key,number(value.sample_count,0),...['mean_s','p50_s','p90_s','p95_s','p99_s'].map(field => servingTime(value[field]))]));
+  const goodput = result.goodput || {}, goodputHost = $('#serving-goodput'); goodputHost.replaceChildren();
+  goodputHost.className = 'serving-goodput ' + (outcome.tone || 'unspecified');
+  goodputHost.append(el('p', '', goodput.specified ? '联合 SLO 通过 ' + number(goodput.passed_requests,0) + ' 个请求 · goodput ' + number(goodput.joint_requests_per_s,3) + ' req/s · 通过请求输出 ' + number(goodput.passed_output_tokens_per_s,2) + ' tok/s' : '未设置服务 SLO，goodput 未定义；不使用模型 Config.targets 替代。'));
+  if (goodput.specified) {
+    const slo = result.serving?.slo || {};
+    goodputHost.append(el('p','chart-caption','本次服务阈值：客户端 TTFT ' + (slo.ttft_s == null ? '未设置 / 未提供' : '≤ ' + servingTime(slo.ttft_s)) + '；请求平均 TPOT ' + (slo.tpot_s == null ? '未设置 / 未提供' : '≤ ' + servingTime(slo.tpot_s)) + '。失败请求不会通过联合 SLO。'));
+  }
+  const rows = result.requests || [], requestsHost = $('#serving-request-results'); requestsHost.replaceChildren();
+  text('#serving-request-result-note', '显示 ' + rows.length + ' / ' + number(metrics.request_count,0) + ' 条请求。上方分位数与吞吐由完整请求集计算，不从网页子集重算；完整结果请下载 requests.csv。');
+  const requestOutcome = row => row.status !== 'completed' ? '执行失败' : row.slo_passed === false ? '完成 · SLO 未达标' : row.slo_passed === true ? '完成 · SLO 达标' : '完成 · 未设 SLO';
+  const tpotLabel = row => row.tpot_s != null ? servingTime(row.tpot_s) : row.status !== 'completed' ? '— / 未完成' : row.requested_output_tokens === 1 ? '— / 不适用' : '— / 未定义';
+  resultTable(requestsHost, ['请求','实例 / 批次','状态','接纳等待','客户端 TTFT','服务端 TTFT','TPOT','E2E','输出 / 请求'], rows.map(row => [row.id,row.instance_id + ' / ' + row.batch_id,requestOutcome(row),servingTime(row.admission_wait_s),servingTime(row.client_ttft_s),servingTime(row.server_ttft_s),tpotLabel(row),servingTime(row.e2e_s),number(row.output_tokens,0) + ' / ' + number(row.requested_output_tokens,0)]));
+  renderServingTimeline(result);
+  const diagnostics = $('#diagnostic-content'); diagnostics.replaceChildren();
+  const failedBatches = (result.batches || []).filter(batch => batch.status === 'failed');
+  text('#diagnostic-count', failedBatches.length + ' 个已展示失败批次');
+  for (const batch of failedBatches) addList(diagnostics, '批次 ' + batch.id + ' · 实例 ' + batch.instance_id, (batch.diagnostics || []).map(item => item.message || item.code || JSON.stringify(item)));
+  addList(diagnostics, '服务仿真假设', result.limitations || []);
+}
+function renderServingTimeline(result) {
+  const host = $('#serving-timeline'); host.replaceChildren();
+  const batches = result.batches || [], total = result.display_limits?.batch_count ?? result.display_limits?.batches_total ?? batches.length;
+  text('#serving-timeline-note', '显示 ' + batches.length + ' / ' + number(total,0) + ' 批。横轴以首请求到达为 0，使用引擎相对时间；浅色为调度开销，深色为模型执行，红色为失败批。');
+  if (!batches.length) { empty(host, '没有可展示的批次。'); return; }
+  const valid = batches.filter(batch => Number.isFinite(batch.admission_relative_s) && Number.isFinite(batch.model_start_relative_s) && Number.isFinite(batch.end_relative_s));
+  if (!valid.length) { empty(host, '此旧结果未提供相对批次时钟，无法可靠绘制时间线；请查看逐请求延迟或重新运行。'); return; }
+  const max = Math.max(...valid.map(batch => batch.end_relative_s), 1e-12);
+  const axis = el('div', 'trace-axis'); [0,.25,.5,.75,1].forEach(fraction => axis.append(el('span','',servingTime(max*fraction)))); host.append(axis);
+  valid.forEach(batch => {
+    const row = el('div','trace-row'), lane = el('div','trace-lane');
+    row.append(el('span','trace-name','实例 ' + batch.instance_id + ' · 批 ' + batch.id));
+    for (const [start,end,className] of [[batch.admission_relative_s,batch.model_start_relative_s,'serving-scheduler'],[batch.model_start_relative_s,batch.end_relative_s,batch.status === 'failed' ? 'serving-failed' : 'compute-color']]) {
+      const bar = el('div','trace-event ' + className); bar.style.left = start / max * 100 + '%'; bar.style.width = Math.max(0,(end-start)/max*100) + '%';
+      bar.title = '相对时间 ' + number(start,9) + ' → ' + number(end,9) + ' s'; lane.append(bar);
+    }
+    row.title = (batch.request_ids || []).join(', ') + ' · ' + (batch.status === 'failed' ? '执行失败' : '执行完成') + ' · 接纳 ' + servingTime(batch.admission_relative_s) + ' · 开始执行 ' + servingTime(batch.model_start_relative_s) + ' · 结束 ' + servingTime(batch.end_relative_s) + ' · 模型 ' + servingTime(batch.duration_s);
+    row.setAttribute('tabindex','0'); row.setAttribute('aria-label', row.title); row.append(lane); host.append(row);
+  });
+}
+function renderTrainingAccounting(result) {
+  const accounting = result.metrics?.training_accounting, panel = $('#training-accounting-panel');
+  panel.hidden = !accounting;
+  if (!accounting) return;
+  const kpis = $('#training-accounting-kpis'); kpis.replaceChildren();
+  kpis.append(metricCard('模型 MFU',percentage(accounting.model_mfu),'','仅模型前向＋反向 FLOPs 代理'));
+  kpis.append(metricCard('全部 NPU 计算比例',percentage(accounting.executed_compute_utilization),'','包含重计算、优化器和辅助算子'));
+  text('#training-accounting-note','分母为各 dtype 裸峰值 × 配置总卡数 × 完整执行时间；不是设备忙碌率，也不自动等同论文 MFU。CPU 单独统计。' + (accounting.status !== 'complete' ? ' 当前账本不完整：' + (accounting.reason || accounting.status) + '；—不代表零。' : ''));
+  const tables = $('#training-accounting-tables'); tables.replaceChildren();
+  resultTable(tables,['阶段','NPU FLOPs'],Object.entries(accounting.npu_flops_by_phase || {}).map(([key,value]) => [key,number(value,0)]),'按阶段（互斥分区）');
+  resultTable(tables,['dtype','执行 FLOPs','模型 F+B FLOPs','重计算 FLOPs','每卡裸峰值 FLOP/s'],Object.entries(accounting.npu_by_dtype || {}).map(([key,row]) => [key,number(row.executed_flops,0),number(row.model_forward_backward_flops,0),number(row.model_recompute_flops,0),number(row.peak_flops_per_device_s,0)]),'按计算精度');
+  const cpu = accounting.cpu || {};
+  resultTable(tables,['CPU 数','执行 FLOPs','优化器阶段 FLOPs','峰值归一比例'],[[number(cpu.device_count,0),number(cpu.executed_flops,0),number(cpu.optimizer_phase_flops,0),percentage(cpu.executed_compute_utilization)]],'CPU（不混入 NPU MFU）');
+  addList(tables,'未识别计算资源',accounting.unknown_compute_resources || []);
+  const roles = $('#training-role-chart'); roles.replaceChildren();
+  const entries = Object.entries(accounting.npu_flops_by_role || {}), max = Math.max(...entries.map(([,value]) => Number(value) || 0),1);
+  const labels = {model_forward_backward:'模型前向＋反向',model_recompute:'模型重计算',optimizer:'优化器',auxiliary:'转换 / 其他辅助'};
+  entries.forEach(([key,value]) => { const row = el('div','bar-row'), track = el('div','bar-track'), fill = el('div','bar-fill'); fill.style.width = value / max * 100 + '%'; track.append(fill); row.append(el('span','bar-label',labels[key] || key),track,el('span','bar-value',compact(value))); row.title = number(value,0) + ' FLOPs'; roles.append(row); });
+}
+function renderExecutionEvidence(result, selected) {
+  const select = $('#evidence-execution');
+  const executions = isServingResult(result) ? result.executions || [] : [];
+  if (selected === undefined) {
+    select.replaceChildren(); executions.forEach((execution,index) => { const option = el('option','','执行形状 ' + execution.execution_id + ' · batch ' + (execution.batch_size ?? execution.input_lengths?.length ?? '—')); option.value = String(index); select.append(option); }); select.value = '0';
+  }
+  select.hidden = !executions.length;
+  const metadata = executions.length ? executions[Number(selected ?? select.value) || 0]?.model_metadata || {} : result.model_metadata || {};
+  const specs = [['operator_trace','算子展开','matched_events','eligible_events'],['kernel_calibration','Kernel 计时记录','matched_events','eligible_events'],['collective_calibration','Collective 计时记录','matched_collectives','eligible_collectives']];
+  const present = specs.filter(([key]) => metadata[key]);
+  $('#execution-evidence-panel').hidden = !present.length;
+  const host = $('#execution-evidence'); host.replaceChildren();
+  present.forEach(([key,label,matched,total]) => {
+    const value = metadata[key], section = el('div','evidence-block');
+    const coverage = value[total] === 0 ? '无适用事件 · —' : number(value[matched],0) + ' / ' + number(value[total],0) + ' · ' + percentage(value.coverage_fraction);
+    section.append(el('h4','',label + ' · ' + coverage));
+    if (key === 'operator_trace') section.append(el('p','chart-caption','生成子算子 ' + number(value.generated_operations,0) + ' · 新增 HBM 访问 ' + number(value.additional_memory_bytes,0) + ' B。覆盖仅表示已展开的父事件。'));
+    const phases = Object.entries(value.by_phase || {});
+    if (phases.length) resultTable(section,['阶段','命中 / eligible','覆盖'],phases.map(([phase,row]) => [phase,row[total] === 0 ? '无适用事件' : number(row[matched],0) + ' / ' + number(row[total],0),row[total] === 0 ? '—' : percentage(row.coverage_fraction)]));
+    const reasons = value.skip_reasons || value.scope_mismatch_reasons || value.unmatched_reasons || value.mismatch_reasons || {};
+    if (Object.keys(reasons).length) resultTable(section,['未匹配 / 跳过原因','次数'],Object.entries(reasons).map(([reason,count]) => [reason,number(count,0)]));
+    addList(section,'未匹配 kernel',value.unmatched_kernels || []);
+    addList(section,'无记录 kernel',value.unprofiled_kernels || []);
+    const execution = executions[Number(selected ?? select.value) || 0];
+    if (value.truncated || execution?.model_metadata_truncated?.[key] || result.model_metadata_truncated?.[key]) section.append(el('p','chart-caption','网页证据已截取，完整记录见下载的 result.json。'));
+    host.append(section);
+  });
+  const eventsHost = $('#operator-trace-events'); eventsHost.replaceChildren();
+  const events = (result.trace?.events || []).filter(event => event.metadata?.trace_id && event.metadata?.kernel);
+  if (events.length) resultTable(eventsHost,['实际事件','父 kernel → 子算子','phase / trace','FLOPs','Matmul'],events.slice(0,80).map(event => { const meta = event.metadata; return [event.id,(meta.original_kernel || '—') + ' → ' + meta.kernel,(meta.phase || '—') + ' / ' + meta.trace_id,number(meta.flops,0),meta.matmul ? JSON.stringify(meta.matmul) : '—']; }),'实际子算子（来自已执行事件，最多 80 条）');
+  else if (metadata.operator_trace?.matched_events) eventsHost.append(el('p','chart-caption','此摘要没有逐子算子执行事件；不从配置推测实际执行。完整事件见原始导出。'));
+}
+function attachServingEvents() {
+  $$('[data-serving-path]').forEach(control => control.addEventListener('input', () => {
+    ensureServingDraft(); const path = control.dataset.servingPath.split('.');
+    const optional = path[0] === 'slo';
+    let target = servingDraft.value;
+    if (optional) target = servingDraft.value.slo ||= {};
+    target[path[path.length - 1]] = control.value === '' ? null : Number(control.value) * (Number(control.dataset.servingScale) || 1);
+    servingChanged();
+  }));
+  $('#serving-example').addEventListener('click',loadServingExample);
+  $('#serving-add-request').addEventListener('click', () => {
+    ensureServingDraft(); const rows = servingDraft.value.requests, used = new Set(rows.map(row => row.id)); let index = rows.length + 1;
+    if (rows.length >= 10000) { feedback('服务请求上限为 10,000 条，请先移除请求或导入较小的负载。',true); return; }
+    while (used.has('request-' + index)) index++;
+    rows.push({id:'request-' + index,arrival_s:0,input_tokens:128,output_tokens:4});
+    servingDraft.addedRowIndex = rows.length - 1; servingChanged(); renderServingRequestRows();
+  });
+  $('#serving-more-requests').addEventListener('click', () => { servingDraft.visibleRows += 100; renderServingRequestRows(); });
+  $('#serving-json').addEventListener('input', () => { servingDraft.jsonDirty = true; servingChanged(); renderServingEditor(); });
+  $('#apply-serving-json').addEventListener('click',handleValidation);
+  $('#discard-serving-json').addEventListener('click', () => { servingDraft.jsonDirty = false; servingDraft.revision++; renderServingEditor(); });
+  $('#import-serving-json').addEventListener('click', () => $('#serving-file').click());
+  $('#serving-file').addEventListener('change', async event => {
+    const file = event.target.files[0]; if (!file) return;
+    try {
+      protectUnappliedDrafts();
+      if (file.size > 2 * 1024 * 1024) throw new Error('服务 JSON 超过 2 MiB；模型与服务提交合计也受此上限限制。');
+      const revision = servingDraft.revision, contents = (await file.text()).replace(/^\uFEFF/,'');
+      if (revision !== servingDraft.revision || servingDraft.jsonDirty) throw new Error('读取期间草稿发生变化，未覆盖当前服务输入。');
+      const value = JSON.parse(contents); assertInputFinite(value);
+      $('#serving-json').value = contents; servingDraft.jsonDirty = true; servingChanged(); renderServingEditor();
+      $('#serving-json-details').open = true;
+    } catch (error) { feedback('服务导入失败：' + errorText(error),true); }
+    finally { event.target.value = ''; }
+  });
+  $('#export-serving-json').addEventListener('click', () => { try { downloadJson(readServing(),'serving.config.json'); } catch(error) { feedback(errorText(error),true); } });
+  $('#restore-run-inputs').addEventListener('click',restoreRunInputs);
+  $('#evidence-execution').addEventListener('change', () => renderExecutionEvidence(state.result,$('#evidence-execution').value));
 }
 
 initialize();

@@ -1,6 +1,6 @@
 # 网页仿真工作台
 
-网页复用 `supernode-modeling` skill 对应的 `supernode_sim` 数值引擎。表单负责组织配置，后端执行与命令行相同的 `analysis.run` 和 `write_report`，不会在浏览器中生成模拟指标。
+网页复用 `supernode-modeling` skill 对应的 `supernode_sim` 数值引擎。普通仿真使用 `analysis.run` / `write_report`，请求服务使用 `simulate_serving` / `write_serving_report`；浏览器不生成模拟指标。
 
 调用 `supernode-modeling` skill 时，默认自动准备并打开此网页。可复用启动器负责检查依赖、复用匹配服务及避让占用端口；详细调用约定见 [Skill 前端流程](../skills/supernode-modeling/references/frontend.md)。以下手动启动方式继续可用。
 
@@ -32,13 +32,33 @@ python -m supernode_sim web --port 8766 --output outputs/web
 1. 选择预设。预设来自项目 `examples/` 中可通过完整场景校验的文件，保留来源与假设；搜索规范、校准片段不会当作完整场景。
 2. 调整负载、硬件、并行度、精度与 offload。表单支持拓扑模板、每主机卡数、单卡 HBM（GB）、SU/SO 带宽（GB/s）以及时延、吞吐目标。显式链路配置通过 JSON 修改，避免模板控件误改原图。推理输入和输出长度支持逗号分隔列表；变长 batch 的每个长度都会保留。列表长度必须与 batch 匹配。训练使用序列长度、梯度累积和训练步数。
 3. 需要修改模型结构、显式链路、完整精度或其他字段时，使用高级 JSON 编辑器。可导入与导出 JSON 完整场景。引用校准文件的 YAML 应先用命令行解析，网页导入 `config.resolved.json`；网页请求不读取用户指定的本地文件路径。
-4. 选择“事件仿真”或“下界估算”，校验配置并开始运行。所有输入都由现有 Pydantic schema 严格校验。并行乘积必须满足 `TP × PP × EP × DP = NPU 数`，FSDP 必须整除 DP。
+4. 选择“离散事件仿真”“解析估算”或“请求级服务”，校验配置并开始运行。所有输入由对应 Pydantic schema 严格校验。普通并行乘积为 `TP × PP × EP × DP = NPU 数`，FSDP 必须整除 DP；服务模式的总部署卡数还需乘独立实例数。
 5. 观察运行阶段、经过时间和日志。当前引擎没有事件级进度回调，因此不提供虚构的完成百分比。可以取消正在执行的任务；取消会终止独立仿真进程。
 6. 运行结束后查看结果，下载结果 JSON、解析后配置、中文报告和可用 CSV/Trace 文件。历史运行使用提交时的配置，后续表单编辑不会修改已完成结果。
 
-为控制主机资源，服务同一时间执行一个任务。较大的结构化训练或推理可能需要较长时间与较多主机内存；网页不会擅自缩小输入。当前网页提供 `estimate` / `simulate`；批量扫描、SU 搜索、Feedback 与流式推理仍使用原命令行/API。
+为控制主机资源，网页后台同一时间执行一个任务；一个服务任务内可以模拟多个隔离实例。网页提供 `estimate` / `simulate` / `serve`，不会擅自缩小输入；批量扫描、SU 搜索、Feedback 与流式推理仍使用原命令行/API。
 
 网页请求限制为 2 MiB，batch size 上限为 100,000，超过时明确拒绝，防止配置校验阶段自动展开过大的长度列表。更大负载使用原 CLI/API。内置预设需要源码仓库的 `examples/`；在没有示例文件的独立安装中，可从完整 JSON 配置导入。
+
+## 请求级服务仿真
+
+推理场景选择“请求级服务 · FCFS 成批”，出现独立的请求编辑区。可一键载入成对的 synthetic 模型/请求示例，再修改实例数、每批请求上限、成批等待、调度开销及客户端 TTFT/TPOT 阈值。请求表保留 ID、到达秒数、输入与输出 token；大列表可通过服务 JSON 导入、编辑和导出。等待/开销/SLO 控件标明毫秒，提交时仅换算一次为秒。
+
+服务参数独立于模型 Config，固定 batch/长度/targets 控件在服务模式不用于调度；原配置仍保留。服务模式明确要求 inference、DP=1，暂不支持 PD/投机服务调度。每实例复制完整硬件与网络资源，页面展示每实例卡数与总部署卡数。切换训练时退出服务模式，不将服务负载混进训练配置。
+
+未应用或无效的模型/服务 JSON 保留原文本；载入示例或复制历史不会悄悄覆盖它们。提交保存 `input.config.json` 和 `input.serving.json`；历史只读，“复制所选运行的完整输入到编辑区”同时恢复两份快照。普通历史没有服务负载时不会借用当前服务草稿，迟到响应也不会覆盖新选择。
+
+服务结果包括：完成/失败请求、完整观察窗口、成功吞吐、联合 SLO goodput、等待与客户端/服务端 TTFT、TPOT/E2E 分位数、逐请求状态和相对时钟批次时间线。单 token TPOT 显示不适用，失败请求显示未完成；任务完成、请求成功和 SLO 达标分别呈现。没有适用数据时显示空值，不填零。
+
+请求/批次表最多显示各 200 行、执行形状最多 40 项；页面标注展示数量。总体分位数和吞吐来自引擎完整请求集，不在前端按截取行重算。时间线使用相对时钟避免大绝对时间损失精度。服务结果不显示不存在的固定 batch 关键路径、通信/内存总图；每批执行的详细证据仍保存在下载结果中。
+
+网页服务负载上限为 10,000 请求、每批 1,024 请求、128 个实例，同时仍受 2 MiB 请求限制；超限直接报错，不截断或缩批。更多请求使用 CLI。当前服务调度为固定成批 FCFS，不含连续 batching、抢占或异构 PD；有限样本 P99 不是生产保障。
+
+## 训练账本与执行证据
+
+训练结果新增模型 MFU、全部 NPU 执行计算比例、角色 FLOPs 条图、阶段/dtype 表以及独立 CPU 账本。MFU 分子只含当前模型前向/反向代理，重算、优化器与辅助工作另列；按 dtype 裸峰值归一，不当作设备忙碌率。估算或旧结果缺少账本时不虚构显示。
+
+“执行粒度与校准证据”分别展示 operator trace 展开、kernel 与 collective 计时命中、分阶段覆盖、未匹配/跳过原因。trace 覆盖不是准确率；eligible 为零时显示无适用事件。实际子算子表保留父事件、顺序、阶段与声明的矩阵维度，采样明细与全部统计分别标注。服务结果按真实批次执行形状选择证据，不把不同形状覆盖混算。
 
 ## 独立输入总览
 
@@ -79,11 +99,15 @@ python -m supernode_sim web --port 8766 --output outputs/web
 | `GET /api/health` | 服务身份、项目/输出目录与静态资源就绪状态，供启动器核对和复用 |
 | `GET /api/presets` | 可用完整场景 |
 | `GET /api/presets/<id>` | 解析后的场景配置 |
-| `POST /api/validate` | 校验 `{ "config": {...} }` |
-| `POST /api/jobs` | 提交 `{ "config": {...}, "mode": "simulate" }`，mode 也可为 estimate |
+| `GET /api/serving-presets` | 可用服务配对示例目录 |
+| `GET /api/serving-presets/serving_synthetic` | synthetic 模型与请求的配对配置 |
+| `GET /api/serving-schema` | 独立 ServingSpec schema |
+| `POST /api/validate` | 普通校验 `{ "config": {...} }`；服务校验附 `"mode":"serve", "serving": {...}` |
+| `POST /api/jobs` | 提交 config 与 mode（simulate/estimate/serve）；serve 必须附独立 serving |
 | `GET /api/jobs` | 历史与当前任务 |
 | `GET /api/jobs/<id>` | 状态、阶段、日志和产物链接 |
 | `GET /api/jobs/<id>/config` | 提交时保存的输入配置快照 |
+| `GET /api/jobs/<id>/serving` | 服务任务的请求/调度快照；普通任务不提供 |
 | `GET /api/jobs/<id>/result` | 有界的可视化摘要 |
 | `POST /api/jobs/<id>/cancel` | 取消活动任务 |
 | `GET /api/jobs/<id>/artifacts/<filename>` | 下载该任务已登记的产物 |
@@ -95,7 +119,9 @@ python -m supernode_sim web --port 8766 --output outputs/web
 输入编辑的定向回归检查使用 Node.js 内置测试工具，无需安装前端依赖：
 
 ```powershell
-node --test tests/test_web_input_edit.cjs tests/test_web_views.cjs
+node --test tests/test_web_input_edit.cjs tests/test_web_views.cjs tests/test_web_serving.cjs
 ```
 
 检查包含五类参数同步至校验/仿真请求、显示单位换算、无效草稿保留、结构化模型派生参数、历史快照复制及异步响应处理。该测试不替代真实浏览器的布局和交互验收。
+
+Python 的 `tests/test_web_serving.py` 覆盖真实服务/训练 worker、不可变双快照、取消后重提、重启历史、输入限额、完整统计与显示截取。真实浏览器还应检查桌面/手机布局及服务 → 训练 → 估算的结果切换。

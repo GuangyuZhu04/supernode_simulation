@@ -60,12 +60,16 @@ python skills/supernode-modeling/scripts/launch_frontend.py --project-root . --p
 
 启动页面只准备交互环境；用户请求“打开/查看/编辑配置”时，不自动点击“开始模拟”。用户已经请求仿真或估算时，继续完成数值工作，无需再为该任务确认。
 
-网页支持 `estimate` 与 `simulate`：
+网页支持 `estimate`、`simulate` 和 `serve`：
 
 1. 以完整 `Config` 调用 `POST /api/validate`，请求体为 `{"config": {...}}`。
 2. 调用 `POST /api/jobs`，请求体为 `{"config": {...}, "mode": "simulate"}`（或 `estimate`）。记录返回的任务 ID。
 3. 使用 `GET /api/jobs/<id>` 读取真实阶段、日志及最终状态；不生成假进度。
 4. 完成后用 `GET /api/jobs/<id>/result` 获取可视化摘要，在同一服务的网页历史中选择该任务展示；下载文件链接使用返回的 `artifacts`。
+
+服务模式在校验和提交时传 `{"config": {...}, "mode": "serve", "serving": {...}}`。用 `GET /api/serving-presets/serving_synthetic` 读取成对 synthetic 示例，或在独立请求表/服务 JSON 中录入。历史服务负载位于 `GET /api/jobs/<id>/serving`，恢复时与 config 一起复制，普通任务不借用旧服务草稿。DP=1、inference 及不支持 PD/投机的限制由后端校验，网页不转换成固定 batch 代替。
+
+服务结果展示完整总体分位、goodput、请求状态及相对批次时间线；训练展示阶段/dtype FLOPs 与 MFU；执行证据分别显示 trace/kernel/collective 覆盖，不等同精度。网页服务上限为 10,000 请求、每批 1,024、128 实例及 2 MiB 请求体，超限保留输入并提示使用 CLI。
 
 收到任务 ID 后保留并继续读取该任务，不能因轮询失败重新提交。提交响应不确定时，先检查任务列表和输入配置确认是否已创建；没有证据时不要重复运行。`GET /api/jobs/<id>/config` 是提交时的独立快照，不是当前网页草稿。
 

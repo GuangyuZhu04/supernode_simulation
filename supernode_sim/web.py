@@ -25,10 +25,13 @@ import uuid
 
 from pydantic import ValidationError
 
-from .config import Config, load_config
+from .config import Config, load_config, read_data
+from .serving import ServingSpec
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
 MAX_WEB_BATCH_SIZE = 100_000
+SERVING_WEB_LIMITS = {'request_count': 10_000, 'max_batch_size': 1024,
+                      'instance_count': 128, 'body_bytes': MAX_BODY_BYTES}
 JOB_ID = re.compile(r'^[0-9a-f]{32}$')
 ACTIVE = {'queued', 'running'}
 
@@ -77,6 +80,39 @@ def validate_config(value) -> dict:
         raise APIError(400, str(exc)) from exc
 
 
+def validate_inputs(config, mode='simulate', serving=None) -> tuple[dict, dict | None]:
+    """Validate HTTP-only budgets before invoking the engine's strict schemas."""
+    if mode not in ('simulate', 'estimate', 'serve'):
+        raise APIError(400, 'mode 必须是 simulate、estimate 或 serve')
+    if mode != 'serve' and serving is not None:
+        raise APIError(400, 'serving 只能与 mode=serve 一起使用；服务输入未被忽略或修改')
+    resolved = validate_config(config)
+    if mode != 'serve':
+        return resolved, None
+    if not isinstance(serving, dict):
+        raise APIError(400, 'serve 模式需要独立的 serving JSON 对象')
+    requests = serving.get('requests')
+    if isinstance(requests, list) and len(requests) > SERVING_WEB_LIMITS['request_count']:
+        raise APIError(400, '网页 serving.requests 上限为 10000 条；更大请求 trace 请使用 CLI。输入未被修改。')
+    for key in ('max_batch_size', 'instance_count'):
+        value = serving.get(key)
+        if isinstance(value, int) and value > SERVING_WEB_LIMITS[key]:
+            raise APIError(400, f'网页 serving.{key} 上限为 {SERVING_WEB_LIMITS[key]}；更大实验请使用 CLI。输入未被修改。')
+    try:
+        parsed = ServingSpec.model_validate(serving).model_dump(mode='json')
+    except ValidationError as exc:
+        raise APIError(400, '服务调度配置校验失败', exc.errors(include_url=False, include_context=False, include_input=False)) from exc
+    execution = resolved['execution']
+    if resolved['workload']['scenario'] != 'inference':
+        raise APIError(400, 'serve 需要 inference 模型配置；训练场景请使用 simulate')
+    if execution['dp'] != 1:
+        raise APIError(400, 'serve 需要 DP=1；用 serving.instance_count 明确复制隔离硬件实例')
+    features = execution['features']
+    if features['speculative_decode']['enabled'] or features['prefill_decode_disaggregation']['enabled']:
+        raise APIError(400, 'serve 暂不支持 speculative_decode 或 prefill_decode_disaggregation 调度')
+    return resolved, parsed
+
+
 class JobManager:
     def __init__(self, output: str | Path):
         self.output = Path(output).resolve()
@@ -93,7 +129,7 @@ class JobManager:
                 job = _json_read(path)
                 if not isinstance(job, dict) or job.get('id') != path.parent.name:
                     continue
-                if job.get('status') not in ACTIVE | {'completed', 'failed', 'cancelled'} or job.get('mode') not in ('simulate', 'estimate'):
+                if job.get('status') not in ACTIVE | {'completed', 'failed', 'cancelled'} or job.get('mode') not in ('simulate', 'estimate', 'serve'):
                     continue
                 for field in ('created_at', 'started_at', 'finished_at'):
                     if field == 'created_at' or job.get(field):
@@ -133,6 +169,8 @@ class JobManager:
                              for p in sorted(directory.iterdir()) if p.is_file() and p.resolve().parent == directory
                              and p.name not in excluded and not p.name.endswith('.tmp')]
         view['config_url'] = f"/api/jobs/{job['id']}/config"
+        if job['mode'] == 'serve':
+            view['serving_url'] = f"/api/jobs/{job['id']}/serving"
         return view
 
     def get(self, job_id: str) -> dict:
@@ -144,10 +182,8 @@ class JobManager:
         with self.lock:
             return [self._view(job) for job in sorted(self.jobs.values(), key=lambda j: j['created_at'], reverse=True)]
 
-    def submit(self, config: dict, mode: str = 'simulate') -> dict:
-        config = validate_config(config)
-        if mode not in ('simulate', 'estimate'):
-            raise APIError(400, 'mode 必须是 simulate 或 estimate')
+    def submit(self, config: dict, mode: str = 'simulate', serving=None) -> dict:
+        config, serving = validate_inputs(config, mode, serving)
         with self.lock:
             if self.closed:
                 raise APIError(503, '服务正在关闭')
@@ -157,8 +193,13 @@ class JobManager:
             directory = self.output / job_id
             directory.mkdir()
             _atomic_json(directory / 'input.config.json', config)
+            if serving is not None:
+                _atomic_json(directory / 'input.serving.json', serving)
             job = {'id': job_id, 'status': 'queued', 'phase': 'queued', 'mode': mode, 'created_at': _now(),
                    'model_name': config['model']['name'], 'scenario': config['workload']['scenario'], 'logs': []}
+            if serving is not None:
+                job['serving_summary'] = {'request_count': len(serving['requests']),
+                    'instance_count': serving['instance_count'], 'max_batch_size': serving['max_batch_size']}
             self.jobs[job_id] = job
             self._log(job, '配置校验通过，等待启动计算进程')
             self._save(job)
@@ -200,7 +241,7 @@ class JobManager:
                     with self.lock:
                         if job['status'] == 'cancelled':
                             continue
-                        if progress['phase'] in ('validating', 'simulating', 'estimating', 'exporting', 'summarizing'):
+                        if progress['phase'] in ('validating', 'simulating', 'estimating', 'serving', 'exporting', 'summarizing'):
                             job['phase'] = progress['phase']
                         if progress['phase'] == 'failed':
                             job['error'] = progress.get('message', '计算失败')
@@ -284,6 +325,7 @@ class WebServer(ThreadingHTTPServer):
         self.manager = JobManager(output)
         self.static_dir = Path(static_dir or Path(__file__).parent / 'web_static').resolve()
         self.presets = {}
+        self.serving_presets = {}
         examples = Path(examples_dir or Path(__file__).resolve().parent.parent / 'examples')
         for path in sorted(examples.glob('*')):
             if path.suffix.lower() not in ('.json', '.yaml', '.yml'):
@@ -294,6 +336,12 @@ class WebServer(ThreadingHTTPServer):
                 self.presets[path.stem] = config
             except (OSError, ValueError, TypeError):
                 continue  # Sweep axes and calibration fragments are not runnable scenarios.
+        try:
+            model = self.presets['serving_synthetic_model']
+            model, serving = validate_inputs(model, 'serve', read_data(examples / 'serving_synthetic_requests.yaml'))
+            self.serving_presets['serving_synthetic'] = {'config': model, 'serving': serving}
+        except (KeyError, OSError, ValueError, TypeError, APIError):
+            pass  # Installed packages may omit repository examples.
         super().__init__(address, WebHandler)
 
     def server_close(self) -> None:
@@ -404,15 +452,20 @@ class WebHandler(BaseHTTPRequestHandler):
         if mutation:
             body = self._body()
             if path == '/api/validate':
-                config = validate_config(body.get('config'))
+                mode = body.get('mode', 'simulate')
+                config, serving = validate_inputs(body.get('config'), mode, body.get('serving'))
                 execution = config['execution']
-                self._json({'valid': True, 'config': config, 'summary': {
+                summary = {
                     'model': config['model']['name'], 'scenario': config['workload']['scenario'],
                     'npu_count': config['hardware']['npu_count'], 'su_size': config['hardware']['su_size'],
-                    'parallel_product': execution['tp'] * execution['ep'] * execution['pp'] * execution['dp']}})
+                    'parallel_product': execution['tp'] * execution['ep'] * execution['pp'] * execution['dp']}
+                if serving is not None:
+                    summary.update(request_count=len(serving['requests']), instance_count=serving['instance_count'],
+                                   total_npus=config['hardware']['npu_count'] * serving['instance_count'])
+                self._json({'valid': True, 'mode': mode, 'config': config, 'serving': serving, 'summary': summary})
                 return
             if path == '/api/jobs':
-                self._json(manager.submit(body.get('config'), body.get('mode', 'simulate')), 202)
+                self._json(manager.submit(body.get('config'), body.get('mode', 'simulate'), body.get('serving')), 202)
                 return
             if len(parts) == 4 and parts[:2] == ['api', 'jobs'] and parts[3] == 'cancel':
                 self._json(manager.cancel(parts[2]))
@@ -425,6 +478,17 @@ class WebHandler(BaseHTTPRequestHandler):
                                     'scenario': config['workload']['scenario'], 'model': config['model']['name'],
                                     'description': next((s.get('description', '') for s in config.get('sources', {}).values()), '')}
                                    for key, config in sorted(self.server.presets.items(), key=lambda pair: (priority.get(pair[0], 2), pair[0]))]})
+            return
+        if path == '/api/serving-presets':
+            self._json({'presets': [{'id': key, 'name': '请求级 FCFS 成批演示',
+                'model': value['config']['model']['name'], 'request_count': len(value['serving']['requests']),
+                'description': '合成到达请求与隔离硬件；固定成批，不是 continuous batching。'}
+                for key, value in self.server.serving_presets.items()], 'limits': SERVING_WEB_LIMITS})
+            return
+        if len(parts) == 3 and parts[:2] == ['api', 'serving-presets']:
+            if parts[2] not in self.server.serving_presets:
+                raise APIError(404, '服务预设不存在')
+            self._json(self.server.serving_presets[parts[2]])
             return
         if path == '/api/health':
             from . import __version__
@@ -443,6 +507,9 @@ class WebHandler(BaseHTTPRequestHandler):
         if path == '/api/schema':
             self._json(Config.model_json_schema())
             return
+        if path == '/api/serving-schema':
+            self._json({**ServingSpec.model_json_schema(), 'x-web-limits': SERVING_WEB_LIMITS})
+            return
         if path == '/api/jobs':
             self._json({'jobs': manager.list()})
             return
@@ -454,6 +521,11 @@ class WebHandler(BaseHTTPRequestHandler):
                 return
             if len(parts) == 4 and parts[3] == 'config':
                 self._json({'config': _json_read(directory / 'input.config.json')})
+                return
+            if len(parts) == 4 and parts[3] == 'serving':
+                if job['mode'] != 'serve' or not (directory / 'input.serving.json').is_file():
+                    raise APIError(404, '该任务没有服务调度快照')
+                self._json({'serving': _json_read(directory / 'input.serving.json')})
                 return
             if len(parts) == 4 and parts[3] == 'result':
                 if job['status'] != 'completed':

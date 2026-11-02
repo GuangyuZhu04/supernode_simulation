@@ -62,8 +62,25 @@ def _guarded(profile: dict) -> bool:
 
 
 def _same_declaration(left, right) -> bool:
-    # bool and integer IDs must not match merely because Python treats True == 1.
-    return json.dumps(left, sort_keys=True, allow_nan=False) == json.dumps(right, sort_keys=True, allow_nan=False)
+    """Compare JSON values without treating number formatting as a shape guard.
+
+    Browsers serialize 8.0 as 8. They are the same JSON number, whereas true
+    must remain distinct from 1. Array order and object keys stay exact.
+    """
+    if type(left) in (int, float) and type(right) in (int, float):
+        return (not (isinstance(left, float) and not math.isfinite(left))
+                and not (isinstance(right, float) and not math.isfinite(right))
+                and left == right)
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return (all(isinstance(key, str) for key in left)
+                and all(isinstance(key, str) for key in right)
+                and left.keys() == right.keys()
+                and all(_same_declaration(value, right[key]) for key, value in left.items()))
+    if isinstance(left, list):
+        return len(left) == len(right) and all(_same_declaration(a, b) for a, b in zip(left, right))
+    return left == right if left is None or type(left) in (str, bool) else False
 
 
 def _scope_mismatch(profile: dict, hardware: dict, metadata: dict) -> str | None:

@@ -14,7 +14,7 @@ python -m supernode_sim serve examples/serving_synthetic_model.yaml --serving ex
 python skills/supernode-modeling/scripts/analyze_inference_trace.py outputs/serving-example/token-trace.json -o outputs/serving-example/trace-check.json
 ```
 
-示例全部为 synthetic，不能用于 Ascend 实机误差声明。模型场景与服务负载分开输入；不能把服务字段塞进原严格 `Config`。当前网页只运行原 estimate/simulate，服务实验使用 CLI/API。
+示例全部为 synthetic，不能用于 Ascend 实机误差声明。模型场景与服务负载分开输入，不能把服务字段塞进原严格 `Config`。网页已支持“请求级服务”模式：独立请求编辑、成对示例、校验运行、双快照恢复以及服务指标/时间线；详见 [前端使用](frontend.md)。
 
 ## 参数与调度
 

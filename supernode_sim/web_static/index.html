@@ -47,7 +47,7 @@
               </div>
               <div class="form-section">
                 <h3><span class="form-icon">▦</span>硬件与并行</h3>
-                <div class="field-grid"><div><label for="npu-count">NPU 总数</label><input id="npu-count" type="number" min="1" step="1" data-path="hardware.npu_count"></div><div><label for="su-size">每 SU 卡数</label><input id="su-size" type="number" min="1" step="1" data-path="hardware.su_size"></div></div>
+                <div class="field-grid"><div><label id="npu-count-label" for="npu-count">NPU 总数</label><input id="npu-count" type="number" min="1" step="1" data-path="hardware.npu_count"></div><div><label for="su-size">每 SU 卡数</label><input id="su-size" type="number" min="1" step="1" data-path="hardware.su_size"></div></div>
 
                 <label for="topology-select">拓扑模板</label><select id="topology-select" data-path="hardware.topology"><option value="full_mesh">Full mesh · 全连接</option><option value="mesh">Mesh · 网格</option><option value="clos">Clos</option><option value="fat_tree">Fat tree · 胖树</option><option value="explicit">Explicit · 显式有向图</option></select>
                 <p id="explicit-topology-note" class="field-note" hidden>显式链路与设备成员固定。请在完整 JSON 中修改并重新校验拓扑；修改 NPU / SU 不会自动重建链路。</p>
@@ -97,11 +97,26 @@
                 <div class="inline-actions"><button id="apply-json" class="button small" type="button">应用并校验</button><button id="import-json" class="text-button" type="button">导入 JSON</button><button id="export-config" class="text-button" type="button">导出</button></div>
                 <input type="file" id="config-file" accept=".json,application/json" hidden>
               </details>
+              <section id="serving-editor" class="form-section serving-editor" hidden aria-labelledby="serving-editor-heading">
+                <h3 id="serving-editor-heading">请求到达与成批服务</h3>
+                <p class="field-note">FCFS 固定成批：整批结束后实例才接纳下一批。服务配置独立保存，不写入模型 Config。</p>
+                <button id="serving-example" type="button" class="button small">载入合成模型与请求示例</button>
+                <p id="serving-editor-status" class="field-note" role="status"></p>
+                <div class="field-grid"><div><label for="serving-instances">独立实例数</label><input id="serving-instances" type="number" min="1" max="128" step="1" data-serving-path="instance_count"></div><div><label for="serving-max-batch">每批请求上限</label><input id="serving-max-batch" type="number" min="1" max="1024" step="1" data-serving-path="max_batch_size"></div></div>
+                <div class="field-grid"><div><label for="serving-wait">最长成批等待 <span class="label-unit">ms</span></label><input id="serving-wait" type="number" min="0" step="any" data-serving-path="max_batch_wait_s" data-serving-scale="0.001"></div><div><label for="serving-overhead">每批调度开销 <span class="label-unit">ms</span></label><input id="serving-overhead" type="number" min="0" step="any" data-serving-path="scheduler_overhead_s" data-serving-scale="0.001"></div></div>
+                <div class="field-grid"><div><label for="serving-ttft">客户端 TTFT 上限 <span class="label-unit">ms</span></label><input id="serving-ttft" type="number" min="0" step="any" data-serving-path="slo.ttft_s" data-serving-scale="0.001" placeholder="未设置"></div><div><label for="serving-tpot">请求平均 TPOT 上限 <span class="label-unit">ms</span></label><input id="serving-tpot" type="number" min="0" step="any" data-serving-path="slo.tpot_s" data-serving-scale="0.001" placeholder="未设置"></div></div>
+                <p id="serving-resource-note" class="field-note"></p>
+                <div class="serving-request-toolbar"><strong>显式请求</strong><button id="serving-add-request" type="button" class="text-button">＋ 添加请求</button></div>
+                <p id="serving-request-count" class="field-note"></p>
+                <div class="serving-request-scroll" role="region" aria-label="服务请求编辑表（横向滚动）" tabindex="0"><table class="memory-matrix serving-request-editor-table"><thead><tr><th scope="col">ID</th><th scope="col">到达 / s</th><th scope="col">输入 tokens</th><th scope="col">输出 tokens</th><th scope="col">操作</th></tr></thead><tbody id="serving-request-rows"></tbody></table></div>
+                <button id="serving-more-requests" type="button" class="text-button" hidden>显示更多请求</button>
+                <details id="serving-json-details" class="serving-json-details"><summary>服务配置 JSON</summary><label class="sr-only" for="serving-json">完整服务配置 JSON</label><textarea id="serving-json" rows="12" spellcheck="false"></textarea><div class="inline-actions"><button id="apply-serving-json" type="button" class="button small">应用并校验</button><button id="discard-serving-json" type="button" class="text-button">放弃 JSON 草稿</button><button id="import-serving-json" type="button" class="text-button">导入</button><button id="export-serving-json" type="button" class="text-button">导出</button></div><input id="serving-file" type="file" accept=".json,application/json" hidden></details>
+              </section>
             </fieldset>
             </div>
             <div class="run-actions">
               <div class="form-section run-mode-control">
-                <label for="run-mode">执行模式</label><select id="run-mode"><option value="simulate">离散事件仿真</option><option value="estimate">解析估算 · 必要下界</option></select>
+                <label for="run-mode">执行模式</label><select id="run-mode"><option value="simulate">离散事件仿真</option><option value="estimate">解析估算 · 必要下界</option><option id="serve-mode-option" value="serve">请求级服务 · FCFS 成批</option></select>
                 <p id="mode-note" class="field-note">模拟依赖、资源争用与内存生命周期。</p>
               </div>
               <div id="validation-message" class="validation-message" role="status"></div>
@@ -134,8 +149,12 @@
             <div id="empty-results" class="card empty-state"><div class="empty-graphic" aria-hidden="true"><span></span><span></span><span></span><span></span><i></i></div><h3>下一次架构决策，从这次仿真开始</h3><p>运行后查看性能指标、通信流量、内存峰值与事件时间线。</p><div class="empty-pills"><span>性能与 SLO</span><span>SU / SO 流量</span><span>资源争用</span></div></div>
             <div id="result-content" hidden>
               <div id="result-context" class="result-context"></div>
+              <div class="result-snapshot-actions"><button id="restore-run-inputs" type="button" class="text-button">复制所选运行的完整输入到编辑区</button><span id="restore-run-status" class="subtle" role="status"></span></div>
               <div id="result-alert" class="notice" hidden role="status"></div>
               <div id="kpi-grid" class="kpi-grid"></div>
+              <section id="serving-results" class="card chart-card" hidden aria-labelledby="serving-results-heading"><div class="panel-heading"><h3 id="serving-results-heading">请求延迟与成批调度</h3><span class="mini-badge">FCFS · 固定成批</span></div><p id="serving-result-note" class="chart-caption"></p><div id="serving-percentiles" class="matrix-wrap"></div><div id="serving-goodput" class="serving-goodput"></div><h4>批次时间线</h4><p id="serving-timeline-note" class="chart-caption"></p><div id="serving-timeline" class="trace-chart"></div><h4>逐请求结果</h4><p id="serving-request-result-note" class="chart-caption"></p><div id="serving-request-results" class="matrix-wrap"></div></section>
+              <section id="training-accounting-panel" class="card chart-card" hidden aria-labelledby="training-accounting-heading"><div class="panel-heading"><h3 id="training-accounting-heading">训练计算量与峰值利用比例</h3><span class="mini-badge">FLOPs · 明确分子</span></div><div id="training-accounting-kpis" class="kpi-grid"></div><p id="training-accounting-note" class="chart-caption"></p><div id="training-role-chart" class="bar-chart"></div><div id="training-accounting-tables" class="matrix-wrap"></div></section>
+              <div id="ordinary-result-panels">
               <section class="card chart-card"><div class="panel-heading"><h3>TTFT / TPOT（TPOP）时延拆解</h3><span class="mini-badge">ms · 关键依赖路径</span></div><div id="latency-breakdown" class="matrix-wrap"></div><p id="latency-note" class="chart-caption"></p></section>
               <div class="result-card-grid">
                 <section class="card chart-card"><div class="panel-heading"><h3>通信流量</h3><span class="mini-badge">GB · 十进制</span></div><div class="chart-tabs" role="group" aria-label="通信统计视图"><button type="button" data-comm-view="physical_bytes_by_domain" class="selected" aria-pressed="true">物理链路域</button><button type="button" data-comm-view="payload_by_semantic_bytes" aria-pressed="false">应用语义</button><button type="button" data-comm-view="payload_by_collective_bytes" aria-pressed="false">Collective</button></div><div id="communication-chart" class="bar-chart"></div><p id="communication-note" class="chart-caption"></p></section>
@@ -143,6 +162,8 @@
               </div>
               <section class="card chart-card resource-card"><div class="panel-heading"><h3>资源利用率</h3><span id="resource-meta" class="subtle"></span></div><div id="resource-chart" class="resource-chart"></div><p class="chart-caption">使用引擎资源统计；解析估算不产生仿真利用率。</p></section>
               <section class="card chart-card trace-card"><div class="panel-heading"><h3>事件时间线</h3><div class="trace-legend"><span><i class="compute-color"></i>计算</span><span><i class="comm-color"></i>通信</span><span><i class="other-color"></i>其他</span></div></div><p id="trace-note" class="chart-caption"></p><div id="trace-chart" class="trace-chart"></div></section>
+              </div>
+              <section id="execution-evidence-panel" class="card chart-card" hidden aria-labelledby="execution-evidence-heading"><div class="panel-heading"><h3 id="execution-evidence-heading">执行粒度与校准证据</h3><select id="evidence-execution" aria-label="服务批次执行形状" hidden></select></div><p class="chart-caption">算子展开覆盖率表示建模细节；kernel / collective 命中表示计时记录适用范围。三者均不等于预测准确率。</p><div id="execution-evidence"></div><div id="operator-trace-events" class="matrix-wrap"></div></section>
               <section class="card insight-card"><details id="diagnostic-details"><summary>约束、假设与数据来源 <span id="diagnostic-count"></span></summary><div id="diagnostic-content"></div></details></section>
               <section class="card downloads-card"><div><h3>可复现的完整结果</h3><p>下载报告、配置与原始统计文件，继续分析或复现。</p></div><div id="artifact-links" class="artifact-links"></div></section>
             </div>
