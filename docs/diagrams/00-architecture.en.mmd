@@ -1,0 +1,44 @@
+flowchart TB
+    U["User: training / fixed-batch inference<br/>request-level serving / design search"] --> S["supernode-modeling<br/>Locate the environment, prepare configs,<br/>explain actual results"]
+    S --> LF["launch_frontend.py<br/>Preflight / reuse service / return inputs_url"]
+    LF --> W["Local Web input workbench<br/>Model / hardware / topology / parallelism / workload"]
+    U --> CLI["CLI / Python API"]
+    S --> TS["supernode-topology<br/>Topology spec → native hardware / scenario"]
+    TS --> C["Config: strict scenario and provenance<br/>Expand features / merge calibration"]
+    CLI --> C
+    W --> J["JobManager → isolated web_worker<br/>One active job, input snapshots,<br/>cancellation and history"]
+    J --> C
+    SS["Separate ServingSpec<br/>Arrivals / FCFS / instance count / serving SLO"] --> SV
+    C --> SV["simulate_serving()<br/>Relative clock, isolated instances,<br/>run per batch; Fig. 15"]
+    C --> SR["sweep / size_su / feedback<br/>Finite candidates, ordered_map multiprocessing;<br/>Figs. 10 / 12"]
+    C --> A["analysis.run()<br/>estimate / simulate"]
+    SV --> A
+    SR --> A
+    SR -->|applicable feedback candidates| L
+    C -->|separate Python API| L["run_streaming()<br/>Structured inference, DP=PP=1; Fig. 13"]
+    A --> G["compile_graph()<br/>PD → speculative → structured / parameter-budget graph"]
+    T["Topology + components + moe_wire<br/>Routes / shared I/O / tensor formulas / wire precision"] --> G
+    CC["collective_profiles / collective_models<br/>Environment and topology signatures,<br/>in-range interpolation; Fig. 17"] --> T
+    G --> D["Graph: Event / Resource / Allocation<br/>Dependencies, work, lifetimes and completion markers"]
+    D --> PP["Operator pipeline: expand trace → optional fusion → profile<br/>Identity / startup / HBM / workspace;<br/>Sections 5.5–5.8 and Fig. 16"]
+    OPINPUT["kernel_traces + kernel_profiles<br/>Separate operator sequences from timing evidence;<br/>optional NPUSim CA import"] --> PP
+    PP --> E["graph_estimate()<br/>Necessary performance lower bounds<br/>and resident memory"]
+    E -->|simulate| X["engine.simulate()<br/>Dependencies / slots / memory admission /<br/>max-min resource sharing; Fig. 8"]
+    E -->|estimate| R["Metrics / SLO / memory accounting<br/>latency_breakdown / training_accounting;<br/>Figs. 9 / 18"]
+    X -->|full-graph records| R
+    R --> O["write_report()<br/>JSON / Markdown / CSV / timeline"]
+    SR --> FO["feedback_report / search reports<br/>Candidates, failure diagnostics,<br/>best config within the finite set"]
+    L --> SB["Same Builder, graph construction at barriers<br/>Ordinary or native draft / verify / commit hooks"]
+    T --> SB
+    SB --> CK["Per-chunk trace expansion and kernel calibration<br/>Budgeted caches and actual capacity checks"]
+    CK -->|cache miss or capacity mismatch| X
+    CK --> Q["Streaming summary<br/>Phase / tokens / latency attribution / resources / peaks"]
+    X -->|chunk records| Q
+    SV --> SO["write_serving_report()<br/>Two configs / requests.csv / token-trace.json"]
+    O --> UI["Bounded Web summaries<br/>compact_result / compact_serving_result"]
+    SO --> UI
+    UI --> DLV["User / Skill reads results and reproducible configs<br/>Metric definitions, provenance, assumptions<br/>and coverage saved with results"]
+    O --> DLV
+    SO --> DLV
+    FO --> DLV
+    Q --> DLV

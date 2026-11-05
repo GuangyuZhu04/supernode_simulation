@@ -1,0 +1,39 @@
+flowchart TB
+    subgraph INPUT["1 · 编排与输入契约"]
+        SK["Skill / CLI / Web<br/>组织配置、选择证据、读取结果"] --> CFG["Config<br/>模型形状 + workload + 并行布局 + 硬件 / 拓扑"]
+        TR["kernel_traces<br/>组件身份 → 有序子算子、M/N/K、启动、HBM、workspace"]
+        KP["kernel_profiles<br/>子算子独占服务时间 + 适用条件 + evidence_kind"]
+        NP["外部 NPUSim CA 报告 + manifest<br/>单 launch、实现身份、全活跃核、环境"] --> IMP["npu_sim.build_calibration()<br/>校验并生成 profile；不运行 NPUSim"]
+        IMP --> KP
+    end
+    subgraph COMPILE["2 · 模型编译与算子细化"]
+        CFG --> B["components / kernel_workload / Builder<br/>组件公式、phase、workload_shape、TP/EP/SP"]
+        B --> PARENT["父组件事件<br/>Dense / GQA / MLA / MoE 等<br/>FLOPs、HBM bytes、依赖与状态生命周期"]
+        PARENT --> TRACE["apply_kernel_traces()<br/>精确匹配 → 串行子算子 → 原 ID 完成点"]
+        TR --> TRACE
+        TRACE --> FUSE["可选 apply_megakernel()<br/>仅完整图的合法局部链"]
+        FUSE --> CAL["apply_kernel_profiles()<br/>精确工作量与环境 / 实现匹配<br/>未命中保留解析资源模型"]
+        KP --> CAL
+        CFG --> NET["Topology.collective() / transfer()<br/>TP / EP / PP / FSDP → 真实路径与共享资源<br/>collective profile/model 独立校准；图 7 / 17"]
+    end
+    subgraph IR["3 · 统一 Graph：计算与通信共同执行"]
+        CAL --> EV["Event<br/>deps / work / startup_s / slots<br/>allocs / releases / metadata"]
+        NET --> EV
+        RS["Resource：FLOP/s、HBM / 链路 byte/s<br/>Graph.memory_caps：HBM / DRAM 容量<br/>slot：compute stream 等互斥约束"] --> EV
+        EV --> ENG["engine.simulate()<br/>依赖就绪 → slot 与内存准入 → 启动<br/>max-min 共享速率 → 完成与释放"]
+    end
+    subgraph OUTPUT["4 · 从算子时序回到业务指标"]
+        ENG --> REC["trace / resource_work / memory log<br/>保留父子追踪、阶段、算子与来源"]
+        REC --> MET["step time / TTFT / TPOT<br/>关键依赖路径 + 计算 / 通信 / 等待归因"]
+        REC --> AUDIT["展开覆盖 / 校准覆盖 / evidence_kind<br/>HBM 访问、workspace 峰值、跳过原因"]
+        MET --> REPORT["JSON / CSV / timeline / 报告<br/>与未参与校准的同条件观测比较"]
+        AUDIT --> REPORT
+    end
+    classDef input fill:#eef4ff,stroke:#5375a8,color:#172b4d
+    classDef compile fill:#eef8f3,stroke:#4d8c70,color:#183c2c
+    classDef runtime fill:#fff5e6,stroke:#bd8535,color:#53370f
+    classDef output fill:#f4effa,stroke:#8e6aaa,color:#362044
+    class SK,CFG,TR,KP,NP,IMP input
+    class B,PARENT,TRACE,FUSE,CAL,NET compile
+    class EV,RS,ENG runtime
+    class REC,MET,AUDIT,REPORT output

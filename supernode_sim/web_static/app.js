@@ -351,7 +351,7 @@ function formatTime(value, timeOnly = false) {
 }
 async function refreshHistory() {
   try {
-    const data = await api('/api/jobs'); state.history = data.jobs || []; renderHistory();
+    const data = await api('/api/jobs'); state.history = (data.jobs || []).filter(job => job.mode !== 'pod_dflash'); renderHistory();
   } catch (error) { empty($('#history-list'), errorText(error)); }
 }
 function renderHistory() {

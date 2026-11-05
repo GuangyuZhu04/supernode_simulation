@@ -13,7 +13,7 @@ from .config import Config
 from .core import Allocation, Graph
 from .engine import simulate as simulate_graph
 from .topology import Topology
-from .calibration import apply_kernel_profiles
+from .calibration import apply_kernel_profiles, evidence_kind_counts
 from .operator_trace import apply_kernel_traces
 from .collective_calibration import collective_calibration_summary, summarize_collective_calibration
 from .components import inventory_summary
@@ -24,15 +24,22 @@ from .training_accounting import training_accounting
 
 
 def model_fidelity(config: Config, calibration: dict, collective_calibration: dict | None = None) -> dict:
-    """Report matched timing evidence without claiming serving validation."""
+    """Report timing evidence without treating simulator predictions as measurements."""
     collective_calibration = collective_calibration or collective_calibration_summary()
 
     def performance(kernels, collectives):
-        kernel = bool(kernels.get('matched_events'))
+        evidence = evidence_kind_counts(kernels)
+        # Preserve legacy profile labels, while explicitly separating their
+        # unspecified evidence from declared hardware measurements below.
+        kernel = bool(evidence['measurement'] or evidence['unspecified'])
         collective = bool(collectives.get('matched_collectives'))
-        return ('partially_kernel_and_collective_calibrated' if kernel and collective
-                else 'partially_kernel_calibrated' if kernel
-                else 'partially_collective_calibrated' if collective else 'uncalibrated')
+        if kernel or collective:
+            return ('partially_kernel_and_collective_calibrated' if kernel and collective
+                    else 'partially_kernel_calibrated' if kernel
+                    else 'partially_collective_calibrated')
+        return ('simulator_and_synthetic_profiled' if evidence['simulator'] and evidence['synthetic']
+                else 'simulator_profiled' if evidence['simulator']
+                else 'synthetic_profiled' if evidence['synthetic'] else 'uncalibrated')
 
     return {
         'parameter_capacity': 'shape_derived' if config.model.architecture else 'declared_budget',
@@ -42,6 +49,8 @@ def model_fidelity(config: Config, calibration: dict, collective_calibration: di
             phase: performance(calibration['by_phase'].get(phase, {}),
                                collective_calibration['by_phase'].get(phase, {}))
             for phase in sorted(set(calibration['by_phase']) | set(collective_calibration['by_phase']))},
+        'kernel_timing_evidence': evidence_kind_counts(calibration),
+        'kernel_measurement_matched_events': evidence_kind_counts(calibration)['measurement'],
         'timing_scope': ('fixed_batch_model_execution' if config.workload.scenario == 'inference'
                          else 'training_execution'),
         'serving_performance': 'not_validated' if config.workload.scenario == 'inference' else 'not_applicable',

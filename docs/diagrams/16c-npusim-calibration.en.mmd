@@ -1,0 +1,19 @@
+flowchart TB
+    subgraph OFFLINE["C · Offline preparation and import"]
+        CFG["Scenario with expanded suboperators<br/>implementation: shape / format / dtype<br/>tiling_key / block_dim / binary_sha256"] --> TARGET["npu_sim.list_targets() / --list<br/>Select a unique target<br/>and its complete metadata_match"]
+        SUM["External single-launch summary.json<br/>Actual CA report or explicitly synthetic fixture<br/>This project does not run CANN / NPUSim"] --> ANALYZE["analyze_summary()<br/>kernel_total_clocks / frequency_ghz / 1e9<br/>Retain pipeline / bandwidth diagnostics"]
+        TARGET --> MAN["manifest: target + full environment<br/>mode=ca, correctness=passed,<br/>all_active_cores<br/>Summary hash, version, command, evidence kind"]
+        ANALYZE --> BUILD["npu_sim.build_calibration()<br/>Check hash, core count, identity,<br/>environment and unique match;<br/>kernel profile then checks physical lower bounds"]
+        MAN --> BUILD
+        BUILD --> VALID{"Valid conditions and<br/>timing boundary?"}
+        VALID -->|no| FAIL["Reject import<br/>PV, unexpanded components,<br/>missing identity or false measurement labels"]
+        VALID -->|yes| PKG["Output kernel_profiles + import report<br/>duration_s excludes outer startup;<br/>preserve evidence_kind"]
+    end
+    subgraph RUN["Runtime: timing and resources"]
+        PKG --> MERGE["Merge existing profiles → Config validation<br/>analysis.run() → apply_kernel_profiles()"]
+        MERGE --> EVENT["Same suboperator Event<br/>Compute FLOPs + HBM bytes + timing resource<br/>Retain compute slot, workspace and dependencies"]
+        EVENT --> SIM["engine.simulate()<br/>Solo service time is at least the imported window;<br/>shared HBM contention can extend it"]
+        SIM --> OUT["Check matches, provenance, work and peaks<br/>Then inspect full step / TTFT / TPOT"]
+    end
+    EX["Repository synthetic fixture<br/>100,000 clocks / 2.0 GHz = 50 μs<br/>Only dense.down.dgrad calibrated;<br/>1 match"] -.-> PKG
+    OUT --> RESULT["Synthetic rerun: training step<br/>766.949204 → 808.757204 μs<br/>HBM work, peak and final memory preserved<br/>synthetic_profiled; no hardware-accuracy claim"]

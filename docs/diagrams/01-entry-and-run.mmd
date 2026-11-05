@@ -3,11 +3,12 @@ flowchart TD
     MAIN --> CMD{"内部：命令类型"}
     CMD -->|web| WEB["web.main() → create_server()<br/>见图 14"]
     CMD -->|serving-schema| SSCHEMA["ServingSpec.model_json_schema()"]
+    CMD -->|list-features| FEATURES["feature_catalog() → 能力清单"]
     CMD -->|schema| SCHEMA["Config.model_json_schema() → 写出 schema"]
     CMD -->|import-hf| HF["import_hf_config() → read_data()<br/>模型片段 + missing_fields"]
-    CMD -->|其余命令| LOAD["load_config() → read_data()<br/>可选校准 deep_merge() → Config.model_validate()"]
+    CMD -->|其余命令| LOAD["load_config() → read_data()<br/>可选校准 deep_merge() → features 规范化<br/>Config.model_validate()"]
     LOAD --> SUB{"内部：命令分派"}
-    SUB -->|serve| SERVE["simulate_serving()<br/>arrival → FCFS 成批 → 每批 analysis.run()<br/>相对时钟与请求指标 → write_serving_report()"]
+    SUB -->|serve| SERVE["simulate_serving()<br/>独立 ServingSpec → FCFS 成批 → 每批 run()<br/>相对时钟与请求指标；见图 15"]
     SUB -->|validate| VALID["返回 valid；不构图"]
     SUB -->|feedback| FB["FeedbackSpec.model_validate() → feedback()<br/>见图 12"]
     SUB -->|sweep / size-su| SEARCH["sweep() / size_su()<br/>见图 10"]
@@ -26,12 +27,12 @@ flowchart TD
     INFER --> TRACE
     PD --> TRACE
     SPEC --> TRACE
-    FUSE --> CAL["apply_kernel_profiles()<br/>内部：assumptions / fidelity / feature_plan"]
+    FUSE --> CAL["apply_kernel_profiles()；见图 16<br/>汇总 collective 校准 / fidelity / feature_plan"]
     CAL --> EST["graph_estimate(graph)<br/>DAG 与资源下界、驻留容量、通信总量"]
     EST --> REQ["device_requirements()<br/>内部：快照、SHA-256、目标窗口、requirements"]
     REQ --> MODE{"内部：mode == simulate？"}
     MODE -->|是| SIM["engine.simulate(graph, retain_event_payload)<br/>analysis 中别名 simulate_graph"]
-    SIM --> MET["execution_metrics() → evaluate_targets()<br/>内部：汇总最终 status"]
+    SIM --> MET["execution_metrics() → evaluate_targets()<br/>时延拆解 / 训练账本；见图 18"]
     MODE -->|否| MEM["build_memory_breakdown()<br/>见图 9"]
     MET --> MEM
     MEM --> RESULT["run() 返回结果字典"]

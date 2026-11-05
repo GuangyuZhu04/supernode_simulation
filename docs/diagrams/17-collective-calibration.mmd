@@ -1,0 +1,21 @@
+flowchart TD
+    INPUT["目标环境的独立观测<br/>硬件 / calibration_context / scope / peer 矩阵"] --> BUILD["build_runtime_calibration.py<br/>按条件分组，训练观测取中位数<br/>验证点不参与曲线与范围"]
+    BUILD --> CONFIG["各环境独立 hardware 校准片段<br/>collective_models + 来源 / 采样范围"]
+    CONFIG --> RUNTIME["实际构图中的 collective<br/>kind / semantic / phase / dtype / algorithm"]
+    RUNTIME --> SCOPE["MoE：select_collective_timing_scope()<br/>优先可用 activation_collective，否则 transport"]
+    SCOPE --> PHYSICAL["保留 pack / 路径传输 / unpack<br/>按所选 scope 仅应用一层计时"]
+    PHYSICAL --> COMPLETE["Topology.complete_collective_profile()<br/>apply_collective_profile()"]
+    COMPLETE --> EXACT["match_collective_profile()<br/>精确工作量与适用签名优先"]
+    EXACT --> EFOUND{"有适用 exact profile？"}
+    EFOUND -->|是| TIMER["内部：加入服务时间约束<br/>不删除流量、buffer、slot 或资源争用"]
+    EFOUND -->|否| MODEL["match_collective_model() / _match_collective_model()<br/>硬件 / 环境 / 路由 / 物理 ranks<br/>peer 比例 / shape-format / scope"]
+    MODEL --> MATCH{"同条件且 payload 在已测范围？"}
+    MATCH -->|采样点| POINT["exact model：使用该点时长"]
+    MATCH -->|区间内| INTERP["interpolated：相邻点线性插值"]
+    MATCH -->|不匹配或范围外| FALLBACK["保留解析执行<br/>unmatched / out_of_range；不外推"]
+    POINT --> TIMER
+    INTERP --> TIMER
+    TIMER --> EXEC["原 engine.simulate()<br/>物理执行与服务时间约束均完成才可继续"]
+    FALLBACK --> EXEC
+    EXEC --> SUMMARY["summarize_collective_calibration()<br/>exact / interpolated / out_of_range<br/>physical_limited / unmatched_reasons"]
+    SUMMARY --> VALIDATION["留出比较与完整 TTFT / TPOT 检查<br/>覆盖率、模型检查与实测误差分别报告"]

@@ -335,12 +335,15 @@ class KernelProfile(Spec):
     calibration_context: dict[str, StrictStr] = Field(default_factory=dict)
     metadata_match: dict[str, Any] = Field(default_factory=dict)
     source: str | None = Field(default=None, min_length=1)
+    evidence_kind: Literal['measurement', 'simulator', 'synthetic', 'unspecified'] = 'unspecified'
+    provenance: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode='after')
     def applicability(self):
         if self.calibration_context:
             validate_calibration_context(self.calibration_context, require_complete=True)
         validate_json_metadata(self.metadata_match)
+        validate_json_metadata(self.provenance)
         return self
 
 
@@ -358,11 +361,14 @@ class KernelTraceOperation(Spec):
     startup_s: float = Field(default=0.0, ge=0)
     workspace_bytes: float = Field(default=0.0, ge=0)
     matmul: MatmulShape | None = None
+    implementation: dict[str, Any] = Field(default_factory=dict,
+        description='Explicit kernel binary, tiling and tensor layout identity; never inferred from FLOPs.')
 
     @model_validator(mode='after')
     def explicit_work(self):
         if not self.kernel.strip():
             raise ValueError('kernel trace operation kernel must be nonempty')
+        validate_json_metadata(self.implementation)
         if self.matmul is not None:
             shape = self.matmul
             expected = 2 * shape.batch * shape.m * shape.n * shape.k

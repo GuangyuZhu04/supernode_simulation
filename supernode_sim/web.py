@@ -82,6 +82,14 @@ def validate_config(value) -> dict:
 
 def validate_inputs(config, mode='simulate', serving=None) -> tuple[dict, dict | None]:
     """Validate HTTP-only budgets before invoking the engine's strict schemas."""
+    if mode == 'pod_dflash':
+        from .case_studies.v41_fp4 import CaseConfig
+        if serving is not None:
+            raise APIError(400, 'POD / DFlash 案例不接受 serving 调度参数')
+        try:
+            return CaseConfig.model_validate(config).model_dump(mode='json'), None
+        except ValidationError as exc:
+            raise APIError(400, '案例配置校验失败', exc.errors(include_url=False, include_context=False, include_input=False)) from exc
     if mode not in ('simulate', 'estimate', 'serve'):
         raise APIError(400, 'mode 必须是 simulate、estimate 或 serve')
     if mode != 'serve' and serving is not None:
@@ -129,7 +137,7 @@ class JobManager:
                 job = _json_read(path)
                 if not isinstance(job, dict) or job.get('id') != path.parent.name:
                     continue
-                if job.get('status') not in ACTIVE | {'completed', 'failed', 'cancelled'} or job.get('mode') not in ('simulate', 'estimate', 'serve'):
+                if job.get('status') not in ACTIVE | {'completed', 'failed', 'cancelled'} or job.get('mode') not in ('simulate', 'estimate', 'serve', 'pod_dflash'):
                     continue
                 for field in ('created_at', 'started_at', 'finished_at'):
                     if field == 'created_at' or job.get(field):
@@ -195,8 +203,13 @@ class JobManager:
             _atomic_json(directory / 'input.config.json', config)
             if serving is not None:
                 _atomic_json(directory / 'input.serving.json', serving)
+            if mode == 'pod_dflash':
+                from .case_studies.v41_fp4 import NAME
+                model_name, scenario = NAME, 'inference'
+            else:
+                model_name, scenario = config['model']['name'], config['workload']['scenario']
             job = {'id': job_id, 'status': 'queued', 'phase': 'queued', 'mode': mode, 'created_at': _now(),
-                   'model_name': config['model']['name'], 'scenario': config['workload']['scenario'], 'logs': []}
+                   'model_name': model_name, 'scenario': scenario, 'logs': []}
             if serving is not None:
                 job['serving_summary'] = {'request_count': len(serving['requests']),
                     'instance_count': serving['instance_count'], 'max_batch_size': serving['max_batch_size']}
@@ -454,6 +467,13 @@ class WebHandler(BaseHTTPRequestHandler):
             if path == '/api/validate':
                 mode = body.get('mode', 'simulate')
                 config, serving = validate_inputs(body.get('config'), mode, body.get('serving'))
+                if mode == 'pod_dflash':
+                    from .case_studies.v41_fp4 import CaseConfig, NAME
+                    spec = CaseConfig.model_validate(config)
+                    self._json({'valid': True, 'mode': mode, 'config': config, 'summary': {
+                        'model': NAME, 'npu_count': spec.cards, 'su_size': spec.cards,
+                        'dp': spec.dp, 'parallel_product': spec.tp * spec.ep * spec.dp}})
+                    return
                 execution = config['execution']
                 summary = {
                     'model': config['model']['name'], 'scenario': config['workload']['scenario'],
@@ -471,6 +491,10 @@ class WebHandler(BaseHTTPRequestHandler):
                 self._json(manager.cancel(parts[2]))
                 return
             raise APIError(404, '接口不存在')
+        if path == '/api/case-presets':
+            from .case_studies.v41_fp4 import catalog
+            self._json(catalog())
+            return
         if path == '/api/presets':
             priority = {'demo_inference': 0, 'demo_training': 1}
             names = {'demo_inference': 'MoE 推理演示', 'demo_training': '稠密模型训练演示'}

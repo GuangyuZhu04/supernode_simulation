@@ -1,0 +1,20 @@
+flowchart TD
+    ENTRY["完整构图 / streaming chunk<br/>组件公式已生成父 Event"] --> SHAPE["读取真实事件身份<br/>kernel / phase / dtype / FLOPs / HBM bytes<br/>结构签名、workload_shape、TP/EP/SP"]
+    SHAPE --> TRACE["apply_kernel_traces()<br/>匹配 hardware.kernel_traces"]
+    TRACE --> MATCH{"唯一命中且是本地 compute/HBM 事件？"}
+    MATCH -->|未命中或不支持| ORIGINAL["保留父事件解析路径<br/>记录 no_trace / shape-scope / resource 等原因"]
+    MATCH -->|多条命中| ERROR["报错；修正配置后重跑"]
+    MATCH -->|是| CHECK["已由 Config 校验拆分契约<br/>子 FLOPs 总和 = 父 FLOPs；HBM 总量不减少<br/>GEMM FLOPs = 2 × batch × M × N × K"]
+    CHECK --> EXPAND["展开 op0 → op1 → ... → 原 ID 完成点<br/>首项启动 = 父启动 + op0 启动<br/>后续启动 = 各自新增启动"]
+    EXPAND --> LIFE["首项承接父 allocations<br/>各 op 局部 workspace 在结束时释放<br/>原 releases 留在完成点；后继依赖仍指向原 ID"]
+    LIFE --> FUSE["完整图：可选 apply_megakernel()<br/>streaming：不支持融合；继续 profile"]
+    ORIGINAL --> FUSE
+    FUSE --> PROFILE["apply_kernel_profiles()<br/>对子算子或未拆分事件匹配<br/>工作量 + 可选 phase / dtype / 环境 / metadata"]
+    PROFILE --> PMATCH{"profile 命中与物理下界检查"}
+    PMATCH -->|歧义或快于物理下界| ERROR
+    PMATCH -->|未命中| ANALYTIC["解析服务时间<br/>无争用：startup + max(F/P_eff, B/BW_eff)"]
+    PMATCH -->|命中| TIMING["保留 FLOPs / HBM 工作量与 compute slot<br/>compute 资源改为该 dtype 峰值速率<br/>新增独立 kernel timing resource：duration_s<br/>startup_s 有值则替换，不与 duration 混算"]
+    ANALYTIC --> EXEC["全图：graph_estimate() → 可选 simulate()<br/>streaming：逐块容量复核 / 缓存或同一 simulate()"]
+    TIMING --> EXEC
+    EXEC --> SCHED["运行时：依赖 → slot / 内存准入 → 启动<br/>max_min_rates() → 完成 / 释放<br/>通信事件共享 HBM / 链路；详见图 8"]
+    SCHED --> RESULT["完成标记 → step time / TTFT / TPOT<br/>operator_trace / kernel_calibration 覆盖与证据<br/>resource_work、内存峰值、关键路径拆解"]

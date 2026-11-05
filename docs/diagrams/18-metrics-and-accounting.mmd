@@ -1,0 +1,20 @@
+flowchart TD
+    ENTRY["analysis.run() / 完整流式摘要"] --> VALID{"完整可行执行且指标适用？"}
+    VALID -->|否| UNAVAILABLE["推理时延 / 训练利用率不可用<br/>保留 null / 原因；不补零"]
+    VALID -->|是| METRIC["execution_metrics()<br/>读取 token / step 完成标记"]
+    METRIC --> SCENARIO{"场景"}
+    SCENARIO -->|inference| REQUEST["内部：每请求 TTFT、平均 TPOT / ITL<br/>聚合分别取最慢请求；TPOP 为别名"]
+    REQUEST --> STREAM{"已有 streaming 拆解？"}
+    STREAM -->|是| REUSE["读取逐块累计的 latency_breakdown"]
+    STREAM -->|否| BREAKDOWN["build_latency_breakdown()<br/>_WindowAttributor.window()"]
+    BREAKDOWN --> PATH["沿关键依赖路径与 token 间隔归因<br/>compute / node / SU / SO / other communication<br/>sync / slot / memory wait / contention / other"]
+    PATH --> MEAN["mean_breakdowns() 平均请求各 decode 间隔<br/>TTFT 与 TPOT 分别选决定聚合指标的请求"]
+    REUSE --> TARGET["evaluate_targets()<br/>时延 / 吞吐 / step time 与目标比较"]
+    MEAN --> TARGET
+    SCENARIO -->|training| ACCOUNT["training_accounting()<br/>扫描实际 compute FLOP 资源<br/>识别 trace 原组件和融合成员"]
+    ACCOUNT --> ROLE["_model_work() / _optimizer_work()<br/>分开模型 F+B / recompute / optimizer / auxiliary<br/>CPU 单独统计"]
+    ROLE --> DTYPE["内部：按 dtype 的声明裸峰值归一<br/>model_mfu 仅模型 F+B<br/>executed_compute_utilization 包括全部 NPU 工作"]
+    DTYPE --> TARGET
+    TARGET --> RESULT["metrics + slo + status<br/>再做内存账本与报告；图 9"]
+    UNAVAILABLE --> RESULT
+    RESULT --> CSV["write_latency_csv() / 报告 / Web<br/>JSON/CSV 用秒，展示用毫秒<br/>服务排队指标由图 15 单独计算"]

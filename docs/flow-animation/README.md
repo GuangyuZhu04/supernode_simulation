@@ -1,5 +1,7 @@
 # 交互式仿真示意
 
+当前 skill 与引擎的架构、能力边界和函数流程见 [整体架构图](../simulation-architecture.md) 与 [18 张函数级流程图](../simulation-function-flows.md)。
+
 本目录保存此前更新的四个 HTML 示意文件，原文件来自本地 `outputs/flow-animation/`；保留原始页面内容，便于随代码一起版本管理。
 
 | 文件 | 内容 |

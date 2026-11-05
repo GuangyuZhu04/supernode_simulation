@@ -35,6 +35,7 @@ python -m supernode_sim schema
 
 - 配置、来源、单位、CLI：读 [configuration.md](references/configuration.md)。
 - 借鉴其他仿真器、提高训练/推理执行粒度：读 [参考程序映射](references/reference-simulators.md) 和 [子算子执行描述](references/operator-traces.md)。使用 `hardware.kernel_traces` 将有依据的组件展开为串行子算子，再按实际子算子 profile 校准；同时核对阶段、矩阵维度和逐请求长度分布，不将更细粒度或 synthetic 检查称为实测精度提升。
+- 用户提供 NPUSim/cannsim 报告、引用 CANN 算子仿真或要求改进算子级时序：读 [NPU 算子仿真接入](references/npu-simulator.md)。用 `build_npu_sim_calibration.py` 检查并将单 launch CA summary 绑定到有 shape、tiling、layout 和 binary 身份的已展开子算子；保留 HBM 争用与内核流水重叠，区分 simulator、synthetic 和硬件实测，不把 PV 功能结果当作性能校准。
 - 用户指定 msModeling/ServingCast 或请求到达、排队、多实例服务指标：读 [ServingCast 源码映射](references/msmodeling-servingcast.md) 与 [服务仿真](references/serving.md)，使用独立 `serve`。当前是隔离实例的 FCFS 固定成批；continuous batching、token budget、抢占和异构 PD 队列尚未实现，不能由固定 batch 结果乘并发数替代。
 - 用户指定 SimuMax-Zhanlu、TorchTitan 仿真或训练 MFU：读 [湛卢训练参考](references/zhanlu-training.md)，检查 `metrics.training_accounting` 的阶段、dtype 与分子。额外重算、optimizer、通信打包不可无说明混进模型 MFU。
 - 选择训练/推理加速特性、megakernel、PD 分离、DSpark、CSA/HCA/KDA 或对比 feature 开关：读 [features.md](references/features.md)，使用顶层 `features` 或 `--features` 文件；先运行 `list-features` 查看当前支持范围。DeepInfer 式小 P / 大 D、分阶段 batch 和相关优化另读 [deepinfer.md](references/deepinfer.md)。

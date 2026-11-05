@@ -1,4 +1,4 @@
-"""Exact-work measured kernel timing, preserving shared memory contention."""
+"""Exact-work, evidence-scoped kernel timing with shared memory contention."""
 from __future__ import annotations
 
 import math
@@ -13,8 +13,21 @@ CALIBRATION_POLICY = (
     'Unspecified tensor shape or runtime identity is not inferred; legacy profiles are unguarded. '
     'duration_s excludes startup; an explicit startup_s replaces event startup. '
     'Physical contention remains active. Coverage counts modeled kernel events, including cached replay, '
-    'not elapsed time; kernel matches do not validate end-to-end serving performance.'
+    'not elapsed time; kernel matches do not validate end-to-end serving performance. '
+    'Evidence kinds distinguish hardware measurements, simulator predictions, synthetic timings '
+    'and legacy unspecified records; provenance is a caller declaration, not independent verification.'
 )
+
+EVIDENCE_KINDS = ('measurement', 'simulator', 'synthetic', 'unspecified')
+
+
+def evidence_kind_counts(summary: dict) -> dict[str, int]:
+    """Read current counts or preserve the identity of legacy cached summaries."""
+    counts = summary.get('evidence_kind_counts')
+    if counts is None:
+        return {kind: summary.get('matched_events', 0) if kind == 'unspecified' else 0
+                for kind in EVIDENCE_KINDS}
+    return {kind: counts.get(kind, 0) for kind in EVIDENCE_KINDS}
 
 
 def model_shape_signature(model: dict) -> str:
@@ -29,7 +42,8 @@ def calibration_summary() -> dict:
     return {'eligible_events': 0, 'matched_events': 0, 'unmatched_events': 0,
             'guarded_matched_events': 0, 'unguarded_matched_events': 0, 'scope_mismatched_events': 0,
             'coverage_fraction': 0.0, 'unmatched_kernels': [], 'unprofiled_kernels': [],
-            'scope_mismatch_reasons': {}, 'by_phase': {}, 'policy': CALIBRATION_POLICY}
+            'scope_mismatch_reasons': {}, 'by_phase': {},
+            'evidence_kind_counts': dict.fromkeys(EVIDENCE_KINDS, 0), 'policy': CALIBRATION_POLICY}
 
 
 def _coverage(counts: dict) -> None:
@@ -40,6 +54,10 @@ def _coverage(counts: dict) -> None:
 
 def merge_calibration_summaries(target: dict, source: dict) -> None:
     """Accumulate represented events, including chunks replayed from a macro."""
+    target_evidence = evidence_kind_counts(target)
+    source_evidence = evidence_kind_counts(source)
+    target['evidence_kind_counts'] = {kind: target_evidence[kind] + source_evidence[kind]
+                                      for kind in EVIDENCE_KINDS}
     count_keys = ('eligible_events', 'matched_events', 'guarded_matched_events',
                   'unguarded_matched_events', 'scope_mismatched_events')
     for key in count_keys:
@@ -48,6 +66,10 @@ def merge_calibration_summaries(target: dict, source: dict) -> None:
         target[key] = sorted(set(target[key]) | set(source[key]))
     for phase, counts in source['by_phase'].items():
         combined = target['by_phase'].setdefault(phase, {'eligible_events': 0, 'matched_events': 0})
+        combined_evidence = evidence_kind_counts(combined)
+        phase_evidence = evidence_kind_counts(counts)
+        combined['evidence_kind_counts'] = {
+            kind: combined_evidence[kind] + phase_evidence[kind] for kind in EVIDENCE_KINDS}
         for key in count_keys:
             combined[key] = combined.get(key, 0) + counts.get(key, 0)
         _coverage(combined)
@@ -113,7 +135,8 @@ def apply_kernel_profiles(graph: Graph, config: dict) -> None:
         phase = str(event.metadata.get('phase') or 'unspecified')
         phase_counts = summary['by_phase'].setdefault(phase, {
             'eligible_events': 0, 'matched_events': 0, 'guarded_matched_events': 0,
-            'unguarded_matched_events': 0, 'scope_mismatched_events': 0})
+            'unguarded_matched_events': 0, 'scope_mismatched_events': 0,
+            'evidence_kind_counts': dict.fromkeys(EVIDENCE_KINDS, 0)})
         phase_counts['eligible_events'] += 1
         if kernel not in profiles:
             unprofiled.add(kernel)
@@ -165,9 +188,14 @@ def apply_kernel_profiles(graph: Graph, config: dict) -> None:
             'startup_s': event.startup_s, 'startup_calibrated': startup is not None,
             'applicability_guard': 'guarded' if _guarded(profile) else 'unguarded_legacy',
             'guard_fields': [field for field in ('hardware_name', 'calibration_context', 'metadata_match') if profile.get(field)],
-            'source': profile.get('source')}
+            'source': profile.get('source'),
+            'evidence_kind': profile.get('evidence_kind', 'unspecified'),
+            'provenance': profile.get('provenance', {})}
         summary['matched_events'] += 1
         phase_counts['matched_events'] += 1
+        evidence = profile.get('evidence_kind', 'unspecified')
+        summary['evidence_kind_counts'][evidence] += 1
+        phase_counts['evidence_kind_counts'][evidence] += 1
         guard_key = 'guarded_matched_events' if _guarded(profile) else 'unguarded_matched_events'
         summary[guard_key] += 1
         phase_counts[guard_key] += 1

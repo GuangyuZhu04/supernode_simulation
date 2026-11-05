@@ -1,0 +1,21 @@
+flowchart TB
+    subgraph COMPILE["案例 A · 绑定与编译：单卡 synthetic，BF16，8 tokens，H=16，I=32"]
+        BASE["synthetic-training.yaml<br/>checkpoint + CPU Adam offload 保持开启"] --> LIST["aggregate_graph() / --list<br/>目标 Dense backward<br/>F=49,152；HBM=6,144 B；原启动=0"]
+        DOC["operator-trace.synthetic.json<br/>六个 GEMM；每个 1 μs / 512 B workspace"] --> BIND["build_operator_trace.build_calibration()<br/>锁定硬件、phase、dtype、结构、layer、workload"]
+        LIST --> BIND
+        BIND --> APPLY["hardware.kernel_traces.dense<br/>compile_graph() → apply_kernel_traces()"]
+    end
+    subgraph RUNTIME["运行时：Event.deps 串行依赖"]
+        PRE["原前驱完成<br/>含实际重计算 / 梯度依赖"] --> O0["0 · dense.down.dgrad<br/>M/N/K=8/32/16"]
+        O0 --> O1["1 · dense.down.wgrad<br/>M/N/K=32/16/8"]
+        O1 --> O2["2 · dense.gate.dgrad<br/>M/N/K=8/16/32"]
+        O2 --> O3["3 · dense.gate.wgrad<br/>M/N/K=16/32/8"]
+        O3 --> O4["4 · dense.up.dgrad<br/>M/N/K=8/16/32"]
+        O4 --> O5["5 · dense.up.wgrad<br/>M/N/K=16/32/8"]
+        O5 --> ENDPOINT["原 Dense ID 完成点<br/>零计算工作；保留 releases / 后继引用"]
+        ENDPOINT --> NEXT["原后继 / 梯度完成链 / optimizer<br/>分布式配置中的同步也必须等待完成点"]
+    end
+    APPLY -.->|生成局部链| O0
+    LIFE["每项：8,192 FLOPs + 1,792 B HBM 访问<br/>workspace 准入后申请，单项完成释放<br/>父 allocations 从第 0 项延续到原释放点"] -.-> O2
+    NEXT --> CHECK["evaluate_operator_traces.py 核对<br/>1 个父事件 → 6 个子算子<br/>FLOPs 守恒；额外 HBM 4,608 B；新增启动 6 μs"]
+    CHECK --> RESULT["本次合成复跑：step 760.949204 → 766.949204 μs<br/>forward / recompute 保持原事件<br/>不代表完整非线性 autograd 或实机性能"]

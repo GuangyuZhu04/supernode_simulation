@@ -14,6 +14,12 @@ python skills/supernode-modeling/scripts/evaluate_operator_traces.py --output ou
 
 该实验生成训练/推理的前后配置、结果和流式一致性比较，全部为 synthetic，不用于硬件准确率声明。
 
+支持将 CANN `npusim` 的单次 kernel `summary.json` 导入已展开的子算子：使用周期/频率得到内核服务时间，保留流水重叠语义与 HBM 争用，按二进制、tiling、shape/layout 和环境精确匹配。PV 功能仿真不进入性能校准；报告区分真机实测、仿真器预测、合成数据及旧的未注明来源记录。[采集、导入与限制](skills/supernode-modeling/references/npu-simulator.md)；无需 CANN 的合成复现：
+
+```powershell
+python skills/supernode-modeling/scripts/evaluate_npu_sim.py --output outputs/npu-sim
+```
+
 按用户指定的 [msModeling/ServingCast](skills/supernode-modeling/references/msmodeling-servingcast.md) 与 [湛卢训练参考](skills/supernode-modeling/references/zhanlu-training.md) 继续细化：新增 `serve` 请求到达、FCFS 成批与隔离多实例调度；训练新增 `metrics.training_accounting`，分开模型 F+B、重算、optimizer、辅助工作和各精度峰值归一指标。来源已固定到具体 revision，未照搬 mock 硬件参数或论文误差。服务能力及局限见 [serving.md](skills/supernode-modeling/references/serving.md)。
 
 ```powershell
@@ -30,6 +36,8 @@ python skills/supernode-modeling/scripts/evaluate_reference_simulators.py --outp
 仿真结果（JSON/CSV、报告、图表、检查点、日志及压缩包）统一写入 `outputs/`；PPT 文件、内容稿、预览和制作中间材料放在 `outputs/presentations/`。这些本地产物不提交到 Git。`.gitignore` 同时排除旧的根目录 UUID 演示工作目录、独立 PowerPoint 文件和 `docs/*-ppt-*.md` 内容稿，取消跟踪时保留本地文件。
 
 ## 网页仿真工作台
+
+工作台新增 [DeepSeek V4.1 Pro 10T · FP4 512 卡 / EP128 案例](docs/fp4-512-case.md)：左侧 **FP4 案例** 进入 `/fp4-case.html`，默认 950DT 96 GB/卡，并提供 950PR 128 GB/卡变体。保留原 POD / DFlash 分阶段数值模型，可修改负载、运行、查看历史及下载结果。
 
 在项目根目录启动本地网页，无需安装 Node.js 或前端依赖：
 

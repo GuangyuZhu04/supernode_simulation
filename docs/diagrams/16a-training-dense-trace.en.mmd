@@ -1,0 +1,21 @@
+flowchart TB
+    subgraph COMPILE["A · Binding and compilation"]
+        BASE["synthetic-training.yaml<br/>1 device, BF16, 8 tokens, H=16, I=32<br/>Checkpoint + CPU Adam offload enabled"] --> LIST["aggregate_graph() / --list<br/>Target: Dense backward<br/>F=49,152; HBM=6,144 B; original startup=0"]
+        DOC["operator-trace.synthetic.json<br/>Six GEMMs; each adds 1 μs startup<br/>and 512 B workspace"] --> BIND["build_operator_trace.build_calibration()<br/>Bind hardware, phase, dtype,<br/>structure, layer and workload"]
+        LIST --> BIND
+        BIND --> APPLY["hardware.kernel_traces.dense<br/>compile_graph() → apply_kernel_traces()"]
+    end
+    subgraph RUNTIME["Runtime: serial Event.deps"]
+        PRE["Original predecessors complete<br/>Including actual recompute / gradient dependencies"] --> O0["0 · dense.down.dgrad<br/>M/N/K=8/32/16"]
+        O0 --> O1["1 · dense.down.wgrad<br/>M/N/K=32/16/8"]
+        O1 --> O2["2 · dense.gate.dgrad<br/>M/N/K=8/16/32"]
+        O2 --> O3["3 · dense.gate.wgrad<br/>M/N/K=16/32/8"]
+        O3 --> O4["4 · dense.up.dgrad<br/>M/N/K=8/16/32"]
+        O4 --> O5["5 · dense.up.wgrad<br/>M/N/K=16/32/8"]
+        O5 --> ENDPOINT["Completion marker: original Dense ID<br/>Zero compute work;<br/>retain releases and successor references"]
+        ENDPOINT --> NEXT["Original successors / gradient completion / optimizer<br/>Synchronization in distributed configs<br/>also waits for the completion marker"]
+    end
+    APPLY -.->|generate local chain| O0
+    LIFE["Each: 8,192 FLOPs + 1,792 B HBM accesses<br/>Allocate workspace on admission,<br/>release at operator completion<br/>Parent allocations span op0 to original release"] -.-> O2
+    NEXT --> CHECK["evaluate_operator_traces.py checks<br/>1 parent → 6 suboperators; FLOPs conserved<br/>Added HBM: 4,608 B; added startup: 6 μs"]
+    CHECK --> RESULT["Synthetic rerun: step<br/>760.949204 → 766.949204 μs<br/>Forward / recompute events unchanged<br/>No full nonlinear autograd or hardware-performance claim"]

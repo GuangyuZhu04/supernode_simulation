@@ -1,0 +1,16 @@
+flowchart TB
+    BASE["案例 B · 单卡固定 batch=1，输入 8，输出 3<br/>沿用 H=16 / I=32；关闭 checkpoint / optimizer offload"] --> P["prefill：query=8，context=8<br/>Dense 的 M=8；up / gate / down 各 8,192 FLOPs"]
+    P --> D1["decode 1：query=1，context=9<br/>Dense 的 M=1；三项各 1,024 FLOPs"]
+    D1 --> D2["decode 2：query=1，context=10<br/>GEMM 与上一步相同，workload_shape 不同"]
+    P -.-> BIND["每个父事件分别 build_calibration()<br/>锁定 phase、结构、workload_shape / sequence_signature<br/>形成 1 条 prefill + 2 条 decode trace"]
+    D1 -.-> BIND
+    D2 -.-> BIND
+    BIND --> SUB["每轮 Dense → up → gate → down → 原 ID<br/>各子算子新增 1 μs 启动、512 B 局部 workspace<br/>HBM=max(operand 读写字节, 父访存/3)"]
+    SUB --> FULL["analysis.run() 完整图<br/>计算 + KV / 转换 + 原依赖共同执行"]
+    SUB --> STREAM["run_streaming() 同一 Builder<br/>按屏障展开和校准；适用范围 DP=PP=1"]
+    FULL --> TOK["每请求 token 完成标记<br/>prefill 产生首 token；后两轮各产生一个 token"]
+    STREAM --> PARITY["比较 duration 与资源口径<br/>本次总时长差约 1.36e-20 s"]
+    FULL --> PARITY
+    TOK --> MET["TTFT：45.568 → 48.568 μs<br/>TPOT：10.028 → 13.060 μs<br/>总时长：65.624 → 74.688 μs"]
+    MET --> CHECK["3 个父事件 → 9 个子算子<br/>总 FLOPs 不变；额外 HBM 320 B；新增启动 9 μs<br/>synthetic：验证分阶段绑定与执行一致性"]
+    PARITY --> CHECK

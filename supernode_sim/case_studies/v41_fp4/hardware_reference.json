@@ -1,0 +1,72 @@
+{
+  "platforms": {
+    "950dt": {
+      "name": "Ascend 950dt 1024-card logical SU",
+      "npu_count": 1024,
+      "su_size": 1024,
+      "npus_per_host": 8,
+      "topology": "full_mesh",
+      "routing_policy": "shortest_hop",
+      "mesh_width": null,
+      "leaf_size": null,
+      "npu": {
+        "hbm_bytes": 144000000000,
+        "hbm_Bps": 4000000000000,
+        "flops": {
+          "fp8": 1000000000000000,
+          "fp16": 500000000000000,
+          "bf16": 500000000000000,
+          "fp32": 50000000000000
+        },
+        "efficiency": 0.5,
+        "runtime_bytes": 8000000000,
+        "workspace_bytes": 256000000
+      },
+      "cpu": {
+        "dram_bytes": 4000000000000,
+        "dram_Bps": 512000000000,
+        "flops": 4000000000000,
+        "efficiency": 0.5,
+        "iops": 100000000
+      },
+      "scale_up": {
+        "bandwidth_Bps": 1000000000000,
+        "latency_s": 0.0000021,
+        "efficiency": 0.8,
+        "injection_Bps": 1000000000000,
+        "uplink_Bps": null
+      },
+      "scale_out": {
+        "bandwidth_Bps": 50000000000,
+        "latency_s": 0.000005,
+        "efficiency": 0.8,
+        "injection_Bps": 50000000000,
+        "uplink_Bps": null
+      },
+      "host_link": {
+        "bandwidth_Bps": 64000000000,
+        "latency_s": 0.000002,
+        "efficiency": 0.85,
+        "injection_Bps": 64000000000,
+        "uplink_Bps": null
+      },
+      "remote": {
+        "enabled": false,
+        "capacity_bytes": 100000000000000,
+        "bandwidth_Bps": 100000000000,
+        "latency_s": 0.000005,
+        "iops": 10000000
+      },
+      "ssd": {
+        "enabled": false,
+        "capacity_bytes": 100000000000000,
+        "bandwidth_Bps": 100000000000,
+        "latency_s": 0.000005,
+        "iops": 10000000
+      },
+      "explicit_links": [],
+      "routes": {},
+      "kernel_profiles": {}
+    }
+  }
+}

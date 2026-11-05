@@ -1,0 +1,39 @@
+flowchart TB
+    subgraph INPUT["1 · Inputs and orchestration"]
+        SK["Skill / CLI / Web<br/>Prepare configs, select evidence, read results"] --> CFG["Config<br/>Model shapes + workload + parallel layout<br/>+ hardware / topology"]
+        TR["kernel_traces<br/>Component identity → ordered suboperators,<br/>M/N/K, startup, HBM, workspace"]
+        KP["kernel_profiles<br/>Suboperator solo service time,<br/>applicability conditions, evidence_kind"]
+        NP["External NPUSim CA report + manifest<br/>Single launch, implementation identity,<br/>all active cores, environment"] --> IMP["npu_sim.build_calibration()<br/>Validate and generate profiles;<br/>does not run NPUSim"]
+        IMP --> KP
+    end
+    subgraph COMPILE["2 · Compilation and refinement"]
+        CFG --> B["components / kernel_workload / Builder<br/>Component formulas, phase,<br/>workload_shape, TP/EP/SP"]
+        B --> PARENT["Parent component events<br/>Dense / GQA / MLA / MoE, etc.<br/>FLOPs, HBM bytes, dependencies,<br/>state lifetimes"]
+        PARENT --> TRACE["apply_kernel_traces()<br/>Exact match → serial suboperators<br/>→ completion marker with original ID"]
+        TR --> TRACE
+        TRACE --> FUSE["Optional apply_megakernel()<br/>Valid local chains in the full graph only"]
+        FUSE --> CAL["apply_kernel_profiles()<br/>Match exact work and environment / implementation;<br/>retain analytical resources when unmatched"]
+        KP --> CAL
+        CFG --> NET["Topology.collective() / transfer()<br/>TP / EP / PP / FSDP → actual paths<br/>and shared resources<br/>Separate collective calibration; Figs. 7 / 17"]
+    end
+    subgraph IR["3 · Shared execution graph"]
+        CAL --> EV["Event<br/>deps / work / startup_s / slots<br/>allocs / releases / metadata"]
+        NET --> EV
+        RS["Resource: FLOP/s, HBM / link byte/s<br/>Graph.memory_caps: HBM / DRAM capacity<br/>Slots: mutual exclusion, e.g. compute stream"] --> EV
+        EV --> ENG["engine.simulate()<br/>Dependencies ready → slot / memory admission<br/>→ startup → max-min sharing<br/>→ completion and release"]
+    end
+    subgraph OUTPUT["4 · Timing and metrics"]
+        ENG --> REC["trace / resource_work / memory log<br/>Retain parent-child lineage,<br/>phase, operator and provenance"]
+        REC --> MET["step time / TTFT / TPOT<br/>Critical dependency path<br/>+ compute / communication / waiting attribution"]
+        REC --> AUDIT["Trace coverage / calibration coverage / evidence_kind<br/>HBM accesses, workspace peaks, skip reasons"]
+        MET --> REPORT["JSON / CSV / timeline / reports<br/>Compare with held-out observations<br/>under the same conditions"]
+        AUDIT --> REPORT
+    end
+    classDef input fill:#eef4ff,stroke:#5375a8,color:#172b4d
+    classDef compile fill:#eef8f3,stroke:#4d8c70,color:#183c2c
+    classDef runtime fill:#fff5e6,stroke:#bd8535,color:#53370f
+    classDef output fill:#f4effa,stroke:#8e6aaa,color:#362044
+    class SK,CFG,TR,KP,NP,IMP input
+    class B,PARENT,TRACE,FUSE,CAL,NET compile
+    class EV,RS,ENG runtime
+    class REC,MET,AUDIT,REPORT output

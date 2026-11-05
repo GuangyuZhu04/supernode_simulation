@@ -58,6 +58,8 @@ python skills/supernode-modeling/scripts/launch_frontend.py --project-root . --p
 
 ## 与仿真任务衔接
 
+DeepSeek V4.1 Pro 10T 路由专家 FP4 的 512 卡 / EP128 案例已内置在 `/fp4-case.html`，可从工作台左侧 **FP4 案例** 进入。`GET /api/case-presets` 返回 950DT（默认 96 GB/卡）和 950PR（128 GB/卡）两套输入。该实验的 CED/CSA2/Engram 与 POD/DFlash 分阶段模型使用独立 `CaseConfig`；校验/提交仍调用 `/api/validate`、`/api/jobs`，但必须显式传 `mode: "pod_dflash"`，不能改写为普通 `Config` 或标准投机模式。它保留 Prefill batch 1 与独立 Decode 总 batch，历史和真实结果在案例页查看。完整模型、假设、CLI 复跑命令和输出口径见项目 `docs/fp4-512-case.md`。此扩展不改变普通任务和服务任务的输入契约。
+
 启动页面只准备交互环境；用户请求“打开/查看/编辑配置”时，不自动点击“开始模拟”。用户已经请求仿真或估算时，继续完成数值工作，无需再为该任务确认。
 
 网页支持 `estimate`、`simulate` 和 `serve`：

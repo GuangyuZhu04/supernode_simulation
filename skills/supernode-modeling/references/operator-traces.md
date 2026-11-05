@@ -1,5 +1,7 @@
 # 训练与推理的子算子执行描述
 
+图解入口：[算子级架构设计](../../../docs/simulation-architecture.md#55-算子级架构详图从组件到资源事件) · [执行流程与三个可复现案例](../../../docs/simulation-function-flows.md#16-子算子展开融合与-kernel-校准)。架构图解释组件、子算子、资源事件和外部时序证据的边界；案例分别展示训练反向拆分、prefill/decode 绑定及 NPUSim CA 导入。
+
 当组件级 roofline 无法表达多个串行算子的启动、访存和临时工作区时，使用 `hardware.kernel_traces`。它细化既有组件事件，随后由原有 `kernel_profiles` 校准子算子耗时。外部方法与参数映射见 [reference-simulators.md](reference-simulators.md)。
 
 这是调用者提供、受适用范围约束的串行算子描述，不会自动解析 Chakra/AICB/框架 profiler，也不根据模型名称补全真实 autograd。未配置时保留原路径。仅配置 trace 不会将 `hardware_performance` 标为已校准。
@@ -41,6 +43,12 @@ python skills/supernode-modeling/scripts/build_operator_trace.py examples/featur
 
 trace 先展开，再处理 megakernel 和 kernel profiles。融合只对当前可匹配的子算子链生效；检查两种覆盖率，不能假定原组件融合组仍会命中。
 
+## 绑定具体 kernel 实现与 NPUSim 报告
+
+operation 可提供 `implementation` JSON 对象；它被带入展开后的事件元数据，并参与 profile 精确匹配，用于区分同名同 FLOPs 下不同 shape/layout/tiling/编译实现。普通 trace 可省略此字段；NPUSim 导入要求它包含 `op_type`、`kernel_name`、`tiling_key`、`binary_sha256`、`block_dim` 及描述 shape/dtype/format 的 `inputs`、`outputs`。实际 tiling data、stride、编译标志也可纳入身份，字段要求和采集流程见 [npu-simulator.md](npu-simulator.md)。
+
+使用 `skills/supernode-modeling/scripts/build_npu_sim_calibration.py <配置> --list` 选择已展开子算子，`--analyze --summary <单次报告>` 检查格式，随后用同条件 manifest 导入 CA kernel 时间。一个 kernel 报告不能替代整个未展开 Dense/Attention/MoE；导入器要求完整匹配工作量、结构、负载与 implementation。NPUSim 设备窗口已含内部 MTE/计算重叠，外层子算子链仍串行，原 HBM/FLOPs/依赖与争用继续计费，不再把内部流水耗时相加。PV 不能用于时间校准，synthetic 示例不能标为硬件实测。
+
 ## 绑定来源明确的算子列表
 
 工具输入是 JSON，且仅有 `id`、`source`、`operations` 三个字段；`source` 使用项目的 `{status, description, uri?, revision?}` 形式。给定示例将 8-token、16×32 Dense backward 的原 GEMM 预算拆成六个 dgrad/wgrad GEMM；非线性反向没有新增计算，不代表完整真实 autograd。每算子 1 μs 启动和 512 B workspace 均为合成假设。
@@ -67,7 +75,7 @@ python -m supernode_sim simulate outputs/operator-traces/inference.operators.con
 
 `max_operator_working_set_bytes` 保留父组件原工作集代理值并加上局部 workspace；事件标记 `working_set_scope=parent_component_proxy_plus_local_workspace`。这避免拆分后漏报原工作集，但不是从 HBM 访问字节推导的子算子精确 footprint，也不是硬件缓存容量建议。
 
-普通事件明细中可见 `trace_id`、`original_kernel`、`trace_parent_event`、`operation_index` 和可选 `matmul`。没有 trace 匹配时保持解析组件；不能仅因输入带有配置就称它已生效。流式运行合并展开/校准统计，缓存复用不得绕过形状和环境约束。
+普通事件明细中可见 `trace_id`、`original_kernel`、`trace_parent_event`、`operation_index` 和可选 `matmul`、`implementation`。没有 trace 匹配时保持解析组件；不能仅因输入带有配置就称它已生效。流式运行合并展开/校准统计，缓存复用不得绕过形状和环境约束。
 
 对新增子算子采集独占服务时间，按其 kernel 名、phase、dtype、工作量、`matmul`、`workload_shape`、SKU 和运行环境填写 `hardware.kernel_profiles`。推理必须覆盖实际上下文，训练必须区分 forward/dgrad/wgrad/recompute。工作量与形状不匹配时保留解析回退，当前没有 kernel 形状插值或跨域外推。
 

@@ -1,0 +1,53 @@
+{
+  "kernel_info": {
+    "kernel_total_clocks": 100000,
+    "kernel_instructions_executed": 320,
+    "ai_core_active": 2,
+    "frequency_ghz": 2.0
+  },
+  "pipe_utilization": {
+    "pipeline_util_summary": {
+      "AIC_CUBE": {
+        "mean": 0.65,
+        "max": 0.7,
+        "min": 0.6,
+        "per_core": [
+          0.7,
+          0.6
+        ]
+      },
+      "AIC_MTE2": {
+        "mean": 0.4,
+        "max": 0.45,
+        "min": 0.35,
+        "per_core": [
+          0.45,
+          0.35
+        ]
+      }
+    }
+  },
+  "top_level_diagnosis": {
+    "dominant_pipeline": "AIC_CUBE",
+    "dominant_pipeline_util": 0.65,
+    "imbalance_ratio": 1.1
+  },
+  "pipeline_overlap": {
+    "AIC_MTE2_vs_AIC_CUBE": 0.35
+  },
+  "bandwidth": {
+    "AIC_MTE2_OUT_TO_L1": {
+      "total_gbps": 0.1,
+      "bandwidth_utilization": 0.1,
+      "avg_transaction_gbps": 0.1,
+      "transaction_count": 8
+    }
+  },
+  "scalar_instructions": {},
+  "aiv_vector_instructions": {},
+  "cache": {
+    "icache_refill_count": 0,
+    "icache_refill_ticks": null
+  },
+  "simd_vf_metrics": {}
+}

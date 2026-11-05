@@ -1,0 +1,20 @@
+flowchart TD
+    ENTRY["Full graph / streaming chunk<br/>Component formulas have produced parent Events"] --> SHAPE["Read actual event identity<br/>kernel / phase / dtype / FLOPs / HBM bytes<br/>Structure signature, workload_shape, TP/EP/SP"]
+    SHAPE --> TRACE["apply_kernel_traces()<br/>Match hardware.kernel_traces"]
+    TRACE --> MATCH{"Unique match and supported<br/>local compute/HBM event?"}
+    MATCH -->|unmatched or unsupported| ORIGINAL["Keep the analytical parent event<br/>Record no_trace / shape-scope /<br/>resource mismatch reasons"]
+    MATCH -->|multiple matches| ERROR["Raise an error;<br/>fix the configuration and rerun"]
+    MATCH -->|yes| CHECK["Decomposition already validated by Config<br/>Child FLOPs sum = parent FLOPs;<br/>HBM accesses must not decrease<br/>GEMM FLOPs = 2 × batch × M × N × K"]
+    CHECK --> EXPAND["Expand op0 → op1 → ... → original-ID marker<br/>First startup = parent startup + op0 startup<br/>Later startups = each operator's added startup"]
+    EXPAND --> LIFE["First operator inherits parent allocations<br/>Release each local workspace at its operator end<br/>Original releases stay on the completion marker;<br/>successors still reference the original ID"]
+    LIFE --> FUSE["Full graph: optional apply_megakernel()<br/>Streaming: fusion unsupported;<br/>continue to profiles"]
+    ORIGINAL --> FUSE
+    FUSE --> PROFILE["apply_kernel_profiles()<br/>Match suboperators or unexpanded events<br/>Work + optional phase / dtype / environment / metadata"]
+    PROFILE --> PMATCH{"Profile match and<br/>physical lower-bound check"}
+    PMATCH -->|ambiguous or below physical floor| ERROR
+    PMATCH -->|unmatched| ANALYTIC["Analytical solo service time<br/>startup + max(F/P_eff, B/BW_eff)"]
+    PMATCH -->|matched| TIMING["Retain FLOPs, HBM work and compute slot<br/>Use the dtype peak for the compute resource<br/>Add a private timing resource: duration_s<br/>Explicit startup_s replaces startup;<br/>keep it separate from duration"]
+    ANALYTIC --> EXEC["Full graph: graph_estimate() → optional simulate()<br/>Streaming: per-chunk capacity check / cache<br/>or the same simulate()"]
+    TIMING --> EXEC
+    EXEC --> SCHED["Runtime: dependencies → slot / memory admission<br/>→ startup → max_min_rates() → finish / release<br/>Communication shares HBM / links; Fig. 8"]
+    SCHED --> RESULT["Completion markers → step time / TTFT / TPOT<br/>operator_trace / kernel_calibration coverage and evidence<br/>resource_work, memory peaks, critical-path breakdown"]

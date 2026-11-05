@@ -183,7 +183,7 @@ def compact_serving_result(result: dict) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
-    if len(args) != 2 or args[1] not in ('simulate', 'estimate', 'serve'):
+    if len(args) != 2 or args[1] not in ('simulate', 'estimate', 'serve', 'pod_dflash'):
         raise ValueError('worker requires an output directory and simulate/estimate/serve mode')
     directory, mode = Path(args[0]), args[1]
     # Match the CLI's performance policy for acyclic, ID-linked event graphs.
@@ -191,6 +191,15 @@ def main(argv: list[str] | None = None) -> int:
     gc.disable()
     try:
         _phase('validating', '正在校验已保存的输入配置')
+        if mode == 'pod_dflash':
+            from .case_studies.v41_fp4 import simulate_case, write_report as write_case_report
+            value = json.loads((directory / 'input.config.json').read_text(encoding='utf-8'))
+            result = simulate_case(value, progress=_phase)
+            _phase('exporting', '正在导出 POD / DFlash 分阶段结果、输入快照与资源拆解')
+            write_case_report(result, directory)
+            print(json.dumps({'phase': 'completed', 'message': '案例仿真与报告已完成',
+                              'result_status': result['status']}, ensure_ascii=False), flush=True)
+            return 0
         config = Config.model_validate_json((directory / 'input.config.json').read_text(encoding='utf-8'))
         if config.calibration is not None:
             raise ValueError('Web jobs require resolved configuration without calibration paths')

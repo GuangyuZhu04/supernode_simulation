@@ -1,27 +1,26 @@
 flowchart TD
-    CMD{"CLI 分派"} -->|sweep| SW["sweep(config, axes, mode)<br/>校验 axes 与 max_candidates"]
-    SW --> PRODUCT["内部：itertools.product 枚举组合<br/>copy 配置 → set_field()"]
-    PRODUCT --> SWVALID["Config.model_validate()"]
-    SWVALID --> SWRUN["run(candidate, mode, full_detail=False)<br/>compact_result()"]
-    SWVALID -->|异常| SWBAD["内部：保留 invalid_config 与原因"]
-    SWRUN --> SWNEXT{"内部：还有组合？"}
-    SWBAD --> SWNEXT
-    SWNEXT -->|是| PRODUCT
-    SWNEXT -->|否| SWOUT["返回 completed + candidates"]
-    CMD -->|size-su| SU["size_su(config, single / multi / both)"]
-    SU --> ENUM["内部：枚举 NPU count × SU size × parallel layout<br/>多域需 total_npus 或 max_total_npus"]
-    ENUM --> VALID["Config.model_validate(candidate)"]
-    VALID -->|异常| BAD["记录 invalid_config"]
-    VALID --> EST["run(candidate, estimate, full_detail=False)"]
-    EST --> MEM{"内部：resident_memory 超容量？"}
-    MEM -->|是| MP["记录 infeasible<br/>resident_memory_lower_bound 剪枝"]
-    MEM -->|否| PERF{"内部：duration 下界超过有效全图 deadline？"}
-    PERF -->|是| PP["记录 slo_failed<br/>performance_lower_bound 剪枝"]
-    PERF -->|否| SIM["run(candidate, simulate, full_detail=False)<br/>_payload_summary()"]
-    BAD --> NEXT{"内部：还有候选？"}
-    MP --> NEXT
-    PP --> NEXT
-    SIM --> NEXT
-    NEXT -->|是| VALID
-    NEXT -->|否| BEST["内部：过滤 feasible<br/>按 SU size / NPU count / duration 排序"]
-    BEST --> OUT["返回 best / minimum_su_size / 全部候选<br/>或 no_candidates / no_feasible_candidate"]
+    CMD{"CLI / Python API"} -->|sweep| SW["sweep(config, axes, mode, workers)<br/>检查轴与 max_candidates"]
+    CMD -->|size-su| SU["size_su(config, mode, workers)<br/>枚举 NPU count × SU size × layout"]
+    SW --> MAP["ordered_map() → worker_count()<br/>1 为串行；0 自动；大于1为 spawn 进程池"]
+    SU --> MAP
+    MAP --> LIMIT["内部：最多每 worker 两项在途<br/>按输入顺序收集；每候选独立图与缓存"]
+    LIMIT --> TYPE{"内部：候选处理函数"}
+    TYPE -->|_sweep_candidate| SWVALID["复制基线 → set_field()<br/>Config.model_validate()"]
+    SWVALID -->|合法| SWRUN["run(candidate, mode, full_detail=False)<br/>compact_result()"]
+    SWVALID -->|校验异常| BAD["保留 invalid_config / 原因"]
+    TYPE -->|_su_candidate| VALID["Config.model_validate()<br/>普通模式推导 DP；PD 按双池重校验"]
+    VALID -->|校验异常| BAD
+    VALID -->|合法| EST["run(candidate, estimate, full_detail=False)"]
+    EST --> MEM{"驻留容量必要条件满足？"}
+    MEM -->|否| MP["infeasible<br/>resident_memory_lower_bound 剪枝"]
+    MEM -->|是| PERF{"严格下界满足有效全图 deadline？"}
+    PERF -->|否| PP["slo_failed<br/>performance_lower_bound 剪枝"]
+    PERF -->|是| SIM["run(candidate, simulate, full_detail=False)<br/>_payload_summary()；重新构图"]
+    BAD --> ROWS["内部：保留全部候选状态、诊断与指标"]
+    SWRUN --> ROWS
+    MP --> ROWS
+    PP --> ROWS
+    SIM --> ROWS
+    ROWS --> RESULT{"内部：结果类型"}
+    RESULT -->|sweep| SWOUT["completed + candidates"]
+    RESULT -->|size-su| BEST["feasible 按 SU size / NPU count / duration 排序<br/>best / minimum_su_size 或无解诊断"]

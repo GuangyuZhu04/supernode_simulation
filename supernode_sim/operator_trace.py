@@ -153,7 +153,7 @@ def apply_kernel_traces(graph: Graph, config: dict) -> None:
                         'trace_id': trace['id'], 'kernel': operation['kernel']}),)
                 releases = (aid,)
             metadata = {key: value for key, value in event.metadata.items()
-                        if key not in ('working_set_bytes', 'calibration', 'matmul')}
+                        if key not in ('working_set_bytes', 'calibration', 'matmul', 'implementation')}
             metadata.update(kernel=operation['kernel'], flops=operation['flops'],
                 original_kernel=kernel, trace_id=trace['id'], trace_source=trace['source'],
                 trace_parent_event=event.id, operation_index=index,
@@ -167,6 +167,8 @@ def apply_kernel_traces(graph: Graph, config: dict) -> None:
                 metadata['parent_working_set_bytes'] = event.metadata['working_set_bytes']
             if operation.get('matmul') is not None:
                 metadata['matmul'] = operation['matmul']
+            if operation.get('implementation'):
+                metadata['implementation'] = operation['implementation']
             expanded.append(Event(eid, dependencies,
                 {compute: operation['flops'], rank + '.hbm': operation['memory_bytes']},
                 startup_s=(event.startup_s if index == 0 else 0) + operation.get('startup_s', 0),

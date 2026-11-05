@@ -1,0 +1,13 @@
+{
+  "case_id": "deepseek_v41_fp4_512_ep128",
+  "chip": "950pr",
+  "cards": 512,
+  "ep": 128,
+  "tp": 4,
+  "sp": 1,
+  "context_tokens": 131072,
+  "prefill_batch": 1,
+  "decode_batch": 32,
+  "accepted": 6,
+  "block": 8
+}

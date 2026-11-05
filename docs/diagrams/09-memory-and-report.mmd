@@ -18,7 +18,7 @@ flowchart TD
     PREP --> DETAIL{"内部：请求 full detail 但明细已丢失？"}
     DETAIL -->|是| ERROR["ValueError：必须从计算阶段重新保留完整明细"]
     DETAIL -->|否| CONFIG["内部：写 config.resolved.json"]
-    CONFIG --> CSV["_csv()<br/>resources.csv / memory.csv"]
+    CONFIG --> CSV["_csv()<br/>resources.csv / memory.csv<br/>write_latency_csv() → latency_breakdown.csv"]
     CSV --> SIM{"内部：存在 simulation？"}
     SIM -->|是| TRACE["_write_event_artifacts()<br/>一遍遍历写 events.csv 与 timeline.json<br/>更新 artifact_export 实际导出条数"]
     SIM -->|否| MEMORY["_csv()<br/>组件/状态/张量/峰值/可选参数表"]

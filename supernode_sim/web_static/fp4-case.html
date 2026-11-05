@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FP4 512 卡 / EP128 · 超节点仿真工作台</title>
+  <link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/fp4-case.css">
+  <script src="/fp4-case.js" defer></script>
+</head>
+<body>
+  <aside class="rail" aria-label="主导航">
+    <a class="brand-mark" href="/#workspace" aria-label="返回仿真工作台">S</a>
+    <a class="rail-link" href="/#inputs"><span>输入</span></a>
+    <a class="rail-link" href="/#workspace"><span>实验</span></a>
+    <a class="rail-link active" href="/fp4-case.html" aria-current="page"><span>FP4</span><span>案例</span></a>
+    <div class="rail-bottom"><span class="local-dot"></span><span>LOCAL</span></div>
+  </aside>
+  <div class="app-shell">
+    <header class="topbar"><div class="product"><strong>超节点</strong><span class="topbar-divider"></span><span>流量仿真实验室</span></div><span id="connection" role="status">连接本地引擎…</span></header>
+    <main class="case-main">
+      <div class="page-heading"><div><div class="eyebrow">CASE STUDY / POD · DFLASH</div><h1>FP4 · 512 卡，EP128</h1><p>DeepSeek V4.1 Pro 10T · 延续 2026-11-02 实验的模型、精度与资源口径。</p></div><span class="engine-tag">条件仿真</span></div>
+      <div class="case-layout">
+        <section class="card case-config" aria-labelledby="input-heading">
+          <div class="panel-heading"><h2 id="input-heading">案例输入</h2><span class="mini-badge">可编辑</span></div>
+          <form id="case-form">
+            <fieldset id="case-fields" disabled>
+              <label for="chip">硬件变体</label><select id="chip"><option value="950dt">950DT · 96 GB / 卡</option><option value="950pr">950PR · 128 GB / 卡</option></select>
+              <p id="hardware-note" class="field-note"></p>
+              <div class="case-facts"><div><span>总卡数</span><strong>512</strong></div><div><span>专家并行 EP</span><strong>128</strong></div><div><span>SU POD</span><strong>1 × 512</strong></div></div>
+              <div class="field-grid"><div><label for="tp">TP</label><select id="tp"><option>1</option><option>2</option><option selected>4</option></select></div><div><label for="sp">SP</label><select id="sp"><option>1</option><option>4</option></select></div></div>
+              <p id="layout-note" class="field-note"></p>
+              <label for="context">每请求上下文长度</label><select id="context"></select>
+              <div class="field-grid"><div><label for="prefill-batch">Prefill batch</label><input id="prefill-batch" value="1" readonly></div><div><label for="decode-batch">Decode 总 batch</label><select id="decode-batch"><option>1</option><option>4</option><option>8</option><option>16</option><option selected>32</option><option>64</option></select></div></div>
+              <label for="dflash">DFlash 净接受数 / 块长</label><select id="dflash"><option value="3/4">3 / 4</option><option value="6/8" selected>6 / 8</option><option value="9/12">9 / 12</option><option value="12/16">12 / 16</option></select>
+              <p class="field-note">接受数是条件输入；仿真不预测模型接受率。SP 复用 TP rank，PP = 1。</p>
+              <div class="case-actions"><button type="button" id="validate" class="button secondary">校验配置</button><button id="run" class="button primary" type="submit">开始仿真</button></div>
+              <button type="button" id="export" class="button secondary">导出当前配置 JSON</button>
+            </fieldset>
+          </form>
+          <p id="input-status" class="field-note" role="status" aria-live="polite"></p>
+          <details><summary>模型与精度</summary><p>64 层、hidden 7168、1792 路由专家、top-24；保留 CED、CSA2、mHC 和 Engram。目标模型为 synthetic 10T 设计。</p><p>路由专家 gate/up/down 采用 FP4 存储，FP8 GEMM 计算。每 32 个末轴元素使用 1 byte scale；显式计入非融合转换与临时缓冲。其他权重保持原精度。</p><p>DFlash 为 5 层全上下文 attention 的合成资源代理；Engram 表继续驻留主机内存。</p></details>
+          <details><summary>完整案例输入</summary><pre id="config-json"></pre></details>
+        </section>
+        <div class="case-content">
+          <section class="card case-panel" aria-labelledby="run-heading">
+            <div class="panel-heading"><h2 id="run-heading">仿真状态</h2><span id="run-status" class="mini-badge">待运行</span></div>
+            <p id="run-caption">校验并运行当前案例，或选择下方的历史运行。</p>
+            <div class="case-actions"><button id="cancel" type="button" class="button secondary" disabled>取消运行</button><button id="restore" type="button" class="button secondary" disabled>复制本次输入到编辑区</button></div>
+            <pre id="logs" class="case-logs" aria-live="polite"></pre>
+          </section>
+          <section class="card case-panel" id="result-panel" aria-labelledby="result-heading" hidden>
+            <div class="panel-heading"><h2 id="result-heading">仿真结果</h2><span id="result-status" class="mini-badge"></span></div>
+            <p id="result-caption" class="field-note"></p>
+            <div id="metrics" class="case-metrics"></div>
+            <p class="field-note">TTFT 含目标 prefill 与 DFlash KV 初始化；TPOT = 固定上下文一轮 draft + verify + commit / 净接受数。两阶段 batch 不同。</p>
+            <h3>时延拆解</h3><div id="breakdown"></div>
+            <h3>阶段与容量</h3><div class="case-table" id="phases"></div>
+            <h3>Decode 每轮物理访问量</h3><div id="traffic" class="case-facts"></div>
+            <div id="artifacts" class="case-downloads"></div>
+          </section>
+          <section class="card case-panel" aria-labelledby="history-heading"><div class="panel-heading"><h2 id="history-heading">案例历史</h2><button id="refresh" class="button secondary" type="button">刷新</button></div><div id="history">正在读取…</div></section>
+          <section class="card case-panel"><h2>计算口径与来源</h2><ul id="notes"></ul><p>使用项目原生离散事件调度器执行各阶段。完整算子、资源工作量、峰值构成与版本指纹随结果下载；本页显示条件预测，不代表实机性能。</p></section>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

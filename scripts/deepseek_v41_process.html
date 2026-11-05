@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>DeepSeek V4.1 Pro 10T · 仿真过程</title>
+<style>
+:root{--paper:#f5f7f4;--white:#fff;--ink:#16383b;--muted:#566e71;--line:#d9e3de;--green:#16877c;--pale:#e7f2eb;--blue:#5687ae;--gold:#b58238;--purple:#8b73a3;--red:#ba7366;--mono:Consolas,"SFMono-Regular",monospace}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.65 "Segoe UI","Microsoft YaHei",Arial,sans-serif}button,input,select{font:inherit}button,a,input,select{touch-action:manipulation}button{cursor:pointer}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--green);outline-offset:4px}a{color:var(--green)}button{color:var(--ink)}button:disabled{opacity:.4;cursor:default}h1,h2,h3,p{margin:0}h2{font-size:27px;line-height:1.35;letter-spacing:-.5px}h3{font-size:18px;line-height:1.4}code,.mono{font-family:var(--mono)}code{overflow-wrap:anywhere}button{border:1px solid var(--line);background:var(--white);border-radius:7px;padding:8px 14px;line-height:1.4}button:hover:not(:disabled){border-color:var(--green)}button.primary{background:var(--ink);color:white;border-color:var(--ink)}main,header,footer{width:min(1420px,calc(100% - 88px));margin:auto}header{display:flex;justify-content:space-between;align-items:center;gap:20px;min-height:84px;border-bottom:1px solid var(--line)}.wordmark{font:12px var(--mono);letter-spacing:1.9px;display:flex;align-items:center;gap:10px}.mark{width:12px;height:12px;background:var(--green);transform:rotate(45deg)}header nav{display:flex;gap:24px;flex-wrap:wrap}header a{text-decoration:none;font-size:13px;color:var(--muted)}.hero{display:grid;grid-template-columns:1.3fr .7fr;align-items:center;gap:30px;padding:48px 0 28px}.eyebrow{font:12px var(--mono);letter-spacing:2px;color:var(--green);margin-bottom:18px}.hero h1{font-size:clamp(30px,3.5vw,53px);font-weight:650;line-height:1.15;letter-spacing:-1.8px}.hero h1 span{display:block;font-weight:400;font-size:.76em;margin-top:14px;letter-spacing:1px}.lede{margin-top:23px;max-width:720px;color:var(--muted);font-size:16px}.hero figure{margin:0;position:relative;text-align:center}.hero img{width:100%;max-width:350px;aspect-ratio:1;object-fit:contain}.hero figcaption{font-size:12px;color:var(--muted)}.model-facts{display:flex;gap:18px;flex-wrap:wrap;margin-top:26px}.model-facts span{display:grid;grid-template-rows:auto auto;font-size:12px;color:var(--muted);padding-right:22px;border-right:1px solid var(--line)}.model-facts b{font:23px var(--mono);color:var(--ink)}.status{display:inline-block;margin-top:24px;font-size:12px;color:#31685f;background:var(--pale);border-radius:4px;padding:5px 9px}.baseline{background:var(--ink);color:#fff;display:flex;gap:22px;align-items:center;justify-content:space-between;padding:20px 25px;border-radius:10px;flex-wrap:wrap}.baseline .label{color:#a9c9c1;font-size:11px;letter-spacing:.6px}.baseline b{display:block;font:18px var(--mono);margin-top:4px}.baseline .divider{width:1px;height:36px;background:#54726e}.section{padding:46px 0;border-bottom:1px solid var(--line);scroll-margin-top:25px}.section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:25px;margin-bottom:25px}.section-head .num{font:12px var(--mono);letter-spacing:1.3px;color:var(--green);margin-bottom:10px}.section-head p{color:var(--muted);font-size:13px;max-width:580px;margin-top:9px}.subtle{color:var(--muted);font-size:13px}.layout-note{font-size:12px;color:var(--muted);margin-top:15px}.hardware-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px}.hardware-block{min-width:0;position:relative}.component-head{height:172px;display:flex;align-items:center;justify-content:center;background:#ecf0ec;border-radius:10px;margin-bottom:19px}.component-head img{width:100%;height:172px;object-fit:contain}.component-head svg{width:100%;max-width:360px;height:165px}.hardware-block h3{margin-bottom:10px}.facts-list{list-style:none;margin:0;padding:0;font-size:13px;color:var(--muted)}.facts-list li{margin:5px 0}.facts-list b{font-weight:600;color:var(--ink)}.pill{display:inline-block;font:11px var(--mono);padding:3px 7px;background:var(--pale);border-radius:3px;color:var(--green);margin-left:7px}.pipeline{display:flex;align-items:stretch;gap:0;justify-content:space-between;margin:22px 0 24px}.pipeline div{flex:1;background:#eaf0eb;padding:12px 14px;min-width:0}.pipeline b{font-size:13px;font-weight:600;display:block}.pipeline span{font:11px var(--mono);color:var(--muted);overflow-wrap:anywhere}.pipeline i{align-self:center;font-style:normal;margin:0 7px;color:var(--green)}.flow-toolbar{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:16px;flex-wrap:wrap}.play-controls{display:flex;gap:8px;align-items:center}.play-controls small{color:var(--muted);margin-left:6px}.phase-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px}.phase-tab{text-align:left;padding:14px 17px;border-radius:8px;background:transparent}.phase-tab b{display:block;font-size:17px;font-weight:600}.phase-tab span{font:12px var(--mono);color:var(--muted)}.phase-tab[aria-selected=true]{background:var(--pale);border-color:var(--green)}.phase-tab[aria-selected=true] b{color:#137168}.phase-body{display:grid;grid-template-columns:minmax(0,2.25fr) minmax(250px,1fr);gap:27px;background:white;border:1px solid var(--line);padding:26px;border-radius:12px;align-items:start}.diagram-header{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:10px}.diagram-header span{font-size:12px;color:var(--muted)}#phase-graph svg{display:block;width:100%;height:auto}.diagram-legend{display:flex;gap:20px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:10px}.legend-swatch{display:inline-block;width:11px;height:11px;margin-right:5px;vertical-align:-1px;background:var(--pale);border:1px solid var(--green);border-radius:2px}.legend-swatch.state{background:#f5eee0;border-color:var(--gold)}.phase-detail{border-left:1px solid var(--line);padding-left:25px;min-width:0}.phase-duration{font:35px/1.3 var(--mono);letter-spacing:-1.4px;margin:9px 0 6px}.phase-duration small{font-size:14px;letter-spacing:0;margin-left:6px}.phase-detail ol{padding-left:18px;margin:20px 0;font-size:13px;color:var(--muted)}.phase-detail li{padding-left:3px;margin-bottom:12px}.phase-detail li::marker{color:var(--green);font-family:var(--mono)}.source-code{font:11px/1.8 var(--mono);overflow-wrap:anywhere;background:#f0f3f0;padding:12px;border-radius:5px;color:#476368}.mechanisms{display:grid;grid-template-columns:1.3fr 1fr;gap:36px;margin-top:31px}.mechanism h3{margin-bottom:13px}.operator-chain{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px}.operator-chain span{background:#e7eee9;padding:8px 10px;border-radius:4px}.operator-chain .precision{background:#f3e7d3;color:#755626}.operator-chain i{font-style:normal;color:var(--green)}.mechanism p{font-size:12px;color:var(--muted);margin-top:13px;line-height:1.8}.engine-layout{display:grid;grid-template-columns:1fr 1.7fr;gap:38px}.engine-description h3{margin-bottom:15px}.engine-description ol{padding-left:20px;color:var(--muted);font-size:13px}.engine-description li{margin-bottom:12px}.formula{padding:18px 20px;background:var(--ink);color:#e4f4ec;border-radius:9px;font:14px/1.8 var(--mono);margin-top:18px}.formula small{display:block;font:12px/1.7 "Segoe UI","Microsoft YaHei",sans-serif;color:#b6cdc6;margin-top:6px}.inspect{background:white;border:1px solid var(--line);padding:24px;border-radius:12px;min-width:0}.inspect-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.inspect select{padding:6px 10px;background:white;color:var(--ink);border:1px solid var(--line);border-radius:5px}.event-controls{margin-top:17px;display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center}.event-controls input{width:100%;min-width:0;accent-color:var(--green)}.event-controls button{padding:6px 11px}.event-position{display:flex;justify-content:space-between;font:11px var(--mono);color:var(--muted);gap:10px;margin-top:6px}.event-name{font-size:18px;font-weight:600;margin:21px 0 2px;overflow-wrap:anywhere}.event-sub{font:12px var(--mono);color:var(--muted);overflow-wrap:anywhere}.resource-row{display:grid;grid-template-columns:96px 1fr 81px;gap:9px;align-items:center;font-size:11px;margin:13px 0}.resource-name{font-family:var(--mono);overflow-wrap:anywhere}.resource-track{background:#eff3f0;height:8px;border-radius:2px;overflow:hidden}.resource-fill{height:100%;background:#b0c7bf;min-width:0}.resource-fill.bound{background:var(--green)}.resource-value{font-family:var(--mono);text-align:right}.event-summary{display:flex;gap:17px;flex-wrap:wrap;margin-top:17px;padding-top:16px;border-top:1px solid var(--line)}.event-summary b{display:block;font:18px var(--mono);margin-top:4px}.event-summary span{font-size:11px;color:var(--muted)}.event-work{margin-top:16px}.event-work summary{cursor:pointer;font-size:12px;color:var(--muted)}.event-work table{width:100%;border-collapse:collapse;margin-top:9px;font:11px/1.7 var(--mono)}.event-work th,.event-work td{text-align:left;padding:5px 3px;border-bottom:1px solid var(--line)}.event-work td:last-child,.event-work th:last-child{text-align:right}.event-work td{overflow-wrap:anywhere}.metric-row{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;border-bottom:1px solid var(--line);padding-bottom:26px;margin-bottom:28px}.metric span{font-size:12px;color:var(--muted)}.metric b{display:block;font:40px/1.5 var(--mono);letter-spacing:-1px}.metric b small{font-size:15px;letter-spacing:0}.metric p{font-size:12px;color:var(--muted)}.results-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:45px}.chart-block{min-width:0}.chart-block h3{margin-bottom:9px}.chart-block p{color:var(--muted);font-size:12px;margin-bottom:20px}.time-bar{display:flex;height:25px;width:100%;background:#e4ece6;overflow:hidden;border-radius:3px}.time-bar span{height:100%;min-width:0}.bar-endpoints{display:flex;justify-content:space-between;font:11px var(--mono);color:var(--muted);margin-top:6px}.breakdown-list{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin:16px 0 30px}.breakdown-item{font-size:12px;display:flex;justify-content:space-between;gap:5px}.dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}.breakdown-item b{font:12px var(--mono);white-space:nowrap}.decode-labels{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;margin-top:15px;font-size:11px}.decode-labels b{font-family:var(--mono);font-size:12px;display:block}.tiny-note{font-size:11px;color:var(--muted);margin-top:13px}.memory-line{margin:20px 0}.memory-label{display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-bottom:6px}.memory-label b{font:13px var(--mono)}.memory-track{height:26px;display:flex;background:#e6ece7;border-radius:3px;overflow:hidden}.memory-track span{height:100%}.memory-key{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:15px;font-size:11px;color:var(--muted)}.insight{background:var(--pale);padding:16px 19px;border-radius:7px;font-size:13px;margin-top:20px}.sources{display:grid;grid-template-columns:1fr 1fr;gap:45px}.sources ul{padding-left:19px;margin:12px 0;color:var(--muted);font-size:13px}.sources li{margin-bottom:9px}.source-links{display:grid;gap:8px;margin-top:17px}.source-links a{font-size:13px;text-decoration:none}.source-links a:hover{text-decoration:underline}.fingerprint{font:11px/1.8 var(--mono);color:var(--muted);overflow-wrap:anywhere;margin-top:16px}.download{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.download a{display:inline-block;border:1px solid var(--line);padding:8px 13px;border-radius:7px;font-size:12px;text-decoration:none}.download a:first-child{color:white;background:var(--ink);border-color:var(--ink)}footer{padding:28px 0 40px;display:flex;justify-content:space-between;gap:20px;font-size:11px;color:var(--muted)}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}.running .flow-edge{stroke-dasharray:8 6;animation:flowdash 1.5s linear infinite}@keyframes flowdash{to{stroke-dashoffset:-28}}[hidden]{display:none!important}
+@media(max-width:1080px){main,header,footer{width:calc(100% - 48px)}.hero{gap:20px}.phase-body{grid-template-columns:minmax(0,1fr)}.phase-detail{border-left:0;border-top:1px solid var(--line);padding:20px 0 0;display:grid;grid-template-columns:1fr 1.6fr;gap:0 24px}.phase-detail ol{margin:0}.phase-detail .source-code{grid-column:1/-1;margin-top:10px}.engine-layout{grid-template-columns:1fr 1.5fr}.baseline{gap:18px}.baseline .divider{display:none}.baseline b{font-size:16px}.hardware-grid{gap:19px}.hardware-block h3{font-size:16px}}
+@media(max-width:760px){main,header,footer{width:calc(100% - 36px)}header{min-height:68px}.wordmark{font-size:10px;letter-spacing:.6px}header nav{gap:12px}header a{font-size:11px}.hero{grid-template-columns:1fr;padding-top:32px;gap:15px}.hero figure{display:none}.hero h1{font-size:37px}.hero h1 span{font-size:27px}.lede{font-size:14px}.model-facts{gap:13px}.model-facts span{padding-right:14px}.baseline{padding:18px;display:grid;grid-template-columns:1fr 1fr}.baseline b{font-size:15px}.section{padding:32px 0}h2{font-size:23px}.section-head{align-items:flex-start;flex-direction:column;gap:12px}.hardware-grid{grid-template-columns:1fr}.hardware-block{display:grid;grid-template-columns:145px 1fr;gap:0 18px}.component-head{grid-row:1/3;height:145px;margin:0}.component-head img{height:145px}.component-head svg{height:135px}.hardware-block h3{align-self:end;margin-bottom:9px}.facts-list{font-size:12px}.pipeline{flex-direction:column;gap:5px}.pipeline div{padding:9px 13px}.pipeline i{transform:rotate(90deg);line-height:10px}.phase-tabs{grid-template-columns:1fr 1fr}.phase-tab{padding:10px 13px}.phase-tab b{font-size:15px}.phase-body{padding:17px}.diagram-header{align-items:flex-start;flex-direction:column;gap:4px}.phase-detail{display:block}.phase-duration{font-size:30px}.phase-detail ol{margin:18px 0}.mechanisms,.engine-layout,.results-grid,.sources{grid-template-columns:1fr;gap:28px}.metric-row{gap:16px;grid-template-columns:1fr}.metric{border-bottom:1px solid var(--line);padding-bottom:16px}.metric:last-child{border:0;padding:0}.metric b{font-size:32px}.play-controls{flex-wrap:wrap}.play-controls small{width:100%;margin-left:0}.inspect{padding:18px}.inspect-head{align-items:flex-start;flex-direction:column}.breakdown-list{gap:9px;font-size:11px}.source-links a{overflow-wrap:anywhere}footer{flex-direction:column;gap:5px}.resource-row{grid-template-columns:80px 1fr 75px;gap:6px}}
+@media(max-width:380px){header nav{display:none}.hero h1{font-size:31px}.baseline b{font-size:13px}.model-facts b{font-size:20px}.model-facts span{padding-right:8px}.hardware-block{grid-template-columns:105px 1fr;gap:12px}.component-head,.component-head img{height:125px}.component-head svg{height:110px}.breakdown-list{grid-template-columns:1fr}.event-position{font-size:10px}.memory-key{grid-template-columns:1fr}.phase-tab span{font-size:11px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+@media print{header nav,.play-controls,.event-controls,.download{display:none}body{background:#fff;font-size:11px}main,header,footer{width:100%}.hero{padding:20px 0}.hero img{max-width:200px}.section{break-inside:avoid;padding:22px 0}.phase-body,.inspect{break-inside:avoid}.section-head h2{font-size:20px}a{color:inherit}.hero h1{font-size:30px}.metric b{font-size:28px}.phase-detail{display:block}.phase-detail ol{margin:15px 0}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wordmark"><span class="mark" aria-hidden="true"></span>SUPERNODE / SIMULATION LAB</div>
+  <nav aria-label="章节导航"><a href="#hardware">硬件与结构</a><a href="#process">推理过程</a><a href="#engine">资源时钟</a><a href="#results">仿真结果</a></nav>
+</header>
+<main>
+  <section class="hero" aria-labelledby="page-title">
+    <div><div class="eyebrow">FROM MODEL TO RESOURCE EVENTS</div>
+      <h1 id="page-title">DeepSeek V4.1 Pro 10T<span>仿真过程 · 从结构到时延</span></h1>
+      <p class="lede">跟随一份配置，查看 CED / CSA2、MoE、Engram 与 DFlash 如何转为计算、访存和通信事件，再由原生调度器推导执行时延。</p>
+      <div class="model-facts"><span><b>64</b>目标模型层数</span><span><b>7,168</b>Hidden size</span><span><b>1,792</b>路由专家 / 层</span><span><b>24</b>激活专家 / token</span></div>
+      <div class="status">当前仓库合成外推案例 · 2026-11-03 复跑 · 非官方 10T checkpoint</div>
+    </div>
+    <figure><img src="__POD__" alt="ImageGen 生成的超节点机柜与互连概念效果图"><figcaption>逻辑 Full-mesh SU POD · ImageGen 概念效果图</figcaption></figure>
+  </section>
+  <div class="baseline" aria-label="当前仿真配置">
+    <div><div class="label">部署 / 并行</div><b>512 NPU · TP4 / EP128</b></div><span class="divider" aria-hidden="true"></span>
+    <div><div class="label">上下文 / BATCH</div><b>128K · Prefill 1 / Decode 32</b></div><span class="divider" aria-hidden="true"></span>
+    <div><div class="label">草稿策略</div><b>DFlash · 净接受 6 / 块长 8</b></div><span class="divider" aria-hidden="true"></span>
+    <div><div class="label">目标路由专家</div><b>FP4 存储 → FP8 计算</b></div>
+  </div>
+
+  <section class="section" id="hardware" aria-labelledby="hardware-title">
+    <div class="section-head"><div><div class="num">01 / MAP THE MODEL</div><h2 id="hardware-title">模型落在哪些物理资源上</h2><p>TP4 × EP128 × DP1 × PP1 = 512 卡；SP1 不额外乘入卡数。下面的效果图用于解释资源角色。</p></div><div class="subtle">单个逻辑 SU 域 · 64 hosts × 8 NPUs · SO 流量为 0</div></div>
+    <div class="hardware-grid">
+      <article class="hardware-block"><div class="component-head"><img src="__NPU__" alt="ImageGen 生成的 NPU 与 HBM 分层封装概念效果图"></div><h3>NPU / HBM <span class="pill">COMPUTE</span></h3><ul class="facts-list"><li><b>96 GB / 卡 · 4 TB/s</b> HBM</li><li>FP8 有效算力 <b>500 TFLOP/s</b> / 卡</li><li>权重、KV / 状态、activation、转换缓冲</li></ul></article>
+      <article class="hardware-block"><div class="component-head">
+        <svg viewBox="0 0 360 165" role="img" aria-label="EP128 专家组，每组以 TP4 分片；仅示意四组">
+          <g fill="none" stroke="#9ebeb3" stroke-width="1.5"><path d="M65 39H295M65 125H295M65 39V125M295 39V125M65 39L295 125M295 39L65 125"/></g>
+          <g fill="#fff" stroke="#16877c"><rect x="29" y="20" width="72" height="37" rx="6"/><rect x="259" y="20" width="72" height="37" rx="6"/><rect x="29" y="106" width="72" height="37" rx="6"/><rect x="259" y="106" width="72" height="37" rx="6"/></g>
+          <g font-family="Consolas,monospace" font-size="12" fill="#1f5753" text-anchor="middle"><text x="65" y="43">TP × 4</text><text x="295" y="43">TP × 4</text><text x="65" y="129">TP × 4</text><text x="295" y="129">TP × 4</text></g>
+          <rect x="120" y="61" width="120" height="43" rx="7" fill="#16383b"/><text x="180" y="87" text-anchor="middle" fill="#fff" font-family="Consolas,monospace" font-size="16">EP × 128</text>
+        </svg>
+      </div><h3>Scale-up 互连 <span class="pill">NETWORK</span></h3><ul class="facts-list"><li><b>800 GB/s / 方向</b> 有效注入速率</li><li>TP all-reduce / all-gather，EP pairwise</li><li>单轮启动 <b>2.1 μs</b>；每组存 14 个专家分片</li></ul></article>
+      <article class="hardware-block"><div class="component-head"><img src="__HOST__" alt="ImageGen 生成的 CPU 与 DRAM 主机内存托盘概念效果图"></div><h3>Host DRAM / Engram <span class="pill">LOOKUP</span></h3><ul class="facts-list"><li><b>3.4398T</b> 查询表参数，另计 scale</li><li>整表含 scale <b>3.547 TB</b>，分片到 64 主机</li><li>Host link 有效 <b>54.4 GB/s</b> / 方向</li></ul></article>
+    </div>
+    <p class="layout-note">硬件容量来自案例输入，效率和逻辑拓扑为分析假设；效果图中的机柜数量、封装层数与 DIMM 数量不表示产品规格。层号统一从 0 开始。</p>
+  </section>
+
+  <section class="section" id="process" aria-labelledby="process-title">
+    <div class="section-head"><div><div class="num">02 / BUILD & EXECUTE EACH PHASE</div><h2 id="process-title">四个阶段，沿同一组资源执行</h2><p>实际调用顺序：每阶段先构图，再立即调用原生执行器；最后汇总。下面的播放用于讲解，速度不对应仿真耗时。</p></div></div>
+    <div class="pipeline" aria-label="案例软件调用链">
+      <div><b>严格输入</b><span>CaseConfig</span></div><i aria-hidden="true">→</i>
+      <div><b>结构与硬件映射</b><span>inventory / hardware</span></div><i aria-hidden="true">→</i>
+      <div><b>逐阶段构图 + 执行</b><span>run_phase → Phase.run</span></div><i aria-hidden="true">→</i>
+      <div><b>原生资源调度</b><span>engine.simulate</span></div><i aria-hidden="true">→</i>
+      <div><b>汇总与导出</b><span>aggregate / write_report</span></div>
+    </div>
+    <div class="flow-toolbar"><span class="subtle">选择阶段，查看内部路径和已复跑的时延。</span><div class="play-controls"><button type="button" id="previous-phase" aria-label="上一个阶段">←</button><button type="button" id="play" class="primary">播放流程</button><button type="button" id="next-phase" aria-label="下一个阶段">→</button><small>讲解动画 · 每阶段 7 秒</small></div></div>
+    <div class="phase-tabs" role="tablist" aria-label="仿真阶段">
+      <button type="button" class="phase-tab" role="tab" id="tab-prefill" data-phase="prefill" aria-selected="true" aria-controls="phase-panel"><b>01 / Prefill</b><span id="tab-time-prefill"></span></button>
+      <button type="button" class="phase-tab" role="tab" id="tab-draft" data-phase="draft" aria-selected="false" aria-controls="phase-panel"><b>02 / Draft</b><span id="tab-time-draft"></span></button>
+      <button type="button" class="phase-tab" role="tab" id="tab-verify" data-phase="verify" aria-selected="false" aria-controls="phase-panel"><b>03 / Verify</b><span id="tab-time-verify"></span></button>
+      <button type="button" class="phase-tab" role="tab" id="tab-commit" data-phase="commit" aria-selected="false" aria-controls="phase-panel"><b>04 / Commit</b><span id="tab-time-commit"></span></button>
+    </div>
+    <div class="phase-body" id="phase-panel" role="tabpanel" aria-labelledby="tab-prefill">
+      <div><div class="diagram-header"><h3 id="phase-title">长上下文预填充</h3><span id="phase-load"></span></div><div id="phase-graph"></div><div class="diagram-legend"><span><i class="legend-swatch"></i>计算 / 通信</span><span><i class="legend-swatch state"></i>状态准备 / 更新</span><span>机制示意；重复层与层内算子已折叠</span></div></div>
+      <aside class="phase-detail"><div><div class="subtle" id="phase-duration-label">阶段原生执行时长</div><div class="phase-duration" id="phase-duration"></div><div class="subtle" id="phase-events"></div></div><ol id="phase-points"></ol><div class="source-code" id="phase-source"></div></aside>
+    </div>
+    <div class="sr-only" id="phase-announcement" aria-live="polite"></div>
+    <div class="mechanisms">
+      <article class="mechanism"><h3>MoE 的 FP4 不是直接进入 FP8 GEMM</h3><div class="operator-chain"><span>Top-24 router</span><i>→</i><span>EP dispatch</span><i>→</i><span class="precision">FP4 → FP8</span><i>→</i><span>Expert GEMM</span><i>→</i><span>TP reduce</span><i>→</i><span>EP combine</span></div><p>gate / up / down 以 FP4 存储，每 32 个末轴元素计 1 byte scale。转换逐元素计 2 次标量操作，并计 packed / scale 读取、FP8 缓冲写入及 GEMM 再读取；转换缓冲与专家工作区共存，跨层复用。共享专家随后执行。</p></article>
+      <article class="mechanism"><h3>Engram 通过主机内存返回查询行</h3><div class="operator-chain"><span>CPU hash</span><i>→</i><span>H2D / SU 地址</span><i>→</i><span>DRAM 查表</span><i>→</i><span>H2D / SU / TP 返回</span><i>→</i><span>投影与混合</span></div><p>L2 与 L22 注入 Engram；表常驻主机 DRAM。mHC 在每层 attention 与 FFN 前后执行；CSA2 的压缩 KV / index 状态按源层共享，并显式计入索引、筛选与通信。</p></article>
+    </div>
+  </section>
+
+  <section class="section" id="engine" aria-labelledby="engine-title">
+    <div class="section-head"><div><div class="num">03 / FOLLOW THE RESOURCE CLOCK</div><h2 id="engine-title">从算子工作量，到一个可推进的时钟</h2><p>右侧可逐条查看本次运行的实际算子。累计时刻由原生阶段 trace 的时长顺序累计；不同阶段各自从 0 开始。</p></div></div>
+    <div class="engine-layout">
+      <div class="engine-description"><h3>本案例的执行路径</h3><ol><li><code>Phase.memory()</code> 预留完整阶段包络：常驻状态 + 最终 KV + 最大复用 arena + 融合特征。</li><li><code>Phase.run()</code> 把算子最忙 lane / host 的资源需求组织成串行 Event 链。</li><li><code>engine.simulate()</code> 检查容量和依赖，计启动延迟，分配速率并推进时钟。</li><li>事件完成后记录耗时与瓶颈；全机物理流量单独求和，避免把 rank 耗时累加成延迟。</li></ol><div class="formula">T(event) = startup + max(workᵣ / rateᵣ)<small>该等式适用于本案例的串行资源包络。通用引擎支持 max-min 争用；此案例未展开所有物理 rank 的并发事件。</small></div><p class="layout-note">此案例走独立 <code>pod_dflash / CaseConfig</code> 适配器，复用原生执行器；普通 <code>Config → compile_graph()</code> 的整图链不直接替代 CED / CSA2 和分阶段 batch。</p></div>
+      <div class="inspect">
+        <div class="inspect-head"><h3>原生事件记录</h3><label for="event-phase" class="sr-only">选择事件所属阶段</label><select id="event-phase"><option value="prefill">Prefill · 预填充</option><option value="draft">Draft · 草稿生成</option><option value="verify">Verify · 目标验证</option><option value="commit">Commit · 状态提交</option></select></div>
+        <div class="event-controls"><button type="button" id="previous-event" aria-label="上一条事件">←</button><label class="sr-only" for="event-index">选择当前阶段中的事件</label><input type="range" id="event-index" min="0" max="0" value="0" step="1"><button type="button" id="next-event" aria-label="下一条事件">→</button></div>
+        <div class="event-position"><span id="event-count"></span><span id="event-clock"></span></div>
+        <div id="event-heading" aria-live="polite"><div class="event-name" id="event-name"></div><div class="event-sub" id="event-sub"></div></div>
+        <p class="tiny-note">资源服务时间 = 工作量 ÷ 有效速率；绿色为当前瓶颈。并发消耗的资源取最大值，不相加。</p><div id="event-resources"></div>
+        <div class="event-summary"><div><span>资源服务时间</span><b id="event-service"></b></div><div><span>启动延迟</span><b id="event-startup"></b></div><div><span>事件总时长</span><b id="event-duration"></b></div></div>
+        <details class="event-work"><summary>查看资源工作量与速率</summary><table><thead><tr><th>Resource</th><th>Work</th><th>Rate / s</th></tr></thead><tbody id="event-work"></tbody></table></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="results" aria-labelledby="results-title">
+    <div class="section-head"><div><div class="num">04 / READ THE RESULT</div><h2 id="results-title">同一份执行记录，生成时延与容量账本</h2><p>本次为当前源码复跑结果。Prefill B1 与 Decode B32 是分阶段测量条件，不能拼接为同一个请求的端到端时间线。</p></div><div class="subtle">容量状态：<strong>feasible</strong></div></div>
+    <div class="metric-row"><div class="metric"><span>TTFT · Prefill B1</span><b id="metric-ttft"></b><p>目标 prefill + DFlash 上下文 KV 初始化</p></div><div class="metric"><span>固定上下文 TPOT · Decode B32</span><b id="metric-tpot"></b><p>(draft + verify + commit) ÷ 净接受 6</p></div><div class="metric"><span>Decode 输出吞吐 · 固定上下文轮次</span><b id="metric-throughput"></b><p>32 × 6 tokens ÷ 单轮执行时间</p></div></div>
+    <div class="results-grid">
+      <div class="chart-block"><h3>Prefill 的时间花在哪里</h3><p>单位：秒。分项基于资源瓶颈归因，可相加为 TTFT。</p><div class="time-bar" id="ttft-bar" role="img" aria-label="Prefill 时延分解"></div><div class="bar-endpoints"><span>0 s</span><span id="ttft-end"></span></div><div class="breakdown-list" id="ttft-breakdown"></div>
+        <h3>Decode：验证占据几乎整个轮次</h3><p>单位：毫秒。下方条形严格按时间比例绘制，Commit 在此尺度很窄。</p><div class="time-bar" id="decode-bar" role="img" aria-label="Decode 单轮时序：Draft、Verify、Commit"></div><div class="bar-endpoints"><span>0 ms</span><span id="round-end"></span></div><div class="decode-labels" id="decode-labels"></div><div class="insight" id="latency-insight"></div>
+      </div>
+      <div class="chart-block"><h3>每卡 HBM：在同一时刻核算峰值</h3><p>单位：十进制 GB；两条图使用相同的 96 GB 容量标尺。各分量来自对应峰值的同一份账本。</p><div id="memory-bars"></div><div class="memory-key" id="memory-key"></div><div class="insight" id="memory-insight"></div><p class="tiny-note">按阶段完整资源包络预留；峰值不代表精确张量存活期优化后的最低容量。Host 峰值为每主机约 55.44 GB，包含分片查询表及临时传输 arena。</p></div>
+    </div>
+  </section>
+
+  <section class="section" id="sources" aria-labelledby="sources-title">
+    <div class="section-head"><div><div class="num">05 / EVIDENCE & REPRODUCIBILITY</div><h2 id="sources-title">来源、边界与复现</h2></div></div>
+    <div class="sources"><div><h3>当前案例的解释边界</h3><ul><li>10T 为 64 层 / 7168 hidden 的合成外推，保留 CED、CSA2、mHC、Engram 机制；不是官方 10T checkpoint，也不验证模型质量。</li><li>本次使用独立的 5 层 Dense DFlash 草稿器。保留参考配置中的 3 层 DSpark 字段不参与此草稿路径。</li><li>净接受 6 为条件输入，不从接受率算法推断，也未额外计入 bonus token。</li><li>TPOT 是固定上下文一轮耗时除以净接受 token 数，不是长输出平均 ITL、在线服务排队或 P99。</li><li>效果图由内置 imagegen 生成，表达部件角色。仿真中容量、带宽、效率与拓扑仍以配置为准。</li></ul></div><div><h3>可以核对的依据</h3><div class="source-links"><a href="../../docs/simulation-architecture.md">整体架构 · docs/simulation-architecture.md</a><a href="../../docs/simulation-function-flows.md">函数流程 · docs/simulation-function-flows.md</a><a href="../../docs/fp4-512-case.md">当前 FP4 / 512 卡案例说明</a><a href="simulation/result.json">本次原生 result.json（包含全部阶段算子）</a><a href="simulation/config.resolved.json">本次配置快照</a><a href="manifest.json">来源指纹与数值校验</a><a href="imagegen-prompts.json">部件效果图完整 ImageGen 提示词</a></div><div class="fingerprint" id="fingerprint"></div><div class="download"><a href="overview.svg" download>下载 SVG 总览</a><button type="button" id="download-data">导出演示数据 JSON</button><button type="button" id="print">打印 / 保存 PDF</button></div><p class="tiny-note">本 HTML 的图片、数据与交互均内嵌，可单独离线打开。资料链接需要随附文件或原仓库路径。</p></div></div>
+  </section>
+</main>
+<footer><span>SUPERNODE SIMULATION · DeepSeek V4.1 Pro 10T · 2026.11.03</span><span>条件仿真 / 数值复跑 / 资源与时延可追溯</span></footer>
+<noscript><p style="padding:20px">此演示需要启用 JavaScript。无需联网；静态总览可打开同目录 overview.svg。</p></noscript>
+<script id="simulation-data" type="application/json">__DATA__</script>
+<script>
+'use strict';
+const DATA = JSON.parse(document.getElementById('simulation-data').textContent);
+const $ = id => document.getElementById(id);
+const PHASES = ['prefill','draft','verify','commit'];
+const fmt = (n,d=3) => Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const spec = {
+  prefill:{title:'长上下文预填充',load:'B1 · N = 131072 · 目标首 token + 草稿 KV seed',points:['完整输入经过 Encoder L0–31；Encoder 最终状态一次生成 Decoder 全局 KV。','Decoder L32–63 每层只重放 min(128, N) 个位置，建立滑窗状态并输出首 token。','采集 Encoder L1 / 7 / 13 / 19 / 25 特征，在线投影累加；最后为 DFlash 的 5 层初始化完整上下文 KV。'],source:'simulate_case → run_phase(prefill)\ntarget.Phase.build + model.Phase.capture\nmodel.Phase.draft_seed → Phase.run',nodes:[['Embedding','131072 个输入 token','词表行查找 + TP 归约'],['Encoder · L0–31','32 层完整上下文','CSA2 / MoE / mHC / Engram'],['Decoder KV 投影','从 Encoder 最终状态生成','共享全局 KV / index',true],['Decoder · L32–63','每层重放 128 个位置','跳过重复的全局 KV 投影'],['输出首 token','共享目标 head','logits 聚合 + sampling'],['DFlash KV 初始化','5 层上下文 K/V 投影','计入 TTFT',true]]},
+  draft:{title:'DFlash 生成一个草稿块',load:'B32 · 块长 8 · 1 个已知位置 + 7 个候选位置',points:['使用独立的 5 层 Dense 草稿网络：hidden 7168、MLP 21504、56 个 Q heads / 8 个 KV heads。','中间三类计算在每个草稿层内依次重复；块注意力读取整个上下文 KV，计入 HBM 带宽成本。','最后复用目标词表 head 并采样 7 个候选位置。接受数仍是外部输入，草稿质量没有经过验证。'],source:'simulate_case → run_phase(draft)\nmodel.Phase.draft → dense_matrix / kernel\nPhase.run → engine.simulate',nodes:[['已知前缀 + mask','8 个位置并行处理','mask embedding + TP 归约'],['Norm / QKV 投影','第 1–5 个草稿层','FP8 dense + FP32 norm'],['全上下文块注意力','读取完整 prefix KV','attention / softmax / RoPE'],['输出投影 / Dense MLP','TP 归约 + SwiGLU','第 1–5 层重复中间三步'],['共享目标 head','7 个候选位置','词表分片 + logits all-gather'],['草稿候选','采样并交给目标模型','完整块长仍为 8',true]]},
+  verify:{title:'目标模型验证整个草稿块',load:'B32 · 每序列 8 个位置 · 目标模型完整 64 层',points:['每个验证位置经过 Encoder 与 Decoder 共 64 层；不是 Prefill 的有限窗口重放路径。','每层 MoE 依次进行 router、EP dispatch、FP4→FP8 转换、专家计算、TP 归约、EP combine 与共享专家。','维护版本化前缀状态和更新特征；目标 head 输出验证所需预测，再由 Commit 按给定接受数恢复 / 截断。'],source:'simulate_case → run_phase(verify)\nmodel.Phase.build → block × 64 → head(8)\nmodel.Phase.kernel → FP4 conversion',nodes:[['块输入 Embedding','每序列 8 个位置','batch 总量 32'],['Encoder · L0–31','CSA2 / MoE / mHC','同时更新特征与状态'],['Decoder · L32–63','32 层完整验证路径','版本化前缀状态'],['目标输出 head','8 个位置的预测','共享词表矩阵'],['Logits / sampling','TP all-gather','生成目标预测'],['交给 Commit','预测 + 前缀状态版本','净接受数另行给定',true]]},
+  commit:{title:'提交被接受的前缀并追赶状态',load:'B32 · 每序列净接受 6 · 不额外加 bonus token',points:['从版本化快照恢复 / 截断目标模型状态，明确计入状态读取、写入和标量操作。','TP 同步接受信息并比较 token；净接受数固定为 6，不模拟接受率算法。','将已接受的特征投影为 DFlash KV 并追赶草稿上下文。下一轮以更新后的前缀继续；当前统计只模拟固定上下文一轮。'],source:'simulate_case → run_phase(commit, committed=6)\nmodel.Phase.build → snapshot / accept\ndraft_seed(6, DFlash_KV_catchup)',nodes:[['前缀状态恢复','snapshot_prefix_restore','目标缓存版本读写',true],['TP 接受同步','all-reduce','传播接受信息'],['比较 / 截断','token_compare_and_truncate','净接受 6',true],['融合特征规范化','只消费已接受位置','feature_norm'],['DFlash KV 追赶','5 层 K/V 投影','提交 6 个位置',true],['进入下一轮','更新后的前缀与状态','本演示展示一轮',true]]}
+};
+let currentPhase='prefill', eventPhase='prefill', eventIndex=0, playing=false, timer=null;
+function durationLabel(key,seconds){return key==='prefill'?fmt(seconds,3)+' s':fmt(seconds*1000,3)+' ms';}
+function graph(){
+  const narrow=$('phase-graph').clientWidth<620;
+  const width=narrow?360:900,height=narrow?748:330,w=narrow?330:263,h=91;
+  const pos=narrow?spec[currentPhase].nodes.map((_,i)=>[15,12+i*124]):[[10,24],[319,24],[628,24],[10,213],[319,213],[628,213]];
+  let paths='';
+  for(let i=0;i<5;i++){
+    const [x,y]=pos[i], [nx,ny]=pos[i+1];let d;
+    if(narrow)d=`M${x+w/2} ${y+h}V${ny-7}`;
+    else if(i===2)d=`M${x+w/2} ${y+h}V163H${nx+w/2}V${ny-7}`;
+    else d=`M${x+w} ${y+h/2}H${nx-7}`;
+    paths+=`<path class="flow-edge" d="${d}" stroke="#16877c" stroke-width="1.8" fill="none" marker-end="url(#phase-arrow)"/>`;
+  }
+  const nodes=spec[currentPhase].nodes.map((n,i)=>{const [x,y]=pos[i],fill=n[3]?'#f6efe2':'#eef5ef',stroke=n[3]?'#c7a869':'#b7d2c2';return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${fill}" stroke="${stroke}"/><text x="${x+15}" y="${y+27}" font-size="12" fill="#6b807a" font-family="Consolas,monospace">0${i+1}</text><text x="${x+43}" y="${y+28}" font-size="16" font-weight="600" fill="#16383b">${esc(n[0])}</text><text x="${x+15}" y="${y+53}" font-size="12.5" fill="#476368">${esc(n[1])}</text><text x="${x+15}" y="${y+75}" font-size="12" fill="#476368">${esc(n[2])}</text></g>`;}).join('');
+  $('phase-graph').innerHTML=`<svg viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="flow-title flow-desc"><title id="flow-title">${esc(spec[currentPhase].title)}</title><desc id="flow-desc">${esc(spec[currentPhase].nodes.map(n=>n.slice(0,3).join('，')).join('；然后'))}</desc><defs><marker id="phase-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#16877c"/></marker></defs>${paths}${nodes}</svg>`;
+}
+function stop(){playing=false;clearTimeout(timer);$('play').textContent='播放流程';$('phase-panel').classList.remove('running');}
+function selectPhase(key,announce=true){
+  currentPhase=key; const phase=DATA.phases[key], item=spec[key];
+  document.querySelectorAll('.phase-tab').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.phase===key)));
+  $('phase-panel').setAttribute('aria-labelledby','tab-'+key);
+  $('phase-title').textContent=item.title;$('phase-load').textContent=item.load;
+  $('phase-duration').innerHTML=key==='prefill'?`${fmt(phase.duration_s,3)}<small>s</small>`:`${fmt(phase.duration_s*1000,3)}<small>ms</small>`;
+  $('phase-events').textContent=`${fmt(phase.native_completed_events,0)} 个原生事件 · ${key==='prefill'?'Prefill batch 1':'Decode batch 32'}`;
+  $('phase-points').innerHTML=item.points.map(v=>`<li>${esc(v)}</li>`).join('');
+  $('phase-source').innerHTML=esc(item.source).replaceAll('\n','<br>');
+  $('previous-phase').disabled=key==='prefill';$('next-phase').disabled=key==='commit';
+  graph();selectEventPhase(key);
+  if(announce)$('phase-announcement').textContent=`${item.title}，${durationLabel(key,phase.duration_s)}`;
+}
+function advancePlayback(){
+  timer=setTimeout(()=>{const idx=PHASES.indexOf(currentPhase);if(idx===3){stop();return;} selectPhase(PHASES[idx+1]);advancePlayback();},7000);
+}
+$('play').addEventListener('click',()=>{if(playing){stop();return;}if(currentPhase==='commit')selectPhase('prefill');playing=true;$('play').textContent='暂停';$('phase-panel').classList.add('running');advancePlayback();});
+$('previous-phase').addEventListener('click',()=>{stop();selectPhase(PHASES[Math.max(0,PHASES.indexOf(currentPhase)-1)]);});
+$('next-phase').addEventListener('click',()=>{stop();selectPhase(PHASES[Math.min(3,PHASES.indexOf(currentPhase)+1)]);});
+document.querySelectorAll('.phase-tab').forEach(b=>{
+  b.addEventListener('click',()=>{stop();selectPhase(b.dataset.phase);});
+  b.addEventListener('keydown',e=>{let idx=PHASES.indexOf(b.dataset.phase);if(e.key==='ArrowRight')idx=(idx+1)%4;else if(e.key==='ArrowLeft')idx=(idx+3)%4;else if(e.key==='Home')idx=0;else if(e.key==='End')idx=3;else return;e.preventDefault();stop();selectPhase(PHASES[idx]);$('tab-'+PHASES[idx]).focus();});
+});
+new ResizeObserver(graph).observe($('phase-graph'));
+function selectEventPhase(key){eventPhase=key;eventIndex=0;$('event-phase').value=key;$('event-index').max=DATA.phases[key].stages.length-1;$('event-index').value=0;renderEvent();}
+function renderEvent(){
+  const rows=DATA.phases[eventPhase].stages,op=rows[eventIndex];
+  $('event-count').textContent=`${String(eventIndex+1).padStart(4,'0')} / ${rows.length} events`;
+  $('event-clock').textContent=`t = ${fmt(op.start_s*1000,3)} → ${fmt(op.end_s*1000,3)} ms`;
+  $('event-name').textContent=op.component;
+  $('event-sub').textContent=`${op.name} · ${op.layer<0?'层外':(eventPhase==='draft'&&op.layer>=64?'DFlash L'+(op.layer-64):op.layer>=64?'DFlash L'+(op.layer-64):'L'+op.layer)} · ${op.dtype.toUpperCase()}`;
+  const demands=Object.entries(op.work).filter(([,v])=>v>0).map(([key,value])=>({key,value,service:value/DATA.rates[key]}));
+  const maximum=Math.max(...demands.map(v=>v.service),0);
+  $('event-resources').innerHTML=demands.map(v=>`<div class="resource-row"><span class="resource-name">${esc(v.key)}</span><div class="resource-track"><div class="resource-fill ${v.key===op.bottleneck?'bound':''}" style="width:${maximum?v.service/maximum*100:0}%"></div></div><span class="resource-value">${fmt(v.service*1e6,3)} μs</span></div>`).join('');
+  $('event-service').textContent=fmt(maximum*1e6,3)+' μs';$('event-startup').textContent=fmt(op.startup_s*1e6,3)+' μs';$('event-duration').textContent=fmt(op.duration_s*1e6,3)+' μs';
+  $('event-work').innerHTML=demands.map(v=>{const unit=v.key.includes('fp')?'FLOP':v.key==='CPU.iops'?'op':'byte';return `<tr><td>${esc(v.key)}</td><td>${Number(v.value).toExponential(4)} ${unit}</td><td>${Number(DATA.rates[v.key]).toExponential(3)}</td></tr>`;}).join('');
+  $('previous-event').disabled=eventIndex===0;$('next-event').disabled=eventIndex===rows.length-1;
+  $('event-index').setAttribute('aria-valuetext',`${eventIndex+1} / ${rows.length}，${op.component}，${fmt(op.duration_s*1e6,3)} 微秒`);
+}
+$('event-phase').addEventListener('change',e=>selectEventPhase(e.target.value));
+$('event-index').addEventListener('input',e=>{eventIndex=+e.target.value;renderEvent();});
+for(const [id,delta] of [['previous-event',-1],['next-event',1]])$(id).addEventListener('click',()=>{eventIndex=Math.max(0,Math.min(DATA.phases[eventPhase].stages.length-1,eventIndex+delta));$('event-index').value=eventIndex;renderEvent();});
+const m=DATA.metrics;
+for(const key of PHASES)$('tab-time-'+key).textContent=durationLabel(key,DATA.phases[key].duration_s);
+$('metric-ttft').innerHTML=fmt(m.ttft_s,3)+' <small>s</small>';$('metric-tpot').innerHTML=fmt(m.tpot_s*1000,3)+' <small>ms</small>';$('metric-throughput').innerHTML=fmt(m.decode_tokens_s,1)+' <small>tokens/s</small>';
+const latencyCats=[['compute_bound_s','NPU 计算','#16877c'],['hbm_bound_s','HBM 访存','#5687ae'],['su_transfer_s','SU 传输','#b58238'],['communication_startup_s','通信启动','#8b73a3'],['host_transfer_s','Host 链路','#ba7366'],['host_memory_s','Host 内存','#8c9f75'],['cpu_compute_s','CPU 计算','#a6b4b4']];
+$('ttft-bar').innerHTML=latencyCats.map(([key,label,color])=>`<span style="width:${DATA.phases.prefill.breakdown_s[key]/m.ttft_s*100}%;background:${color}" title="${label}: ${fmt(DATA.phases.prefill.breakdown_s[key],6)} s"></span>`).join('');
+$('ttft-breakdown').innerHTML=latencyCats.map(([key,label,color])=>`<div class="breakdown-item"><span><i class="dot" style="background:${color}"></i>${label}</span><b>${fmt(DATA.phases.prefill.breakdown_s[key],6)} s</b></div>`).join('');
+$('ttft-end').textContent=fmt(m.ttft_s,3)+' s';
+const decodeColors={draft:'#5687ae',verify:'#16877c',commit:'#b58238'};
+$('decode-bar').innerHTML=['draft','verify','commit'].map(key=>`<span style="width:${DATA.phases[key].duration_s/m.round_s*100}%;background:${decodeColors[key]}" title="${key}: ${fmt(DATA.phases[key].duration_s*1000,6)} ms"></span>`).join('');
+$('decode-labels').innerHTML=['draft','verify','commit'].map(key=>`<span><i class="dot" style="background:${decodeColors[key]}"></i>${key[0].toUpperCase()+key.slice(1)}<b>${fmt(DATA.phases[key].duration_s*1000,6)} ms</b></span>`).join('');
+$('round-end').textContent=fmt(m.round_s*1000,6)+' ms';
+const startupPct=m.latency_breakdown.tpot.communication_startup_s/m.tpot_s*100;
+$('latency-insight').textContent=`本配置 TPOT 中，通信启动约占 ${fmt(startupPct,1)}%；HBM 访存约占 ${fmt(m.latency_breakdown.tpot.hbm_bound_s/m.tpot_s*100,1)}%。这反映当前 pairwise / TP 启动模型及串行阶段假设。`;
+const memCats=[['weight','权重','#16877c'],['weight_scales','量化 scales','#6aa398'],['runtime','Runtime','#5687ae'],['workspace','基础 workspace','#b7c9d5'],['KV_and_state','KV / 状态','#b58238'],['activation_arena','Activation arena','#8b73a3'],['weight_conversion_buffer','FP4 转换缓冲','#ba7366'],['fused_target_features','融合特征','#8c9f75']];
+const decodePeak=['draft','verify','commit'].reduce((a,b)=>DATA.phases[a].memory.hbm_peak_bytes>=DATA.phases[b].memory.hbm_peak_bytes?a:b);
+$('memory-bars').innerHTML=[['prefill','Prefill 峰值'],[decodePeak,'Decode 峰值（'+decodePeak+'）']].map(([key,label])=>{const p=DATA.phases[key].memory;return `<div class="memory-line"><div class="memory-label"><span>${label}</span><b>${fmt(p.hbm_peak_bytes/1e9,3)} / 96 GB</b></div><div class="memory-track" role="img" aria-label="${label}：${fmt(p.hbm_peak_bytes/1e9,3)} GB，占容量 ${fmt(p.hbm_peak_ratio*100,1)}%">${memCats.map(([name,title,color])=>`<span style="width:${p.peak_components_bytes[name]/DATA.hardware.npu.hbm_bytes*100}%;background:${color}" title="${title}: ${fmt(p.peak_components_bytes[name]/1e9,6)} GB"></span>`).join('')}</div></div>`;}).join('');
+$('memory-key').innerHTML=memCats.map(([,name,color])=>`<span><i class="dot" style="background:${color}"></i>${name}</span>`).join('');
+$('memory-insight').textContent=`常驻基础状态 ${fmt(DATA.phases.prefill.memory.static_bytes_per_card/1e9,3)} GB / 卡。Prefill 峰值由 Engram projection 的 activation arena 拉高；Verify 转换缓冲最大 ${fmt(DATA.phases.verify.memory.max_conversion_buffer_bytes_per_card/1e9,3)} GB / 卡。`;
+$('fingerprint').textContent='当前数值源码指纹 / SHA-256\n'+DATA.provenance.numeric_fingerprint;
+$('download-data').addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='deepseek-v41-walkthrough-data.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+$('print').addEventListener('click',()=>window.print());
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
+selectPhase('prefill',false);
+</script>
+</body>
+</html>

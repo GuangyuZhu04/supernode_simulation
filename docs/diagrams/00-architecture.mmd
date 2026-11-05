@@ -1,44 +1,44 @@
 flowchart TB
-    U["用户问题：训练 / 推理 / 流量 / SU 选型"] --> S["supernode-modeling：场景编排与结果解释"]
+    U["用户：训练 / 固定 batch 推理 / 请求级服务 / 方案搜索"] --> S["supernode-modeling<br/>定位环境、组织配置、解释真实结果"]
+    S --> LF["launch_frontend.py<br/>预检 / 复用服务 / 返回 inputs_url"]
+    LF --> W["本地 Web 输入工作台<br/>模型 / 硬件 / 拓扑 / 并行 / Workload"]
     U --> CLI["CLI / Python API"]
-    U --> W["本地 Web：loopback HTTP + 静态前端"]
-    S --> LF["launch_frontend.py：预检 / 服务复用 / 有限端口避让"]
-    LF -->|实际 inputs_url，由 Skill 打开| W
-    S --> TS["supernode-topology：自然语言转 topology spec"]
-    TS --> TC["build_topology.py：校验与编译显式图"]
-    TC --> C
-    S --> C["场景 YAML/JSON：model / hardware / workload / execution / targets"]
-    C --> V["load_config() / Config.model_validate()"]
-    CLI --> V
-    W --> J["JobManager：单个活动任务 / 状态持久化 / 取消"]
-    J --> WW["独立 web_worker：estimate / simulate"]
-    WW --> V
-    V --> A["analysis.run() / search.sweep() / search.size_su()"]
-    V --> F["feedback.feedback()：有限联合候选网格"]
-    F -->|simulate| A
-    F -->|streaming / auto 适用时| L["run_streaming()：structured inference，DP=PP=1"]
-    V -->|独立 Python API| L
-    A --> G["analysis.compile_graph()"]
-    G --> B["构图器：structured / training / inference<br/>可选 speculative / disaggregated"]
-    B --> D["core.Graph：Event + Resource + Allocation + metadata"]
-    T["Topology：设备、链路、确定性路径与通信展开"] --> B
-    P["components：形状、参数与状态公式"] --> B
-    D --> MK["可选 apply_megakernel()：安全局部链融合"]
-    MK --> K["apply_kernel_profiles()：匹配实测 kernel"]
-    K --> E["graph_estimate()：必要性能下界"]
-    E -->|simulate 模式| X["engine.simulate()：依赖、内存准入、slot、资源争用"]
-    E -->|estimate 模式| R["需求 / 指标 / SLO / 组件内存账本"]
-    X -->|全图结果| R
-    R --> O["write_report()：JSON / Markdown / CSV / timeline"]
-    L --> SB["同一 Builder：按 barrier 发出 chunk，保留跨块存储状态"]
-    SB --> CK["逐块校准 / 有预算的时序缓存 / 容量复核"]
-    CK -->|未命中或模板不适用| X
-    CK --> Q["流式数值摘要：phase / chunk / token / 资源 / 峰值"]
-    X -->|chunk 结果| Q
-    Q --> F
-    R --> F
-    F --> FO["feedback_report：候选 / 最优配置 / Pareto 前沿"]
-    O --> UI["Web worker：ui.result.json 有界展示摘要"]
-    UI --> W
-    O --> S
-    FO --> S
+    S --> TS["supernode-topology<br/>topology spec → 原生硬件 / 场景"]
+    TS --> C["Config：严格场景与来源<br/>features 展开 / calibration 合并"]
+    CLI --> C
+    W --> J["JobManager → 独立 web_worker<br/>单活动任务、输入快照、取消与历史"]
+    J --> C
+    SS["独立 ServingSpec<br/>arrival / FCFS / 实例数 / 服务 SLO"] --> SV
+    C --> SV["simulate_serving()<br/>相对时钟、隔离实例、逐批 run；图 15"]
+    C --> SR["sweep / size_su / feedback<br/>有限候选、ordered_map 多进程；图 10 / 12"]
+    C --> A["analysis.run()<br/>estimate / simulate"]
+    SV --> A
+    SR --> A
+    SR -->|适用的 feedback 候选| L
+    C -->|独立 Python API| L["run_streaming()<br/>结构化推理 DP=PP=1；图 13"]
+    A --> G["compile_graph()<br/>PD → 投机 → 结构化 / 参数预算构图"]
+    T["Topology + components + moe_wire<br/>路径 / I/O 共享 / 张量公式 / 通信精度"] --> G
+    CC["collective_profiles / collective_models<br/>环境与拓扑签名、范围内插值；图 17"] --> T
+    G --> D["Graph：Event / Resource / Allocation<br/>依赖、工作量、生命周期与完成标记"]
+    D --> PP["算子编译管线：trace 展开 → 可选融合 → profile<br/>身份匹配 / 启动 / HBM / workspace；详见 5.5–5.8 与图 16"]
+    OPINPUT["kernel_traces + kernel_profiles<br/>算子序列与计时证据分开；可导入 NPUSim CA 报告"] --> PP
+    PP --> E["graph_estimate()<br/>必要性能下界与驻留容量"]
+    E -->|simulate| X["engine.simulate()<br/>依赖 / slot / 内存准入 / max-min 争用；图 8"]
+    E -->|estimate| R["指标 / SLO / 内存账本<br/>latency_breakdown / training_accounting；图 9 / 18"]
+    X -->|全图记录| R
+    R --> O["write_report()<br/>JSON / Markdown / CSV / timeline"]
+    SR --> FO["feedback_report / 搜索报告<br/>候选、失败诊断、有限集合内的最优配置"]
+    L --> SB["同一 Builder 按屏障构图<br/>普通或原生 draft / verify / commit hooks"]
+    T --> SB
+    SB --> CK["逐块 trace 展开与 kernel 校准<br/>有预算的缓存、真实容量复核"]
+    CK -->|未命中或容量不适用| X
+    CK --> Q["流式摘要<br/>phase / token / 时延归因 / 资源 / 峰值"]
+    X -->|chunk 记录| Q
+    SV --> SO["write_serving_report()<br/>双配置 / requests.csv / token-trace.json"]
+    O --> UI["Web 有界摘要<br/>compact_result / compact_serving_result"]
+    SO --> UI
+    UI --> DLV["用户 / Skill 读取结果与复跑配置<br/>指标口径、来源、假设与覆盖范围随结果保存"]
+    O --> DLV
+    SO --> DLV
+    FO --> DLV
+    Q --> DLV

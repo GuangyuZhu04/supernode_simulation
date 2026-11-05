@@ -9,7 +9,7 @@ flowchart TD
     GATHER --> DISPATCH["可选 collective(EP dispatch)<br/>内部：权重精度转换、activation 生命周期"]
     DISPATCH --> CK{"内部：B 且 activation checkpointing？"}
     CK -->|是| RECOMP["kernel(forward=True)<br/>重放 TP / EP 通信"]
-    CK -->|否| KERNEL["kernel(..., forward=F)<br/>创建计算与 HBM work 的 Event"]
+    CK -->|否| KERNEL["kernel(..., forward=F)<br/>创建计算 / HBM work 的 Event<br/>因果 attention 预算与推理口径对齐"]
     RECOMP --> KERNEL
     KERNEL --> COMM["collective(TP attention / MLP all_reduce)<br/>可选 EP combine"]
     COMM --> SYNC{"内部：B 到达梯度同步点？"}

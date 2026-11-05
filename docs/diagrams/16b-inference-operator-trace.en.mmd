@@ -1,0 +1,16 @@
+flowchart TB
+    BASE["B · 1 device, fixed batch=1<br/>Input 8, output 3; H=16, I=32<br/>Checkpoint / optimizer offload disabled"] --> P["prefill: query=8, context=8<br/>Dense M=8; up / gate / down<br/>each uses 8,192 FLOPs"]
+    P --> D1["decode 1: query=1, context=9<br/>Dense M=1; three operators<br/>each use 1,024 FLOPs"]
+    D1 --> D2["decode 2: query=1, context=10<br/>Same GEMM work as the previous step,<br/>different workload_shape"]
+    P -.-> BIND["build_calibration() for each parent event<br/>Bind phase, structure,<br/>workload_shape / sequence_signature<br/>1 prefill + 2 decode traces"]
+    D1 -.-> BIND
+    D2 -.-> BIND
+    BIND --> SUB["Each round: Dense → up → gate → down → original ID<br/>Each suboperator adds 1 μs startup,<br/>512 B local workspace<br/>HBM=max(operand read/write bytes, parent HBM/3)"]
+    SUB --> FULL["analysis.run(): full graph<br/>Compute + KV / conversions + original dependencies"]
+    SUB --> STREAM["run_streaming(): same Builder<br/>Expand and calibrate at barriers;<br/>applicable here with DP=PP=1"]
+    FULL --> TOK["Per-request token completion markers<br/>Prefill produces the first token;<br/>each later round produces one token"]
+    STREAM --> PARITY["Compare duration and resource accounting<br/>Observed duration difference: about 1.36e-20 s"]
+    FULL --> PARITY
+    TOK --> MET["TTFT: 45.568 → 48.568 μs<br/>TPOT: 10.028 → 13.060 μs<br/>Total: 65.624 → 74.688 μs"]
+    MET --> CHECK["3 parents → 9 suboperators; FLOPs unchanged<br/>Added HBM: 320 B; added startup: 9 μs<br/>Synthetic check of phase-specific binding<br/>and execution consistency"]
+    PARITY --> CHECK

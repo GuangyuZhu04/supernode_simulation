@@ -10,7 +10,7 @@ flowchart TD
     CK -->|否| ORDER["component_order(layer)<br/>F 正序 / B 逆序遍历组件"]
     RECOMP --> ORDER
     ORDER --> DISPATCH["MoE 时 collective(EP dispatch)"]
-    DISPATCH --> KERNEL["逐 rank kernel()<br/>权重转换、FLOPs/HBM、activation/state allocs/releases"]
+    DISPATCH --> KERNEL["逐 rank kernel()<br/>workload_shape、权重转换、FLOPs/HBM<br/>activation/state allocs/releases"]
     KERNEL --> COMM["MoE 时 collective(combine)<br/>attention / FFN 后 collective(TP all_reduce)"]
     COMM --> MOREC{"内部：还有组件？"}
     MOREC -->|是| ORDER

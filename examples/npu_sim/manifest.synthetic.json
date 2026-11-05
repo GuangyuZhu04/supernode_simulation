@@ -1,0 +1,115 @@
+{
+  "schema_version": "1.0",
+  "mode": "ca",
+  "correctness": "passed",
+  "capture_scope": "all_active_cores",
+  "expected_active_cores": 2,
+  "hardware_name": "synthetic-small-device-not-a-product",
+  "simulator_version": "synthetic-1",
+  "simulator_revision": "synthetic-fixture-not-an-executed-simulator",
+  "command": "synthetic fixture; no npusim process was executed",
+  "summary_sha256": "a16b913ed241aa77f7f3b2a95822467465f2c46f40d912888a770cd634d4611c",
+  "calibration_context": {
+    "device_sku": "synthetic-device-not-a-product",
+    "cann_version": "synthetic-cann",
+    "hccl_version": "not_required",
+    "driver_version": "not_required",
+    "runtime": "synthetic-npusim",
+    "runtime_version": "synthetic-1",
+    "transport": "not_applicable",
+    "mode": "ca",
+    "timer_boundary": "device_only"
+  },
+  "target": {
+    "event_id": "train.s0.p0.backward.m0.l0.npu0.Dense.operator_trace.0",
+    "kernel": "dense.down.dgrad",
+    "phase": "backward",
+    "dtype": "bf16",
+    "flops": 8192,
+    "memory_bytes": 1792,
+    "original_startup_s": 0.000001,
+    "metadata_match": {
+      "component": "Dense",
+      "layer": 0,
+      "model_shape_signature": "model-shape-v1:sha256:f023901f0f1fcfc38570f20f9691eab80caa2baebb59b4943a896a986c2e2a04",
+      "tokens": 8,
+      "workload_shape": {
+        "version": 1,
+        "phase": "backward",
+        "operator_tokens": 8,
+        "sequence_scope": "dp_microbatch_before_ep",
+        "source_batch_size": 1,
+        "context_tokens": 8,
+        "query_tokens": 8,
+        "kv_cache_tokens_before": 0,
+        "context_length_squared_sum": 64,
+        "query_length_squared_sum": 64,
+        "context_length_min": 8,
+        "context_length_max": 8,
+        "dense_causal_pairs_reference": 36,
+        "training_ep_divisor": 1,
+        "sequence_signature": "sequence-shape-v1:sha256:85e27e6e9e00aa2bf54a9a3578492e9b377dfff4d16cbcd4758d0109d08fbc73"
+      },
+      "tensor_parallel_degree": 1,
+      "expert_parallel_degree": 1,
+      "sequence_parallel_degree": 1,
+      "trace_id": "synthetic-dense-backward-six-gemms",
+      "original_kernel": "dense",
+      "operation_index": 0,
+      "matmul": {
+        "m": 8,
+        "n": 32,
+        "k": 16,
+        "batch": 1
+      },
+      "implementation": {
+        "op_type": "MatMul",
+        "kernel_name": "dense.down.dgrad",
+        "binary_sha256": "477284d37b50476aa899796ecaf1d180b0e1ed461226b42b4efb46a08e6a9963",
+        "tiling_key": "synthetic-tiling-0",
+        "block_dim": 2,
+        "inputs": [
+          {
+            "shape": [
+              8,
+              16
+            ],
+            "dtype": "bf16",
+            "format": "ND"
+          },
+          {
+            "shape": [
+              16,
+              32
+            ],
+            "dtype": "bf16",
+            "format": "ND"
+          }
+        ],
+        "outputs": [
+          {
+            "shape": [
+              8,
+              32
+            ],
+            "dtype": "bf16",
+            "format": "ND"
+          }
+        ],
+        "attributes": {
+          "transpose_a": false,
+          "transpose_b": false
+        },
+        "tiling": {
+          "buffer_count": 2,
+          "synthetic": true
+        }
+      }
+    }
+  },
+  "evidence_kind": "synthetic",
+  "source": {
+    "status": "assumed",
+    "description": "Synthetic NPUSim-shaped fixture only; correctness, timing, identity and diagnostic values are illustrative, not execution or hardware measurements."
+  }
+}

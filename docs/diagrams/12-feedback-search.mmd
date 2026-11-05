@@ -1,11 +1,11 @@
 flowchart TD
-    ENTRY["feedback(config, search)"] --> SPEC["FeedbackSpec.model_validate()<br/>tpop_alias() → canonical_axes()"]
+    ENTRY["feedback(config, search, workers)"] --> SPEC["FeedbackSpec.model_validate()<br/>tpop_alias() → canonical_axes()"]
     SPEC --> CHECK["内部：只接受 inference；要求 TTFT 与 TPOT<br/>固定 output_length ≥ 2；ragged 输出需显式长度"]
-    CHECK --> ENGINE["内部：选择 engine<br/>auto 在 structured 且 DP=PP=1 时选 streaming<br/>其余选完整 simulate"]
+    CHECK --> ENGINE["内部：选择 engine<br/>auto：structured、DP=PP=1<br/>且无投机 / megakernel / PD 才选 streaming"]
     ENGINE --> AXES["_bounded_grid() / _layouts()<br/>length × batch × TP/EP/SP 有限候选网格"]
     AXES --> LIMIT{"内部：候选数 ≤ max_candidates？"}
     LIMIT -->|否| ERROR["ValueError：缩小轴或显式提高上限"]
-    LIMIT -->|是| LOOP["内部：itertools.product 遍历全部候选"]
+    LIMIT -->|是| LOOP["ordered_map(_feedback_candidate, ...)<br/>串行 / spawn 进程池，按输入顺序收集"]
     LOOP --> CAND["_candidate_config()<br/>复制基线，替换执行轴、统一输入长度/批次/输出长度<br/>Config.model_validate()"]
     CAND -->|校验失败| BAD["记录 invalid_config 与原因"]
     CAND --> CHOICE{"内部：选定引擎"}
@@ -23,4 +23,4 @@ flowchart TD
     MORE -->|否| RANK["_rank() 排序 feasible<br/>构造 best 与实际 best.config"]
     RANK --> FRONT["_frontier()<br/>内部：每 layout 的可行边界与全部状态计数"]
     FRONT --> OUT["返回 mode=feedback<br/>best / candidates / frontier / boundaries<br/>search_complete = 无 error 候选"]
-    OUT --> REPORT["write_report() → write_feedback_report()<br/>result.json / config.resolved.json / 可选 best.config.json<br/>candidates.csv / report.md"]
+    OUT --> REPORT["write_report() → write_feedback_report()<br/>result.json / config.resolved.json / 可选 best.config.json<br/>candidates.csv / latency_breakdown.csv / report.md"]

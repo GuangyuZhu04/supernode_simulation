@@ -1,0 +1,19 @@
+flowchart TB
+    subgraph OFFLINE["案例 C · 离线准备与导入；本项目不执行 CANN / NPUSim"]
+        CFG["已展开子算子的场景<br/>implementation 含 shape / format / dtype<br/>tiling_key / block_dim / binary_sha256"] --> TARGET["npu_sim.list_targets() / --list<br/>选择唯一目标及完整 metadata_match"]
+        SUM["外部单 launch summary.json<br/>真实 CA 报告，或明确标 synthetic fixture"] --> ANALYZE["analyze_summary()<br/>kernel_total_clocks / frequency_ghz / 1e9<br/>保留 pipeline / bandwidth 诊断"]
+        TARGET --> MAN["manifest：target + 完整运行环境<br/>mode=ca、correctness=passed、all_active_cores<br/>summary 哈希、版本、命令、证据类型"]
+        ANALYZE --> BUILD["npu_sim.build_calibration()<br/>检查哈希、核数、身份、环境与唯一匹配<br/>再由 kernel profile 校验物理下界"]
+        MAN --> BUILD
+        BUILD --> VALID{"条件与计时边界有效？"}
+        VALID -->|否| FAIL["拒绝导入<br/>PV、未拆分组件、身份缺失、实测冒标等"]
+        VALID -->|是| PKG["输出 kernel_profiles + 导入报告<br/>duration_s 不含外层启动；evidence_kind 保留"]
+    end
+    subgraph RUN["外层执行：服务时间与资源共同约束"]
+        PKG --> MERGE["合并现有 profiles → Config 校验<br/>analysis.run() → apply_kernel_profiles()"]
+        MERGE --> EVENT["同一个子算子 Event<br/>compute FLOPs + HBM bytes + timing resource<br/>原 compute slot、workspace、依赖仍有效"]
+        EVENT --> SIM["engine.simulate()<br/>无争用服务时间至少为导入窗口<br/>HBM 等共享资源争用可进一步延长"]
+        SIM --> OUT["检查匹配数、来源、资源和峰值<br/>再读完整 step / TTFT / TPOT"]
+    end
+    EX["仓库 synthetic fixture<br/>100,000 clocks / 2.0 GHz = 50 μs<br/>只校准 dense.down.dgrad，命中 1 次"] -.-> PKG
+    OUT --> RESULT["合成复跑：训练 step 766.949204 → 808.757204 μs<br/>HBM 访问量、峰值与最终容量保持<br/>synthetic_profiled；无硬件实测准确率声明"]

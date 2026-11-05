@@ -1,0 +1,474 @@
+{
+  "schema_version": "1.0",
+  "model": {
+    "name": "synthetic-feature-training",
+    "layers": 1,
+    "hidden_dim": 16,
+    "num_heads": 4,
+    "kv_heads": 2,
+    "head_dim": 4,
+    "architecture": {
+      "vocab_size": 32,
+      "attention_by_layer": [
+        "GQA"
+      ],
+      "ffn_by_layer": [
+        "Dense"
+      ],
+      "dense_intermediate_dim": 32
+    }
+  },
+  "hardware": {
+    "name": "synthetic-small-device-not-a-product",
+    "npu_count": 1,
+    "su_size": 1,
+    "npus_per_host": 1,
+    "npu": {
+      "hbm_bytes": 67108864,
+      "hbm_Bps": 1000000000,
+      "flops": {
+        "fp16": 1000000000,
+        "bf16": 1000000000,
+        "fp32": 100000000
+      },
+      "efficiency": 1,
+      "runtime_bytes": 65536,
+      "workspace_bytes": 4096
+    },
+    "cpu": {
+      "dram_bytes": 67108864,
+      "dram_Bps": 1000000000,
+      "flops": 100000000,
+      "efficiency": 1
+    },
+    "calibration_context": {
+      "device_sku": "synthetic-device-not-a-product",
+      "cann_version": "synthetic-cann",
+      "hccl_version": "not_required",
+      "driver_version": "not_required",
+      "runtime": "synthetic-npusim",
+      "runtime_version": "synthetic-1",
+      "transport": "not_applicable",
+      "mode": "ca",
+      "timer_boundary": "device_only"
+    },
+    "kernel_traces": {
+      "dense": [
+        {
+          "id": "synthetic-dense-backward-six-gemms",
+          "source": "Synthetic serial GEMM-only Dense backward decomposition for the 16x32, eight-token example; excludes an exact nonlinear autograd trace and is not hardware measurement.",
+          "hardware_name": "synthetic-small-device-not-a-product",
+          "phase": "backward",
+          "dtype": "bf16",
+          "flops": 49152.0,
+          "memory_bytes": 6144.0,
+          "metadata_match": {
+            "component": "Dense",
+            "layer": 0,
+            "model_shape_signature": "model-shape-v1:sha256:f023901f0f1fcfc38570f20f9691eab80caa2baebb59b4943a896a986c2e2a04",
+            "tokens": 8.0,
+            "workload_shape": {
+              "version": 1,
+              "phase": "backward",
+              "operator_tokens": 8.0,
+              "sequence_scope": "dp_microbatch_before_ep",
+              "source_batch_size": 1,
+              "context_tokens": 8,
+              "query_tokens": 8,
+              "kv_cache_tokens_before": 0,
+              "context_length_squared_sum": 64,
+              "query_length_squared_sum": 64,
+              "context_length_min": 8,
+              "context_length_max": 8,
+              "dense_causal_pairs_reference": 36,
+              "training_ep_divisor": 1,
+              "sequence_signature": "sequence-shape-v1:sha256:85e27e6e9e00aa2bf54a9a3578492e9b377dfff4d16cbcd4758d0109d08fbc73"
+            },
+            "tensor_parallel_degree": 1,
+            "expert_parallel_degree": 1,
+            "sequence_parallel_degree": 1
+          },
+          "calibration_context": {
+            "device_sku": "synthetic-device-not-a-product",
+            "cann_version": "synthetic-cann",
+            "hccl_version": "not_required",
+            "driver_version": "not_required",
+            "runtime": "synthetic-npusim",
+            "runtime_version": "synthetic-1",
+            "transport": "not_applicable",
+            "mode": "ca",
+            "timer_boundary": "device_only"
+          },
+          "operations": [
+            {
+              "kernel": "dense.down.dgrad",
+              "flops": 8192.0,
+              "memory_bytes": 1792.0,
+              "startup_s": 1e-06,
+              "workspace_bytes": 512.0,
+              "matmul": {
+                "m": 8,
+                "n": 32,
+                "k": 16,
+                "batch": 1
+              },
+              "implementation": {
+                "op_type": "MatMul",
+                "kernel_name": "dense.down.dgrad",
+                "binary_sha256": "477284d37b50476aa899796ecaf1d180b0e1ed461226b42b4efb46a08e6a9963",
+                "tiling_key": "synthetic-tiling-0",
+                "block_dim": 2,
+                "inputs": [
+                  {
+                    "shape": [
+                      8,
+                      16
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  },
+                  {
+                    "shape": [
+                      16,
+                      32
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "shape": [
+                      8,
+                      32
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  }
+                ],
+                "attributes": {
+                  "transpose_a": false,
+                  "transpose_b": false
+                },
+                "tiling": {
+                  "buffer_count": 2,
+                  "synthetic": true
+                }
+              }
+            },
+            {
+              "kernel": "dense.down.wgrad",
+              "flops": 8192.0,
+              "memory_bytes": 1792.0,
+              "startup_s": 1e-06,
+              "workspace_bytes": 512.0,
+              "matmul": {
+                "m": 32,
+                "n": 16,
+                "k": 8,
+                "batch": 1
+              },
+              "implementation": {
+                "op_type": "MatMul",
+                "kernel_name": "dense.down.wgrad",
+                "binary_sha256": "a9ada8462700b23b5bc4120f4772bf0d94066a0ab1c4516ec540692d1d5dd9c7",
+                "tiling_key": "synthetic-tiling-0",
+                "block_dim": 2,
+                "inputs": [
+                  {
+                    "shape": [
+                      32,
+                      8
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  },
+                  {
+                    "shape": [
+                      8,
+                      16
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "shape": [
+                      32,
+                      16
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  }
+                ],
+                "attributes": {
+                  "transpose_a": false,
+                  "transpose_b": false
+                },
+                "tiling": {
+                  "buffer_count": 2,
+                  "synthetic": true
+                }
+              }
+            },
+            {
+              "kernel": "dense.gate.dgrad",
+              "flops": 8192.0,
+              "memory_bytes": 1792.0,
+              "startup_s": 1e-06,
+              "workspace_bytes": 512.0,
+              "matmul": {
+                "m": 8,
+                "n": 16,
+                "k": 32,
+                "batch": 1
+              },
+              "implementation": {
+                "op_type": "MatMul",
+                "kernel_name": "dense.gate.dgrad",
+                "binary_sha256": "f93d7bf757c6624ca3314572183e689c07575262af78f4c94ba084192d2a0027",
+                "tiling_key": "synthetic-tiling-0",
+                "block_dim": 2,
+                "inputs": [
+                  {
+                    "shape": [
+                      8,
+                      32
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  },
+                  {
+                    "shape": [
+                      32,
+                      16
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "shape": [
+                      8,
+                      16
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  }
+                ],
+                "attributes": {
+                  "transpose_a": false,
+                  "transpose_b": false
+                },
+                "tiling": {
+                  "buffer_count": 2,
+                  "synthetic": true
+                }
+              }
+            },
+            {
+              "kernel": "dense.gate.wgrad",
+              "flops": 8192.0,
+              "memory_bytes": 1792.0,
+              "startup_s": 1e-06,
+              "workspace_bytes": 512.0,
+              "matmul": {
+                "m": 16,
+                "n": 32,
+                "k": 8,
+                "batch": 1
+              },
+              "implementation": {
+                "op_type": "MatMul",
+                "kernel_name": "dense.gate.wgrad",
+                "binary_sha256": "eca55bfa56228418e69b1f87a43ee87d0ee0592e91dbd33cf9514809fb0a7a31",
+                "tiling_key": "synthetic-tiling-0",
+                "block_dim": 2,
+                "inputs": [
+                  {
+                    "shape": [
+                      16,
+                      8
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  },
+                  {
+                    "shape": [
+                      8,
+                      32
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "shape": [
+                      16,
+                      32
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  }
+                ],
+                "attributes": {
+                  "transpose_a": false,
+                  "transpose_b": false
+                },
+                "tiling": {
+                  "buffer_count": 2,
+                  "synthetic": true
+                }
+              }
+            },
+            {
+              "kernel": "dense.up.dgrad",
+              "flops": 8192.0,
+              "memory_bytes": 1792.0,
+              "startup_s": 1e-06,
+              "workspace_bytes": 512.0,
+              "matmul": {
+                "m": 8,
+                "n": 16,
+                "k": 32,
+                "batch": 1
+              },
+              "implementation": {
+                "op_type": "MatMul",
+                "kernel_name": "dense.up.dgrad",
+                "binary_sha256": "902444c63eddfcc1955cda31ffed13e894108e1bd5b1308c07776c85f02e3ab4",
+                "tiling_key": "synthetic-tiling-0",
+                "block_dim": 2,
+                "inputs": [
+                  {
+                    "shape": [
+                      8,
+                      32
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  },
+                  {
+                    "shape": [
+                      32,
+                      16
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "shape": [
+                      8,
+                      16
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  }
+                ],
+                "attributes": {
+                  "transpose_a": false,
+                  "transpose_b": false
+                },
+                "tiling": {
+                  "buffer_count": 2,
+                  "synthetic": true
+                }
+              }
+            },
+            {
+              "kernel": "dense.up.wgrad",
+              "flops": 8192.0,
+              "memory_bytes": 1792.0,
+              "startup_s": 1e-06,
+              "workspace_bytes": 512.0,
+              "matmul": {
+                "m": 16,
+                "n": 32,
+                "k": 8,
+                "batch": 1
+              },
+              "implementation": {
+                "op_type": "MatMul",
+                "kernel_name": "dense.up.wgrad",
+                "binary_sha256": "145d42d2452b5d1aabceb1781898a9eeee2174bab2799dcd62fe36e972cabe65",
+                "tiling_key": "synthetic-tiling-0",
+                "block_dim": 2,
+                "inputs": [
+                  {
+                    "shape": [
+                      16,
+                      8
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  },
+                  {
+                    "shape": [
+                      8,
+                      32
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "shape": [
+                      16,
+                      32
+                    ],
+                    "dtype": "bf16",
+                    "format": "ND"
+                  }
+                ],
+                "attributes": {
+                  "transpose_a": false,
+                  "transpose_b": false
+                },
+                "tiling": {
+                  "buffer_count": 2,
+                  "synthetic": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "workload": {
+    "scenario": "training",
+    "batch_size": 1,
+    "sequence_length": 8,
+    "gradient_accumulation": 1,
+    "training_steps": 1
+  },
+  "features": {
+    "precision": {
+      "weight": "bf16",
+      "compute": "bf16",
+      "gradient": "bf16",
+      "activation": "bf16"
+    },
+    "activation_checkpointing": true,
+    "optimizer_offload": true,
+    "optimizer": {
+      "kind": "adam"
+    }
+  },
+  "sources": {
+    "*": {
+      "status": "assumed",
+      "description": "Synthetic feature smoke test; every model/hardware value is illustrative and is not a K3, V4 or 950DT specification."
+    }
+  },
+  "assumptions": [
+    "Checkpointing trades retained activations for recomputation; optimizer offload may increase step time.",
+    "This one-device case demonstrates feature wiring, not distributed scaling or production throughput."
+  ]
+}

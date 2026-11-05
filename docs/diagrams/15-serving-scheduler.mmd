@@ -1,0 +1,23 @@
+flowchart TD
+    ENTRY["CLI serve / Web serve / simulate_serving(config, serving)"] --> CHECK["Config + ServingSpec 校验<br/>inference、DP=1；拒绝 PD / speculative"]
+    CHECK --> CLOCK["内部：clock_origin = 最早 arrival<br/>相对时钟；按 arrival / 输入顺序排序"]
+    CLOCK --> INIT["内部：instance_count 个完整隔离硬件副本<br/>初始化 available 与有预算的批次缓存"]
+    INIT --> SELECT["内部：选择最早可用实例<br/>平局取较小实例 ID"]
+    SELECT --> BATCH["内部：FCFS 非抢占固定成批<br/>max_batch_size / max_batch_wait_s<br/>只接纳已经到达的请求"]
+    BATCH --> KEY["内部：有序 input_lengths / output_lengths<br/>作为同次调用的缓存键"]
+    KEY --> HIT{"精确批长度向量命中？"}
+    HIT -->|否| CONFIG["复制基线、覆盖批与长度向量、清空 targets<br/>Config.model_validate()"]
+    CONFIG --> EXEC["_execute_batch() → analysis.run(simulate)<br/>_validated_execution() 校验 token 与执行记录"]
+    EXEC --> CACHE["内部：缓存批执行摘要 / token 相对时刻<br/>保留 config_sha256 与执行来源"]
+    HIT -->|是| SHIFT["内部：model_start = admission + overhead<br/>实例 available = model_start + duration"]
+    CACHE --> SHIFT
+    SHIFT --> OK{"整批执行 feasible？"}
+    OK -->|是| TOKENS["内部：平移 token 完成时刻<br/>计算 admission wait / client与server TTFT<br/>请求平均 TPOT / E2E"]
+    OK -->|否| FAIL["整批失败，成功 token 记零<br/>保留已耗时间与诊断；不缩批 / 不重试"]
+    TOKENS --> SLO["_slo_checks()<br/>仅使用 serving.slo；单 token TPOT 不适用"]
+    FAIL --> NEXT{"内部：还有请求？"}
+    SLO --> NEXT
+    NEXT -->|是，整批结束后再接纳| SELECT
+    NEXT -->|否| METRICS["_distribution()<br/>有限样本 P50/P90/P95/P99<br/>成功产出吞吐与适用 SLO goodput"]
+    METRICS --> OUT["返回 mode=serving<br/>requests / batches / executions / 双输入 / 来源"]
+    OUT --> REPORT["write_serving_report() → token_trace()<br/>双 resolved 配置 / requests.csv<br/>result.json / report.md / token-trace.json"]

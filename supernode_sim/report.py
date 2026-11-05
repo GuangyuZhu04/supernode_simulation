@@ -281,7 +281,14 @@ def markdown_report(result: dict) -> str:
                       f"每颗 HBM：{_number(capacity / 1e9 if capacity is not None else None)} GB。"]
         fidelity = result.get('model_metadata', {}).get('fidelity', {})
         if fidelity.get('parameter_capacity') == 'shape_derived':
-            lines += ['', '容量按张量形状推导；激活与耗时仍为解析模型，尚未通过整机实测校准。`feasible` 表示在本模型假设下满足约束，不代表真实整机部署验证。']
+            lines += ['', '容量按张量形状推导；激活采用解析模型，耗时由解析模型及已匹配计时记录约束，尚未通过整机实测校准。`feasible` 表示在本模型假设下满足约束，不代表真实整机部署验证。']
+        evidence = fidelity.get('kernel_timing_evidence', {})
+        if any(evidence.values()):
+            lines += ['', 'Kernel 计时记录实际命中：' + '；'.join(
+                f'{label} {evidence.get(kind, 0)}' for kind, label in (
+                    ('measurement', '声明为硬件实测'), ('simulator', '仿真器预测'),
+                    ('synthetic', '合成数据'), ('unspecified', '未注明类型'))) + '。',
+                '此处按事件计数；证据类型来自输入声明，不表示独立验证。仿真器预测与合成数据不计入硬件实测覆盖。']
         if config['workload']['scenario'] == 'training' and fidelity.get('distributed_muon') == 'not_implemented':
             lines += ['', '**Muon 训练限制：尚未实现分布式 Muon 正交化。当前训练步时间是本地更新与通信的代理模型，不能作为已验证的生产训练性能。**']
         plan = result.get('model_metadata', {}).get('feature_plan', {})

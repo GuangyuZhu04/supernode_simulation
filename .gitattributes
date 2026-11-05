@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# The NPUSim example manifest hashes the exact report bytes.
+examples/npu_sim/summary.synthetic.json text eol=lf
