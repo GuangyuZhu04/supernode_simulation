@@ -272,6 +272,7 @@ async function runSimulation(event) {
   finally { state.busy = false; updateRunButton(); }
 }
 function selectJob(job) {
+  stopOperatorPlayback();
   $('#process-artifact-links').replaceChildren();
   clearTimeout(state.pollTimer);
   state.pollVersion++;
@@ -388,6 +389,7 @@ function metricCard(label, value, unit, note, stateClass = '') {
   return card;
 }
 function renderResults(result, job) {
+  stopOperatorPlayback();
   state.result = result;
   $('#empty-results').hidden = true; $('#result-content').hidden = false;
   const serving = isServingResult(result);
@@ -407,6 +409,7 @@ function renderResults(result, job) {
   text('#result-mode', isEstimate ? '解析估算 · 必要下界' : '离散事件仿真');
   text('#result-context', '运行 ' + job.id + ' · ' + (config.model && config.model.name || '模型') + ' · ' + (config.workload && config.workload.scenario === 'training' ? '训练' : '推理') + ' · ' + number(config.hardware && config.hardware.npu_count, 0) + ' NPU · 提交时配置快照');
   const notices = [];
+  if (result.execution_mode?.endsWith('_streaming')) notices.push('本次按组件分块执行，保留性能、通信、内存峰值与算子耗时归因。逐事件轨迹和逐张量生命周期未保留；实际分块时间范围可下载 streaming_chunks.csv。');
   if (isEstimate) notices.push('解析估算提供必要下界，不能证明资源争用下的 SLO 可行性。此模式不产生仿真时间线或资源利用率。');
   if (result.status === 'infeasible') notices.push('资源约束不可行。已观测内存峰值可能仅覆盖中断前执行，不能代表完整任务可运行。请查看下方诊断。');
   if (result.status === 'error') notices.push('引擎未能完成本次执行。以下统计可能不完整，请查看执行诊断与原始报告。');
@@ -444,8 +447,15 @@ function renderResults(result, job) {
 function renderLatencyBreakdown() {
   const breakdown = (state.result.metrics || {}).latency_breakdown || {};
   const host = $('#latency-breakdown'); host.replaceChildren();
+  const scenario = (state.result.config && state.result.config.workload || {}).scenario;
+  text('#latency-heading', scenario === 'training' ? '训练步时延拆解' : 'TTFT / TPOT（TPOP）时延拆解');
+  if (scenario === 'training') {
+    text('#latency-note', '训练使用训练步时间；TTFT / TPOT 不适用。稳态平均步需要至少两步。');
+    renderOperatorBreakdown(host, scenario);
+    return;
+  }
   const labels = [
-    ['total_s', '总时延'], ['compute_s', '计算 / kernel 访存'],
+    ['total_s', '总时延'], ['compute_s', 'kernel 服务（含计算 / 访存 / 启动）'],
     ['communication_node_s', '通信 · node 内'], ['communication_scaleup_s', '通信 · scale-up'],
     ['communication_scaleout_s', '通信 · scale-out'], ['communication_other_s', '通信 · 其他路径 / 内存限制'],
     ['synchronization_wait_s', '显式同步等待'], ['scheduling_wait_s', '调度槽位等待'],
@@ -468,10 +478,10 @@ function renderLatencyBreakdown() {
   });
   table.append(body); host.append(table);
   const note = '各列分项相加得到该请求的总时延，不累加并发 rank。TTFT 与最大平均 TPOT 可能来自不同请求。依赖同步的上游时间已归因，不重复算等待；通信服务按路径限制资源分类（同主机 / 跨主机 SU / SO），启动延迟按各跳域分类。跨 token 边界事件按窗口覆盖比例归因。';
-  const scenario = (state.result.config && state.result.config.workload || {}).scenario;
   const explanation = scenario === 'training' ? '训练不定义 TTFT / TPOT。' : state.result.mode === 'estimate' ? '解析估算没有实际调度轨迹，不提供执行时延拆解。' : (breakdown.unavailable_reason || '');
   const unavailable = (!breakdown.ttft || !breakdown.tpot) ? ' “—”为未定义或不可用，不能视为零。' + explanation : '';
   text('#latency-note', note + unavailable + ' 完整秒值与候选拆解见 latency_breakdown.csv。');
+  renderOperatorBreakdown(host, scenario);
 }
 function renderCommunication() {
   const result = state.result;
@@ -489,7 +499,8 @@ function renderCommunication() {
     label.title = key; fill.style.width = (value / max * 100) + '%'; track.append(fill);
     row.append(label, track, el('div', 'bar-value', number(value / 1e9, 3))); row.title = key + ': ' + number(value, 0) + ' bytes'; host.append(row);
   });
-  text('#communication-note', state.commView === 'physical_bytes_by_domain' ? '计划通信流量 / 完整事件图。物理字节按路径逐跳累计，SU / SO 为链路类别，不等同于具体域 ID。' : '计划 payload / 完整事件图。应用语义与 Collective 是同一批 payload 的不同视图，不可相加；与逐跳物理字节分开解读。');
+  const basis = result.communication_basis === 'completed_streaming_chunks' ? '已完成分块流量（中断分块的部分传输未计入）。' : '计划流量 / 完整事件图。';
+  text('#communication-note', basis + (state.commView === 'physical_bytes_by_domain' ? '物理字节按路径逐跳累计，SU / SO 为链路类别，不等同于具体域 ID。' : '应用语义与 Collective 是同一批 payload 的不同视图，不可相加；与逐跳物理字节分开解读。'));
 }
 function renderMemoryFilter() {
   const filter = $('#memory-filter'); filter.replaceChildren();
@@ -533,21 +544,7 @@ function renderResources() {
   });
 }
 function renderTrace() {
-  const trace = state.result.trace || {}, events = trace.events || [], host = $('#trace-chart'); host.replaceChildren();
-  text('#trace-note', '展示 ' + events.length + ' / ' + (trace.total_events || 0) + ' 个事件' + (trace.sampled ? ' · 均匀抽样，仅用于浏览；完整导出以下载文件清单为准。' : ' · 悬停查看事件细节。') + ' 横轴为仿真时间。');
-  if (!events.length) { empty(host, state.result.mode === 'estimate' ? '解析估算不执行事件调度，无事件时间线。' : '没有可展示的已执行事件。'); return; }
-  const max = Math.max(...events.map(event => Number(event.end_s) || 0), 1e-9);
-  const axis = el('div', 'trace-axis'); [0, .25, .5, .75, 1].forEach(fraction => axis.append(el('span', '', duration(max * fraction)))); host.append(axis);
-  events.forEach(event => {
-    const row = el('div', 'trace-row'), label = el('span', 'trace-name', event.id), lane = el('div', 'trace-lane');
-    const meta = event.metadata || {}, name = (String(event.id) + ' ' + JSON.stringify(meta)).toLowerCase();
-    const kind = /collective|all_to|allreduce|all_reduce|broadcast|transfer|dispatch|combine|send|recv/.test(name) ? 'comm-color' : /compute|kernel|attention|matmul|forward|backward|ffn/.test(name) ? 'compute-color' : 'other-color';
-    const bar = el('div', 'trace-event ' + kind);
-    const start = Math.max(0, Number(event.start_s) || 0), end = Math.max(start, Number(event.end_s) || 0);
-    bar.style.left = Math.min(100, start / max * 100) + '%'; bar.style.width = Math.max(0, Math.min(100, (end - start) / max * 100)) + '%';
-    const detail = event.id + '\n开始 ' + number(start, 8) + ' s · 结束 ' + number(end, 8) + ' s\n持续 ' + duration(event.duration_s == null ? end - start : event.duration_s);
-    row.title = detail; label.title = detail; bar.title = detail; lane.append(bar); row.append(label, lane); host.append(row);
-  });
+  renderOperatorTimeline(state.result);
 }
 function addList(parent, title, entries) {
   if (!entries.length) return;
@@ -1052,10 +1049,21 @@ function renderInputWorkload(config) {
   const w = inputObject(config.workload), e = inputObject(config.execution), targets = inputObject(config.targets);
   inputFacts(host, [['场景', w.scenario === 'inference' ? '推理 · inference' : w.scenario === 'training' ? '训练 · training' : w.scenario, 'workload.scenario'], ['每 DP 副本 Batch', w.batch_size, 'workload.batch_size']]);
   if (w.scenario === 'training') {
+    const task = w.training;
+    if (task) {
+      const labels = {pretrain:'预训练', sft:'监督微调 SFT', dpo:'偏好优化 DPO', rl:'后训练 RL'};
+      inputFacts(host, [['训练任务', labels[task.kind] || task.kind, 'workload.training.kind'], ['Batch 组织', task.data?.batching || 'padded', 'workload.training.data.batching']]);
+      if (task.kind === 'sft') inputNote(host, '监督位置只影响监督 token 统计；主干和输出投影仍处理完整上下文。多轮对话填写所有助手回复的有效标签数。');
+      if (task.kind === 'dpo') inputNote(host, 'Batch 计偏好对；chosen/rejected 各执行一条序列。预计算参考 log-prob 可省去本次参考模型执行。');
+      if (task.kind === 'rl') {
+        inputFacts(host, [['RL 算法', task.rl?.algorithm, 'workload.training.rl.algorithm'], ['每提示采样数', task.rl?.samples_per_prompt, 'workload.training.rl.samples_per_prompt'], ['更新轮数', task.rl?.update_epochs, 'workload.training.rl.update_epochs']]);
+        inputNote(host, '训练步数计 RL 迭代；每轮包含 rollout、打分、优势计算和更新。当前各角色共享物理池串行执行，PP=FSDP=1。');
+      }
+    }
     inputFacts(host, [['序列长度', inputUnit(w.sequence_length, 'tokens', 1, 0), 'workload.sequence_length'], ['梯度累积次数', w.gradient_accumulation, 'workload.gradient_accumulation'], ['训练步数', w.training_steps, 'workload.training_steps']]);
     const factors = [w.batch_size, w.gradient_accumulation, e.dp];
     inputNote(host, factors.every(inputPositiveInt) ? '每优化器步全局样本数 = Batch × 梯度累积 × DP = ' + number(factors.reduce((a, b) => a * b, 1), 0) + '。' : '全局样本数需要有效的 Batch、梯度累积和 DP 才能推导。', 'training-batch');
-    inputNote(host, '训练采用 sequence_length；完整字段中的 input_length(s) / output_length(s) 是归一化配置保留的推理字段，此训练场景不据此生成负载。');
+    inputNote(host, w.training ? 'sequence_length 是长度上限及 padded 计算长度；packed 使用任务内的有效长度。RL 生成使用 training.rl 中的 prompt/response 长度。顶层 input_length(s) / output_length(s) 不参与训练。' : '训练采用 sequence_length；完整字段中的 input_length(s) / output_length(s) 是归一化配置保留的推理字段，此训练场景不据此生成负载。');
   } else if (w.scenario === 'inference') {
     inputFacts(host, [['输入长度', inputLengthSummary(w.input_lengths), 'workload.input_lengths'], ['输出长度', inputLengthSummary(w.output_lengths), 'workload.output_lengths']]);
     if (Array.isArray(w.input_lengths) && Array.isArray(w.output_lengths)) {
@@ -1130,6 +1138,7 @@ function renderInputOverview() {
 function routeDashboard(focus = false) {
   const hash = location.hash || '#workspace', showInputs = hash === '#inputs' || hash.startsWith('#inputs-');
   const entering = showInputs && $('#inputs').hidden;
+  if (showInputs) stopOperatorPlayback();
   $('#workspace').hidden = showInputs; $('#inputs').hidden = !showInputs;
   const active = showInputs ? '#inputs' : hash === '#results' ? '#results' : hash === '#history-panel' ? '#history-panel' : '#workspace';
   $$('.rail-link').forEach(link => { const selected = link.getAttribute('href') === active; link.classList.toggle('active', selected); if (selected) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current'); });
@@ -1274,6 +1283,16 @@ inputEditSpecs.set('hardware.topology', {type: 'select', choices: ['full_mesh', 
 inputEditSpecs.set('hardware.routing_policy', {type: 'select', choices: ['shortest_hop', 'su_so']});
 inputEditSpecs.set('model.attention_kind', {type: 'select', choices: ['mha', 'gqa', 'mqa', 'latent']});
 inputEditSpecs.set('workload.scenario', {type: 'select', choices: ['inference', 'training']});
+inputEditSpecs.set('workload.training.kind', {type:'select', choices:['pretrain','sft','dpo','rl']});
+inputEditSpecs.set('workload.training.data.batching', {type:'select', choices:['padded','packed']});
+inputEditSpecs.set('workload.training.sft.loss_mask', {type:'select', choices:['response','all']});
+inputEditSpecs.set('workload.training.dpo.reference_log_probs', {type:'select', choices:['online','precomputed']});
+inputEditSpecs.set('workload.training.rl.algorithm', {type:'select', choices:['grpo','ppo']});
+inputEditSpecs.set('workload.training.rl.reward', {type:'select', choices:['rule','model']});
+inputEditSpecs.set('workload.training.rl.old_log_probs', {type:'select', choices:['rollout','recompute']});
+addInputSpecs('workload.training.rl.reference_policy', {type:'boolean'});
+addInputSpecs('model.architecture.output_head_dim workload.training.pretrain.dataset_tokens workload.training.pretrain.epochs workload.training.rl.prompts_per_step workload.training.rl.samples_per_prompt workload.training.rl.prompt_length workload.training.rl.response_length workload.training.rl.rollout_batch_size workload.training.rl.update_epochs workload.training.rl.reward_workers workload.training.rl.experience_bytes_per_token', {type:'number', integer:true});
+addInputSpecs('workload.training.rl.rule_reward_latency_s workload.training.rl.advantage_flops_per_token workload.training.rl.policy_loss_flops_per_token', {type:'number'});
 inputEditSpecs.set('execution.features.kv_offload', {type: 'select', choices: ['none', 'host', 'remote']});
 inputEditSpecs.set('execution.optimizer.kind', {type: 'select', choices: ['adam', 'muon']});
 function inputEditSpec(tokens) {
@@ -1756,7 +1775,16 @@ function resultTable(host, headers, rows, caption) {
   const table = el('table', 'memory-matrix result-detail-table'), head = el('thead'), tr = el('tr');
   headers.forEach(label => { const th = el('th', '', label); th.setAttribute('scope', 'col'); tr.append(th); });
   head.append(tr); table.append(head); const body = el('tbody');
-  rows.forEach(values => { const row = el('tr'); values.forEach(value => row.append(el('td', '', value == null ? '—' : String(value)))); body.append(row); });
+  rows.forEach(values => {
+    const row = el('tr');
+    values.forEach(value => {
+      const cell = el('td');
+      if (value && typeof value === 'object' && value.tagName) cell.append(value);
+      else cell.textContent = value == null ? '—' : String(value);
+      row.append(cell);
+    });
+    body.append(row);
+  });
   table.append(body); host.append(table);
 }
 function renderServingPlan(config, service, observed) {
@@ -1844,6 +1872,15 @@ function renderTrainingAccounting(result) {
   kpis.append(metricCard('全部 NPU 计算比例',percentage(accounting.executed_compute_utilization),'','包含重计算、优化器和辅助算子'));
   text('#training-accounting-note','分母为各 dtype 裸峰值 × 配置总卡数 × 完整执行时间；不是设备忙碌率，也不自动等同论文 MFU。CPU 单独统计。' + (accounting.status !== 'complete' ? ' 当前账本不完整：' + (accounting.reason || accounting.status) + '；—不代表零。' : ''));
   const tables = $('#training-accounting-tables'); tables.replaceChildren();
+  const task = result.metrics?.training_task;
+  if (task) {
+    kpis.append(metricCard('训练任务', {pretrain:'预训练',sft:'SFT',dpo:'DPO',rl:'RL'}[task.kind] || task.kind, '', '包含任务专用阶段'));
+    kpis.append(metricCard('有效 token 吞吐', number(task.effective_tokens_s, 2), 'tokens/s', '排除 padding，包含重复更新'));
+    if (task.supervised_tokens_s != null) kpis.append(metricCard('监督 token 吞吐', number(task.supervised_tokens_s, 2), 'tokens/s', 'RL 为参与更新的回复 token'));
+    resultTable(tables, ['阶段','累计时间 / s'], Object.entries(task.stage_times_s || {}).map(([key,value]) => [key,number(value,6)]), '训练任务阶段（串行，可相加）');
+    resultTable(tables, ['Actor 处理 token','Actor 有效 token','监督 token','Actor 优化步','生成 token'], [[number(task.processed_tokens,0),number(task.effective_tokens,0),number(task.supervised_tokens,0),number(task.optimizer_steps,0),number(task.rollout_generated_tokens,0)]], '任务工作量（生成与更新分别计数）');
+    inputNote(tables, '模型 MFU 只计可训练 actor/critic 的前反向；冻结参考、奖励/价值打分及 rollout 为辅助计算。RL 的训练步表示整轮迭代。');
+  }
   resultTable(tables,['阶段','NPU FLOPs'],Object.entries(accounting.npu_flops_by_phase || {}).map(([key,value]) => [key,number(value,0)]),'按阶段（互斥分区）');
   resultTable(tables,['dtype','执行 FLOPs','模型 F+B FLOPs','重计算 FLOPs','每卡裸峰值 FLOP/s'],Object.entries(accounting.npu_by_dtype || {}).map(([key,row]) => [key,number(row.executed_flops,0),number(row.model_forward_backward_flops,0),number(row.model_recompute_flops,0),number(row.peak_flops_per_device_s,0)]),'按计算精度');
   const cpu = accounting.cpu || {};

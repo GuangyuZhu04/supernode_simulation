@@ -45,6 +45,7 @@ def describe_event(event, config: Config) -> dict | None:
     metadata = {key: event.metadata[key] for key in (
         'component', 'layer', 'model_shape_signature', 'tokens', 'workload_shape',
         'tensor_parallel_degree', 'expert_parallel_degree', 'sequence_parallel_degree',
+        'training_task', 'training_role', 'training_stage', 'training_update',
     ) if key in event.metadata}
     if not metadata:
         return None

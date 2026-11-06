@@ -11,6 +11,8 @@ from typing import Any
 
 
 _SUPPORTED = {
+    'training_task': (['training'], ['workload.training'],
+        'Pretraining, masked SFT, DPO and synchronous PPO/GRPO schedules reuse structured operators; role state, rollout, scoring and updates are explicit. RL requires PP=FSDP=1 on a shared serial pool.'),
     'precision': (['training', 'inference'], ['execution.precision'],
         'Storage, communication and compute dtypes remain separate; hardware must provide the selected compute throughput.'),
     'activation_checkpointing': (['training'], ['execution.features.activation_checkpointing'],
@@ -140,6 +142,7 @@ def resolve_feature_input(data: dict) -> dict:
             raise ValueError(f'features.{name} is only supported for {"/".join(scenarios)}')
 
     direct = {
+        'training_task': 'workload.training',
         'precision': 'execution.precision', 'optimizer': 'execution.optimizer',
         'sequence_parallel': 'execution.sequence_parallel',
         'activation_checkpointing': 'execution.features.activation_checkpointing',
@@ -180,6 +183,7 @@ def build_feature_plan(config, calibration: dict | None = None) -> dict[str, Any
     options = execution['features']
     architecture = data['model'].get('architecture')
     selected = {
+        'training_task': data['workload'].get('training') is not None,
         'precision': True,
         'activation_checkpointing': options['activation_checkpointing'],
         'optimizer_offload': options['optimizer_offload'],

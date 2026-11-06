@@ -97,6 +97,7 @@ def feedback_markdown(result: dict) -> str:
               '- result.json：完整搜索参数、候选指标、SLO、失败诊断、可行边界与最佳配置。',
               '- candidates.csv：逐候选参数、指标、状态、SLO 与失败诊断，可筛选比较。',
               '- latency_breakdown.csv：所有候选的 TTFT / TPOT（TPOP）及计算、通信、同步、调度、内存准入与资源争用分项；单位秒，空值表示不可用。',
+              '- operator_breakdown.csv：所有候选的算子耗时与占比，以及算子内部计算、通信、访存、启动、等待、争用和未细分服务；时间为秒，占比为 %。',
               '- config.resolved.json：应用校准后的基线快照，避免重复加载校准。']
     if best:
         lines += ['- best.config.json：最佳候选的完整可复现配置。']

@@ -1,11 +1,13 @@
-# 训练、FSDP2 与 optimizer offload
+# 训练任务、FSDP2 与 optimizer offload
+
+先区分预训练、SFT、DPO、后训练 RL（PPO/GRPO）。任务参数、特定要求、feature 矩阵、算子校准和完整示例见 [training-tasks.md](training-tasks.md)。使用 `workload.training.kind` 或 `features.training_task` 激活任务路径，要求 `model.architecture`。省略该字段保留原训练模型，不能据此称已模拟 SFT 监督掩码或 RL 生成/奖励/更新闭环。
 
 从 `examples/demo_training.yaml` 开始做小规模完整仿真；`examples/training_10t_fp8.yaml` 与 `examples/training_10t_fp16.yaml` 是 10T 合成容量场景，不是公开真实模型。更改配置后重新 `validate`。
 
 ## 参数和执行策略
 
 - `workload.scenario: training`；`batch_size` 是每 DP 副本、每个 microbatch 的序列数。
-- `sequence_length`, `gradient_accumulation`, `training_steps` 决定每步/整次工作量。每步训练 tokens 为 `batch_size * sequence_length * gradient_accumulation * dp`。
+- 普通固定长度训练每步 tokens 为 `batch_size * sequence_length * gradient_accumulation * dp`。任务路径按有效长度、padding、DPO 双序列或 RL 实际更新次数分别统计；RL 的 `training_steps` 表示整轮迭代，不是 optimizer 步数。
 - `execution.fsdp` 是 DP 子组大小；`reshard_after_forward` 控制前向后是否保留 gathered 权重；`sync_each_microbatch` 控制梯度同步频率；`prefetch` 表示有限的下一层预取。
 - `execution.features.optimizer_offload` 将主权重和所选优化器状态放在主机，生成梯度 D2H、CPU 更新和权重 H2D；`activation_checkpointing` 用重计算换 activation 驻留量。`execution.optimizer.kind: muon` 使用矩阵 momentum 与辅助 Adam 参数组，详情见 [memory-breakdown.md](memory-breakdown.md)。
 - PP 调度为非交错 1F1B。MoE 使用均匀路由和均衡专家计算；不能用合成结果证明热点专家场景可行。
@@ -39,7 +41,7 @@
 
 完整训练新增 `metrics.training_accounting`：分别记录模型 F+B、重计算、optimizer 和辅助工作，按 dtype 使用裸峰值归一。`model_mfu` 排除重算与辅助工作，`executed_compute_utilization` 包含 NPU 所有计算，CPU 独立核算；二者不是实测 busy fraction。SimuMax-Zhanlu 特定 revision 的同名 MFU 包含重算，比较前必须对齐分子，详见 [训练参考](zhanlu-training.md)。
 
-`step_time_s` 是总时间除以训练步数；`throughput_tokens_s` 为整个集群训练 tokens/s，另报每副本值。搜索若改变 DP，会改变整体 batch 和每步 tokens，必须同时展示这一变化。
+`step_time_s` 是总时间除以训练步数（RL 为迭代数）；`throughput_tokens_s` 为整个集群 actor 处理 tokens/s，另报每副本值。有效/监督/生成 token、优化步和阶段时间见 `metrics.training_task` 与 `training_task_stages.csv`；冻结评分和 rollout 不进入训练 MFU 分子。搜索若改变 DP，会改变整体 batch 和每步 tokens，必须同时展示这一变化。
 
 先核对逻辑锚点和每个 CPU/NPU 内存池，再检查 D2H/H2D 的方向性、主机内存带宽、CPU Adam 计算、FSDP all-gather/reduce-scatter 和 SO 跨域路径。`payload / 可用窗口` 是必要带宽下界；双向链路不能把合计字节量机械地除以单向带宽当成实际时间，重叠与依赖由事件仿真决定。
 

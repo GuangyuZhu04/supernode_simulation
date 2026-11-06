@@ -1,4 +1,4 @@
 interface:
   display_name: "超节点资源与通信建模"
-  short_description: "自动打开仿真网页，选择加速特性并分析资源、流量与TTFT/TPOT"
-  default_prompt: "使用 $supernode-modeling，先自动准备并打开输入配置与仿真网页，再根据我的模型、硬件、拓扑和负载选择可选features，比较资源与TTFT/TPOT，开展可复现的分析并说明实测校准和支持边界。"
+  short_description: "按预训练、SFT、DPO、PPO/GRPO和推理任务仿真算子、资源与时延"
+  default_prompt: "使用 $supernode-modeling，先准备仿真网页，根据我的模型、硬件和拓扑区分预训练、SFT、DPO、PPO/GRPO或推理任务，配置专用参数和features，按算子与阶段分析资源、吞吐、时延和实测校准边界。"

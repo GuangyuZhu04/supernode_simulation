@@ -1,6 +1,6 @@
 # 网页仿真工作台
 
-网页复用 `supernode-modeling` skill 对应的 `supernode_sim` 数值引擎。普通仿真使用 `analysis.run` / `write_report`，请求服务使用 `simulate_serving` / `write_serving_report`；浏览器不生成模拟指标。
+网页复用 `supernode-modeling` skill 对应的 `supernode_sim` 数值引擎。普通仿真使用 `analysis.run` / `write_report`，大规模结构化推理自动选择 `run_streaming`，请求服务使用 `simulate_serving` / `write_serving_report`；浏览器不生成模拟指标。
 
 调用 `supernode-modeling` skill 时，默认自动准备并打开此网页。可复用启动器负责检查依赖、复用匹配服务及避让占用端口；详细调用约定见 [Skill 前端流程](../skills/supernode-modeling/references/frontend.md)。以下手动启动方式继续可用。
 
@@ -36,7 +36,26 @@ python -m supernode_sim web --port 8766 --output outputs/web
 5. 观察运行阶段、经过时间和日志。当前引擎没有事件级进度回调，因此不提供虚构的完成百分比。可以取消正在执行的任务；取消会终止独立仿真进程。
 6. 运行结束后查看结果，下载结果 JSON、解析后配置、中文报告和可用 CSV/Trace 文件。历史运行使用提交时的配置，后续表单编辑不会修改已完成结果。
 
-为控制主机资源，网页后台同一时间执行一个任务；一个服务任务内可以模拟多个隔离实例。网页提供 `estimate` / `simulate` / `serve`，不会擅自缩小输入；批量扫描、SU 搜索、Feedback 与流式推理仍使用原命令行/API。
+为控制主机资源，网页后台同一时间执行一个任务；一个服务任务内可以模拟多个隔离实例。网页提供 `estimate` / `simulate` / `serve`，不会擅自缩小输入；批量扫描、SU 搜索、Feedback 仍使用原命令行/API。
+
+### 自适应主机内存
+
+每个 Web 计算进程在构图前设置内存硬上限，覆盖仿真、估算、服务和独立案例。默认取物理内存一半与当前可用内存一半的较小值；Windows 同时考虑可用提交额度，Linux 同时考虑 cgroup v1/v2 容器限额与当前使用量，macOS 读取物理内存与可回收页。无法探测时保守使用 1 GiB。主机预算独立于配置中的 NPU HBM/CPU DRAM，不改变模拟硬件、模型、精度或负载。
+
+Windows 使用 Job Object 限制进程提交内存；POSIX 使用 `RLIMIT_AS` 限制地址空间（包含映射）。无法建立保护或可用预算不足 128 MiB 时明确失败，不启动无保护的计算。超出预算后记录可读错误、保留输入并释放任务槽位，可继续提交下一项任务。已经运行的服务需要重启以加载代码更新。
+
+可在启动服务前显式设置预算（单位 MiB），用于独占服务器或与其他程序共享的机器；显式预算仍不超过启动时可用内存的 75%，不接受 0 来关闭保护：
+
+```powershell
+$env:SUPERNODE_WEB_MEMORY_MIB = '8192'
+python -m supernode_sim web
+```
+
+Linux / macOS 使用 `SUPERNODE_WEB_MEMORY_MIB=8192 python -m supernode_sim web`。不设置时自动适配主机，没有固定 4 GiB 上限；更大机器可获得更大的预算。预算记录在任务日志与 `host_memory_limit_bytes`，普通/流式任务完成时同时记录 `host_peak_memory_bytes`（Windows 为私有提交峰值，POSIX 为 RSS 峰值，不能跨平台直接比较）。
+
+大规模 `simulate` 根据卡数、层数、最长输出、TP/EP 与主机预算选择图保留策略；此规模估计仅用于主机内存策略，不是仿真时间或设备容量的估计。结构化 inference 且 DP=PP=1、未启用 megakernel/PD 时可按现有屏障分块执行，支持原有 SP/投机路径；流式缓存预算为进程预算的 10%，按实际需要分配并按字节淘汰。强机器可容纳更大的完整图及缓存。其他配置继续使用普通引擎并受到同样的内存硬上限保护，不通过改变参数或静默切换语义来完成任务。
+
+流式报告保留 TTFT/TPOT、SLO、算子归因、资源使用、逐池内存峰值和实际分块 CSV；不保留逐算子回放、逐张量生命周期及组件峰值构成，不产生假的完整图下界。网页明确显示这些明细不可用。通信汇总仅含完整执行成功的分块，中断分块的部分传输未计入。需要完整生命周期时使用普通 CLI 的明细路径并自行预留主机资源；Web 的保护不改变 CLI 资源策略。
 
 网页请求限制为 2 MiB，batch size 上限为 100,000，超过时明确拒绝，防止配置校验阶段自动展开过大的长度列表。更大负载使用原 CLI/API。内置预设需要源码仓库的 `examples/`；在没有示例文件的独立安装中，可从完整 JSON 配置导入。
 
@@ -120,10 +139,20 @@ python -m supernode_sim web --port 8766 --output outputs/web
 
 ## 开发验证
 
+### 算子结果与执行过程
+
+普通 `simulate` 的时延面板提供 **算子级结果**：推理可切换 TTFT / TPOT，训练可切换平均步、首步及稳态平均步。窗口开销条、耗时排行和详情直接读取后端 `operator_breakdown`；阶段、组件、名称筛选及排序不改变原窗口分母。图中显示耗时最高的 12 项，完整表每页 50 行，可点击算子查看计算、通信、访存、启动、各类等待、争用及未细分服务，并跳转查找对应执行事件。完整数值仍可下载 `operator_breakdown.csv`。
+
+**算子级执行过程**支持按阶段、组件、设备 / Rank、层、token / 训练步和事件类型筛选，可播放 / 暂停、拖动时间、逐事件查看或缩放至筛选事件范围。它回放已经完成的真实仿真记录，运行中的实时状态仍由原阶段与日志面板提供。事件跨度及并发执行不能累加成关键路径时延，也不从回放位置计算任务完成百分比。
+
+全局事件仍均匀采样至 300 条。新的 `operator_execution` 在采样前统计已执行子算子数量，并独立保留最先观测到的 24 个父算子展开链，每链最多 64 个子算子；界面注明链数量及前缀截断，避免全局采样漏掉短链。详情保留引擎提供的实际起止时刻、启动、调度 / 内存准入等待、Matmul、工作负载形状、实现与来源；可选资源工作量未被引擎保留时不重建。元数据和资源明细有显示上限。原始导出也可能精简，完整事件是否可下载以报告导出清单为准。
+
+估算、旧结果缺少账本、未定义窗口均明确显示不可用；中断结果只展示已完成事件。服务模式保留原有请求 / 批次视图，不推测未保存的批内算子轨迹。页面资源增加 `operators.js` / `operators.css`，启动器和健康检查一并检查，无需新增前端构建步骤。
+
 输入编辑的定向回归检查使用 Node.js 内置测试工具，无需安装前端依赖：
 
 ```powershell
-node --test tests/test_web_input_edit.cjs tests/test_web_views.cjs tests/test_web_serving.cjs
+node --test tests/test_web_input_edit.cjs tests/test_web_views.cjs tests/test_web_serving.cjs tests/test_web_operator_breakdown.cjs tests/test_web_operator_process.cjs
 ```
 
 检查包含五类参数同步至校验/仿真请求、显示单位换算、无效草稿保留、结构化模型派生参数、历史快照复制及异步响应处理。该测试不替代真实浏览器的布局和交互验收。

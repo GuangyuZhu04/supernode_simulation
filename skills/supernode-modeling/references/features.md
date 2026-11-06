@@ -1,6 +1,6 @@
 # 可选 feature 输入、能力清单与结果核对
 
-在场景顶层写 `features`，或将 feature 对象放入独立 JSON/YAML 文件，通过 `--features` 传入。两种输入都展开为已有的 `execution`、`model.architecture`、`hardware` 配置。feature 不附带固定提速倍率；耗时来自实际建模的工作量、内存、通信、调度依赖和显式 profile。
+在场景顶层写 `features`，或将 feature 对象放入独立 JSON/YAML 文件，通过 `--features` 传入。两种输入展开为 `execution`、`model.architecture`、`hardware` 或 `workload.training` 配置。feature 不附带固定提速倍率；耗时来自实际建模的工作量、内存、通信、调度依赖和显式 profile。
 
 以下命令在仓库根目录运行。示例目录 `examples/features/` 中所有模型尺寸、硬件能力、draft 成本和 acceptance 都是 **synthetic / assumed**，用于说明接口和检查小规模运行，不能引用为 Kimi K3、DeepSeek V4、DSpark 或 950DT 的真实性能。
 
@@ -15,6 +15,7 @@ python -m supernode_sim schema -o outputs/features/schema.json
 
 | feature 输入 | 展开的主要字段 | 范围与要求 |
 | --- | --- | --- |
+| `training_task` | `workload.training` | 预训练/SFT/DPO/PPO/GRPO 的参数和执行阶段；要求 architecture，见 [训练任务](training-tasks.md) |
 | `precision` | `execution.precision` | 分别设置 weight、compute、activation、kv、communication 等；不能把存储低精度等同低精度计算 |
 | `activation_checkpointing` | `execution.features.activation_checkpointing` | 训练；保存 activation 与重算相权衡 |
 | `optimizer_offload` | `execution.features.optimizer_offload` | 训练；CPU 更新及主机链路可能使 step time 增加 |

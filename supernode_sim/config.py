@@ -100,6 +100,8 @@ class MoESpec(Spec):
 
 class ArchitectureSpec(Spec):
     vocab_size: int = Field(gt=0)
+    output_head_dim: int | None = Field(default=None, gt=0,
+        description='Defaults to vocab_size. Use 1 for a reward/value head while retaining the tokenizer embedding vocabulary.')
     tie_embeddings: bool = False
     attention_by_layer: list[Literal['MLA', 'KDA', 'MHA', 'GQA', 'MQA', 'CSA', 'HCA']]
     ffn_by_layer: list[Literal['Dense', 'MoE']]
@@ -114,8 +116,17 @@ class ArchitectureSpec(Spec):
     final_norm: bool = True
     attnres_block_size: int | None = Field(default=None, gt=0)
 
+    @model_serializer(mode='wrap')
+    def omit_default_output_head(self, handler):
+        data = handler(self)
+        if self.output_head_dim is None:
+            data.pop('output_head_dim', None)
+        return data
+
     @model_validator(mode='after')
     def sparse_dimensions(self):
+        if self.tie_embeddings and self.output_head_dim not in (None, self.vocab_size):
+            raise ValueError('Tied embeddings require output_head_dim equal to vocab_size')
         for kind in ('CSA', 'HCA'):
             if kind in self.attention_by_layer:
                 if getattr(self, kind.lower()) is None:
@@ -542,12 +553,105 @@ class HardwareSpec(Spec):
         return self
 
 
+class TrainingDataSpec(Spec):
+    batching: Literal['padded', 'packed'] = 'padded'
+    sequence_lengths: list[StrictInt] = Field(default_factory=list,
+        description='Valid tokens per sequence in one microbatch; packed preserves document boundaries.')
+
+
+class PretrainingSpec(Spec):
+    dataset_tokens: int | None = Field(default=None, gt=0)
+    epochs: int = Field(default=1, gt=0)
+
+    @model_validator(mode='after')
+    def budget(self):
+        if self.epochs != 1 and self.dataset_tokens is None:
+            raise ValueError('pretrain.epochs requires dataset_tokens')
+        return self
+
+
+class SFTSpec(Spec):
+    loss_mask: Literal['all', 'response'] = 'response'
+    supervised_tokens: list[StrictInt] = Field(default_factory=list,
+        description='Actual labeled positions after shifting/masking; one count per sequence, including multi-turn assistant spans.')
+
+
+class DPOSpec(Spec):
+    chosen_lengths: list[StrictInt]
+    rejected_lengths: list[StrictInt]
+    reference_log_probs: Literal['online', 'precomputed'] = 'online'
+
+
+class RLSpec(Spec):
+    algorithm: Literal['grpo', 'ppo'] = 'grpo'
+    prompts_per_step: int = Field(default=1, gt=0, description='Prompts per DP replica per RL iteration.')
+    samples_per_prompt: int = Field(default=2, gt=0)
+    prompt_length: int = Field(default=128, gt=0)
+    response_length: int = Field(default=64, gt=0)
+    prompt_lengths: list[StrictInt] = Field(default_factory=list)
+    response_lengths: list[StrictInt] = Field(default_factory=list)
+    rollout_batch_size: int = Field(default=1, gt=0)
+    update_epochs: int = Field(default=1, gt=0)
+    reference_policy: bool = True
+    old_log_probs: Literal['rollout', 'recompute'] = 'rollout'
+    reward: Literal['rule', 'model'] = 'rule'
+    reward_model: ModelSpec | None = None
+    critic_model: ModelSpec | None = None
+    rule_reward_latency_s: float = Field(default=0, ge=0, description='Per response latency of an external serialized reward worker.')
+    reward_workers: int = Field(default=1, gt=0)
+    advantage_flops_per_token: float = Field(default=10, gt=0)
+    policy_loss_flops_per_token: float = Field(default=20, gt=0)
+    experience_bytes_per_token: int = Field(default=24, ge=24,
+        description='At least token ID, old/reference log probabilities, reward, advantage and return in 4-byte slots; PPO adds value storage.')
+
+    @model_validator(mode='after')
+    def roles(self):
+        if self.algorithm == 'grpo' and (self.samples_per_prompt < 2 or self.critic_model is not None):
+            raise ValueError('GRPO requires samples_per_prompt >= 2 and has no critic_model')
+        if self.algorithm == 'ppo' and self.critic_model is None:
+            raise ValueError('PPO requires an explicit critic_model with a scalar output head')
+        if (self.reward == 'model') != (self.reward_model is not None):
+            raise ValueError('reward=model requires reward_model; rule reward must not supply a model')
+        if self.reward == 'model' and (self.rule_reward_latency_s or self.reward_workers != 1):
+            raise ValueError('rule reward latency/workers only apply to reward=rule')
+        for model in (self.reward_model, self.critic_model):
+            if model and (model.architecture is None or model.architecture.output_head_dim != 1):
+                raise ValueError('reward_model/critic_model require explicit architecture with output_head_dim=1 (scalar head)')
+        for name, count in (('prompt_lengths', self.prompts_per_step),
+                            ('response_lengths', self.prompts_per_step * self.samples_per_prompt)):
+            values = getattr(self, name)
+            if values and (len(values) != count or any(value < 1 for value in values)):
+                raise ValueError(f'rl.{name} requires {count} positive lengths')
+        return self
+
+
+class TrainingTaskSpec(Spec):
+    kind: Literal['pretrain', 'sft', 'dpo', 'rl'] = 'pretrain'
+    data: TrainingDataSpec = Field(default_factory=TrainingDataSpec)
+    pretrain: PretrainingSpec | None = None
+    sft: SFTSpec | None = None
+    dpo: DPOSpec | None = None
+    rl: RLSpec | None = None
+
+    @model_validator(mode='after')
+    def task_parameters(self):
+        for name in ('pretrain', 'sft', 'dpo', 'rl'):
+            if name != self.kind and getattr(self, name) is not None:
+                raise ValueError(f'training.{name} is only valid for kind={name}')
+        if self.kind != 'pretrain' and getattr(self, self.kind) is None:
+            raise ValueError(f'training kind={self.kind} requires its task parameters')
+        if self.kind in ('dpo', 'rl') and self.data.sequence_lengths:
+            raise ValueError('DPO/RL sequence lengths come from the task-specific arrays')
+        return self
+
+
 class WorkloadSpec(Spec):
     scenario: Literal['training', 'inference']
     batch_size: int = Field(default=1, gt=0)
     sequence_length: int = Field(default=2048, gt=0)
     gradient_accumulation: int = Field(default=1, gt=0)
     training_steps: int = Field(default=1, gt=0)
+    training: TrainingTaskSpec | None = None
     input_length: int = Field(default=1024, gt=0)
     output_length: int = Field(default=16, gt=0)
     input_lengths: list[int] = Field(default_factory=list)
@@ -819,6 +923,7 @@ class AttentionSelection(Spec):
 
 
 class FeatureSelectionSpec(Spec):
+    training_task: TrainingTaskSpec | None = None
     precision: PrecisionSpec | None = None
     activation_checkpointing: StrictBool | None = None
     optimizer_offload: StrictBool | None = None
@@ -880,6 +985,9 @@ class Config(Spec):
     @model_validator(mode='after')
     def consistency(self):
         e, h, m = self.execution, self.hardware, self.model
+        if self.workload.training is not None:
+            from .training_tasks import validate_training_task
+            validate_training_task(self)
         pd = e.features.prefill_decode_disaggregation
         if pd.enabled:
             if self.workload.scenario != 'inference' or m.architecture is None:

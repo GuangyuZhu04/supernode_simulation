@@ -31,6 +31,8 @@ class Builder:
         self.sp = self.x.get('sequence_parallel', False)
         self.fsdp = self.x['fsdp']
         self.training = self.w['scenario'] == 'training'
+        self.forward_only = False
+        self.train_lengths = [self.w['sequence_length']] * self.w['batch_size']
         self.g = Graph()
         topology.populate(self.g)
         self.tensors = parameter_inventory(self.m)
@@ -180,7 +182,7 @@ class Builder:
         return [t for t in self.by_layer[layer] if not t.alias_of and (component is None or t.component == component)]
 
     def states(self, tensor):
-        return ['weight'] + (['gradient'] + optimizer_states(tensor, self.opt['kind']) if self.training else [])
+        return ['weight'] + (['gradient'] + optimizer_states(tensor, self.opt['kind']) if self.training and not self.forward_only else [])
 
     def state_dtype(self, state, tensor):
         return self.weight_dtype(tensor) if state == 'weight' else self.p['gradient'] if state == 'gradient' else self.p['master'] if state == 'master_weight' else self.p['optimizer']
@@ -501,7 +503,7 @@ class Builder:
         """Replay the entire forward layer, including TP/EP communication."""
         previous, retained = list(deps), []
         rows = self.activation_rows(layer, tokens, checkpoint=False)
-        lengths = [self.w['sequence_length']] * self.w['batch_size']
+        lengths = self.train_lengths
         for component in self.component_order(layer):
             if component == 'MoE' and self.ep > 1:
                 width = self.a['moe'].get('latent_dim') or self.m['hidden_dim']
@@ -524,15 +526,13 @@ class Builder:
                         component, 'recompute_workspace', layer, dtype, formula=row['formula']))
                     (releases if row.get('lifetime') == 'operator_working_set' else retained).append(aid)
                 if component == 'KDA':
-                    state = attention_training_state(self.m, layer, self.w['batch_size'] / self.ep,
-                                                      self.w['sequence_length'], tp=self.tp)
+                    state = self.training_attention_state(layer)
                     aid = name + f'.{rank}.recompute.kda_state'
                     allocations.append(self.allocation(aid, rank, state['recurrent_chunk_elements'] * DTYPE_BYTES[self.p['recurrent']],
                         'KDA', 'recompute_workspace', layer, self.p['recurrent']))
                     retained.append(aid)
                 if component in ('CSA', 'HCA'):
-                    state = attention_training_state(self.m, layer, self.w['batch_size'] / self.ep,
-                                                      self.w['sequence_length'], tp=self.tp)
+                    state = self.training_attention_state(layer)
                     for category, field, dtype, byte_width in (
                             ('compressed_attention_pool', 'compressed_pool_elements', self.p['kv'], DTYPE_BYTES[self.p['kv']]),
                             ('attention_selection_indices', 'selection_index_elements', None, 4)):
@@ -835,6 +835,12 @@ class Builder:
             self.g.metadata['sequence_token_completion_events'][str(d)] = sequence_ends
         return self.g
 
+    def training_attention_state(self, layer):
+        rows = [attention_training_state(self.m, layer, 1 / self.ep, length, tp=self.tp)
+                for length in self.train_lengths]
+        return {key: sum(row[key] for row in rows) if isinstance(value, (int, float)) else value
+                for key, value in rows[0].items()}
+
     def training_graph(self):
         self.initial()
         if any(kind in ('CSA', 'HCA') for kind in self.a['attention_by_layer']):
@@ -846,6 +852,10 @@ class Builder:
         for step in range(self.w['training_steps']):
             for stage in range(self.pp):
                 for phase, micro in pipeline_schedule(stage, self.pp, self.w['gradient_accumulation']):
+                    if self.forward_only and phase == 'backward':
+                        continue
+                    if hasattr(self, 'training_lengths_by_micro'):
+                        self.train_lengths = self.training_lengths_by_micro[micro]
                     forward = phase == 'forward'
                     prefix = f'train.s{step}.p{stage}.{phase}.m{micro}'
                     deps = [stage_previous[stage]] if stage in stage_previous else ([f'train.step{step-1}.done'] if step else [])
@@ -856,6 +866,7 @@ class Builder:
                         if stage + 1 < self.pp:
                             deps += [f'train.s{step}.p{stage+1}.backward.m{micro}.send']
                     previous = [self.barrier(prefix + '.start', deps)]
+                    objective_release = []
                     for layer in self.stage_layers[stage][::1 if forward else -1]:
                         name = prefix + f'.l{layer}'
                         gathered = []
@@ -868,7 +879,7 @@ class Builder:
                                     gathered = []
                         rows_by_rank = {}
                         ranks = [r for r, c in self.coords.items() if c[1] == stage]
-                        local_tokens = self.w['batch_size'] * self.w['sequence_length'] / self.ep
+                        local_tokens = sum(self.train_lengths) / self.ep
                         for rank in ranks:
                             # Checkpointing changes retention, not the forward
                             # operator's temporary working set.
@@ -913,16 +924,18 @@ class Builder:
                                             allocations.append(a)
                                             checkpoint_temporary = (self.f['activation_checkpointing'] and
                                                 not (component == 'PreNorm' and row['name'] == 'input'))
-                                            if row.get('lifetime') == 'operator_working_set' or checkpoint_temporary:
-                                                releases.append(a.id)
-                                    if component == 'KDA' and not self.f['activation_checkpointing']:
-                                        state = attention_training_state(self.m, layer, self.w['batch_size'] / self.ep, self.w['sequence_length'], tp=self.tp)
+                                            if row.get('lifetime') == 'operator_working_set' or checkpoint_temporary or self.forward_only:
+                                                if component == 'Output' and getattr(self, '_training_loss', None):
+                                                    objective_release.append(a.id)
+                                                else:
+                                                    releases.append(a.id)
+                                    if component == 'KDA' and not self.f['activation_checkpointing'] and not self.forward_only:
+                                        state = self.training_attention_state(layer)
                                         size = state['recurrent_chunk_elements'] * DTYPE_BYTES[self.p['recurrent']]
                                         if size:
                                             allocations.append(self.allocation(name + f'.{rank}.kda_saved', rank, size, 'KDA', 'saved_recurrent_states', layer, self.p['recurrent']))
                                     if component in ('CSA', 'HCA'):
-                                        state = attention_training_state(self.m, layer, self.w['batch_size'] / self.ep,
-                                                                          self.w['sequence_length'], tp=self.tp)
+                                        state = self.training_attention_state(layer)
                                         for category, field, dtype, byte_width in (
                                                 ('compressed_attention_pool', 'compressed_pool_elements', self.p['kv'], DTYPE_BYTES[self.p['kv']]),
                                                 ('attention_selection_indices', 'selection_index_elements', None, 4)):
@@ -932,9 +945,9 @@ class Builder:
                                                     size, component, category, layer, dtype,
                                                     formula=state['formula'], storage_dtype='int32' if dtype is None else dtype)
                                                 allocations.append(allocation)
-                                                if self.f['activation_checkpointing']:
+                                                if self.f['activation_checkpointing'] or self.forward_only:
                                                     releases.append(allocation.id)
-                                    self.saved[key] = [a.id for a in allocations if a.id not in releases]
+                                    self.saved[key] = [a.id for a in allocations if a.id not in releases and a.id not in objective_release]
                                     if component == 'AttnRes':
                                         block = attnres_state(self.m, layer, local_tokens)
                                         if block['new_elements']:
@@ -944,11 +957,11 @@ class Builder:
                                 else:
                                     releases = self.saved[key]
                                 ends.append(self.kernel(name + f'.{rank}.{component}', rank, layer, component, local_tokens, previous, backward=not forward, phase=phase,
-                                    allocations=allocations, releases=releases, lengths=[self.w['sequence_length']] * self.w['batch_size']))
+                                    allocations=allocations, releases=releases, lengths=self.train_lengths))
                             previous = ends
                             if forward and component == 'CSA':
                                 previous = self.sparse_index_collective(name, layer, self.groups(stage, 'tp'),
-                                    [self.w['sequence_length']] * self.w['batch_size'], previous,
+                                    self.train_lengths, previous,
                                     phase=phase, divisor=self.ep)
                             if component == 'MoE' and self.ep > 1:
                                 terminals = []
@@ -984,9 +997,13 @@ class Builder:
                         for d, e, t in product(range(self.dp), range(self.ep), range(self.tp)):
                             source_rank = self.ranks[d, source_stage, e, t]
                             extra_release.append(f'train.s{step}.p{source_stage}.{phase}.m{micro}.{source_rank}.pipeline' + suffix)
-                    if not forward and stage == 0:
+                    if (not forward or self.forward_only) and stage == 0:
                         for rank in ranks:
                             extra_release += self.residual_blocks.pop((step, micro, rank), [])
+                    loss_hook = getattr(self, '_training_loss', None)
+                    if forward and stage == self.pp - 1 and loss_hook:
+                        previous = loss_hook(prefix, stage, micro, previous)
+                        extra_release += objective_release
                     end = self.barrier(prefix + '.done', previous, releases=extra_release)
                     transfers = []
                     next_stage = stage + (1 if forward else -1)
@@ -997,7 +1014,10 @@ class Builder:
                                 local_tokens * self.m['hidden_dim'], (end,))
                             transfers.append(transferred)
                     stage_previous[stage] = self.barrier(prefix + '.send', transfers or (end,))
-            self.optimizer(step, list(stage_previous.values()))
+            if self.forward_only:
+                self.barrier(f'train.step{step}.done', list(stage_previous.values()))
+            else:
+                self.optimizer(step, list(stage_previous.values()))
             stage_previous = {s: f'train.step{step}.done' for s in range(self.pp)}
         self.g.metadata['step_end_events'] = [f'train.step{s}.done' for s in range(self.w['training_steps'])]
         return self.g
@@ -1067,7 +1087,7 @@ class Builder:
                         if scales:
                             current = [self.add(self.topo.transfer(prefix + '.scales', node, rank, scales, tuple(current), {'component': component, 'operation': 'weight_scale_transfer', 'layer': layer}))]
                     storage = sum(t.local_elements(self.tp, self.ep, self.fsdp) * DTYPE_BYTES[self.weight_dtype(t)] for t in tensors)
-                    ends.append(self.add(Event(prefix + '.refresh', tuple(current), {self.scalar(rank): 2 * elements, rank + '.hbm': amount + storage}, slots=(rank + '.compute_stream',), releases=(aid,), metadata={'component': component, 'kernel': 'weight_refresh', 'layer': layer})))
+                    ends.append(self.add(Event(prefix + '.refresh', tuple(current), {self.scalar(rank): 2 * elements, rank + '.hbm': amount + storage}, slots=(rank + '.compute_stream',), releases=(aid,), metadata={'component': component, 'kernel': 'weight_refresh', 'layer': layer, 'phase': 'weight_refresh'})))
                     if depth:
                         tails[lane] = ends[-1]
                         bucket += 1

@@ -232,6 +232,7 @@ def test_real_training_worker_exposes_suboperators_profiles_and_mfu(client):
     job = finish(client, submit(client, config))
     actual = client.json('GET', f"/api/jobs/{job['id']}/result")
     assert actual['metrics']['training_accounting'] == expected['metrics']['training_accounting']
+    assert actual['metrics']['training_latency_breakdown'] == expected['metrics']['training_latency_breakdown']
     for key in ('operator_trace', 'kernel_calibration', 'collective_calibration', 'fidelity'):
         assert actual['model_metadata'][key] == expected['model_metadata'][key]
     assert actual['model_metadata']['operator_trace']['matched_events'] > 0
@@ -240,5 +241,7 @@ def test_real_training_worker_exposes_suboperators_profiles_and_mfu(client):
              if event['metadata'].get('trace_id') == 'web-training-trace'
              and 'operation_index' in event['metadata']]
     assert parts
+    chains = actual['operator_execution']['groups']
+    assert chains and chains[0]['events'][0]['metadata']['trace_id'] == 'web-training-trace'
     assert all(event['metadata']['trace_parent_event'] and event['metadata']['original_kernel'] == 'dense'
                and event['metadata']['flops'] == flops / 2 for event in parts)

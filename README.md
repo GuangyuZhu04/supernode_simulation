@@ -4,6 +4,8 @@
 
 项目设计与实现：[整体架构设计文档](docs/simulation-architecture.md) · [函数级仿真流程图](docs/simulation-function-flows.md)。
 
+训练新增预训练、SFT、DPO、PPO/GRPO 任务分类及专用参数：packing/监督标签、偏好双序列、rollout 长度与 batch、参考/奖励/价值模型、多轮更新和经验缓冲均进入可复跑配置。复用算子 trace/profile、通信及内存引擎，报告分列处理/有效/监督/生成 token 与阶段耗时；RL 当前采用共池串行、PP=FSDP=1。参数、限制和五类示例见 [训练任务指南](skills/supernode-modeling/references/training-tasks.md)。运行 `python skills/supernode-modeling/scripts/evaluate_training_tasks.py --output outputs/training-tasks` 可生成任务报告与敏感性对照，全部示例为 synthetic。
+
 支持训练与固定负载推理、FP8/FP16 权重、FSDP2/CPU optimizer offload、MoE、标准与 latent KV、KV offload、Engram 查询、SU/SO 拓扑和有限候选搜索。Demo 与 10T 容量锚点是明确标注的合成配置；Kimi K3 / Ascend 950DT 案例使用公开结构和硬件资料，并分别标明运行时、拓扑及效率假设，不将型号名称当作实测校准。
 
 训练与推理可通过 `hardware.kernel_traces` 将匹配的组件展开为串行子算子，显式输入 GEMM M/N/K、启动、HBM 访问和局部工作区，再使用现有 `kernel_profiles` 校准。结构化事件新增 `workload_shape`，区分 prefill 长度分布、decode 上下文及训练微批；预算训练的因果 attention 计算量也已与推理口径对齐。[参考仿真器映射](skills/supernode-modeling/references/reference-simulators.md) 和 [输入/复现说明](skills/supernode-modeling/references/operator-traces.md) 说明来源与边界；细化本身不证明实机预测误差下降。
@@ -102,6 +104,7 @@ python -u scripts/run_reference_experiment.py examples/kimi_k3_ascend950_trainin
 - `config.resolved.json`：包含校准值的独立可重跑配置。
 - `resources.csv`、`memory.csv`：资源访问量、容量/速率和峰值。
 - `latency_breakdown.csv`：TTFT / TPOT（TPOP）的计算、node 内 / scale-up / scale-out / 其他通信、显式同步、调度槽位、内存准入等待和资源争用，单位秒；搜索输出包含逐候选标识。中文报告和网页使用毫秒展示相同拆解。
+- `operator_breakdown.csv`：推理 TTFT / TPOT 和训练步的逐算子耗时、占窗口比例，以及算子内计算、通信、访存、启动、等待、争用和未细分服务的秒值与比例。报告与网页同步展示完整排行；按关键路径和限制资源归因，重叠的计算/访存不重复相加。训练使用平均步、首步与稳态步；[详细口径](skills/supernode-modeling/references/latency-breakdown.md)。
 - 仿真另有 `events.csv` 和可在 Perfetto/Chrome Trace 中导入的 `timeline.json`。
 
 单位是 byte、second、FLOP；报告容量 TB 使用十进制。`unit` 是资源速率单位，`work_unit` 是累计工作量单位。

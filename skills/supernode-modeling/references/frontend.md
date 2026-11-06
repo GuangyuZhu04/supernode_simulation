@@ -4,7 +4,7 @@
 
 ## 页面来源与运行条件
 
-当前网页直接使用项目中的 `supernode_sim/web_static/index.html`、`app.js`、`topology.js`、`execution.js`、`styles.css`，由 `supernode_sim.web` 提供同源 HTTP API。这些静态文件已随 Python 包分发，不需要 Node、npm、前端依赖安装或打包命令。启动即完成当前版本页面的准备与提供；不要另造脱离引擎的演示页面。
+当前网页直接使用项目中的 `supernode_sim/web_static/index.html`、`app.js`、`topology.js`、`execution.js`、`operators.js`、`styles.css`、`operators.css`，由 `supernode_sim.web` 提供同源 HTTP API。这些静态文件已随 Python 包分发，不需要 Node、npm、前端依赖安装或打包命令。启动即完成当前版本页面的准备与提供；不要另造脱离引擎的演示页面。
 
 Skill 的可复用入口是本目录上一级的 `scripts/launch_frontend.py`。安装/复制 skill 时保留 `scripts/`、`references/`、`agents/` 和 `subskills/`。前端和数值引擎仍依赖可访问的项目或安装包，不在 skill 内维护第二份前端源码。
 
@@ -55,6 +55,8 @@ python skills/supernode-modeling/scripts/launch_frontend.py --project-root . --p
 - 拓扑按实际模板绘制：Full mesh 为域内全连接、Mesh 使用配置的网格宽度，Clos / Fat tree 按当前引擎的 leaf–spine 模板；显式图仅绘制已配置的有向边，保留孤立 NPU。SO 独立面板默认在 SU 图上方，显示卡组接入、SU gateway、SO spine、逐方向带宽和独立注入约束；查看 SU 域内链路时 SO 面板仍保留。显式 SO 图仅提取 `domain=SO` 的边，不推测 SO 域划分，无 SO 边则说明未配置。SO 与 SU 分别分页，点击 SO 图中的 SU 可定位域内视图并查看物理卡的 rank、主机及并行坐标。大规模图标明展示数量；图形位置不代表物理距离或实际拥塞。
 - 执行计划根据训练步数、梯度累积、变长请求、TP/SP/PP/EP/DP/FSDP、重计算、卸载、PD 双池和投机解码生成。它描述依赖关系，不是事件级完成进度。仅一个输出 token 的请求没有额外 Decode 循环。SP 使用 `execution.sequence_parallel` 开关：启用时度数等于 TP，关闭时为 1，不额外乘入总卡数；配置面板、输入总览、执行摘要与拓扑设备详情同步展示。
 - 运行结束后，实际阶段使用结果的 `execution_summary`；阶段条表示首个事件开始至最后事件完成的跨度，可相互重叠。部分执行明确标注中断，旧任务缺少摘要时显示不可用。`estimate` 仅展示计划与必要下界，不显示实际阶段耗时或完成百分比。
+- 算子级结果直接展示 `metrics.latency_breakdown` / `metrics.training_latency_breakdown` 的算子账本，可切换窗口、筛选、排序及逐项查看内部开销；筛选不改变原窗口分母。耗时图取前 12 项，完整表每页 50 行，零耗时和未定义窗口不补零。
+- 算子过程按实际记录回放，可播放、拖动及逐事件浏览，按阶段、组件、设备 / Rank、层与 token / 训练步筛选。全局最多 300 条均匀采样；`operator_execution` 另保留最先观测到的 24 个父算子展开链，每链最多 64 项，均注明截取范围。计时、Matmul、shape、实现与来源只使用已保存元数据；采样未命中不表示未执行。回放不是任务实时完成进度，不能由事件跨度之和推算总时延。
 
 ## 与仿真任务衔接
 
@@ -77,7 +79,9 @@ DeepSeek V4.1 Pro 10T 路由专家 FP4 的 512 卡 / EP128 案例已内置在 `/
 
 `infeasible`、`slo_failed`、`estimated` 与运行失败按原引擎口径解释；`estimate` 不证明 SLO 可行。通信统计、内存和时间线展示可能有数量限制，完整结果以导出清单为准。
 
-`sweep`、`size-su`、`feedback`、流式推理和检查点实验仍使用各自 CLI/API。网页可展示基础输入，但不把这些命令的结果冒充网页支持的任务类型，也不重跑已完成的大实验只为填充图表。
+`sweep`、`size-su`、`feedback` 和检查点实验仍使用各自 CLI/API。大规模 `simulate` 会按主机可用内存与图规模，对符合条件的结构化 DP=PP=1 推理自动使用现有流式引擎；不改变模型、负载或拓扑，不为不支持的 megakernel/PD 等配置强行分块。网页明确标注未保留逐事件/逐张量明细，分块时间另存 `streaming_chunks.csv`。
+
+所有 Web worker 在构图前应用主机内存硬上限；默认使用主机总内存一半与可用内存一半的较小值，并考虑 Linux 容器限额。更大主机自动获得更大预算，流式缓存按进程预算的 10% 分配。启动服务前可通过 `SUPERNODE_WEB_MEMORY_MIB` 设置显式预算（仍保留主机余量），预算和超限错误写入任务日志。超限保留输入、释放进程，不能以缩小场景替代修复。细节见 [resource-usage.md](resource-usage.md)；更新代码后重启对应服务。
 
 ## 故障与交付
 

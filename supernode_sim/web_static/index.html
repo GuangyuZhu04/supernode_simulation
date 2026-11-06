@@ -6,8 +6,10 @@
   <meta name="color-scheme" content="light">
   <title>超节点 · 流量仿真实验室</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/operators.css">
   <script src="/topology.js" defer></script>
   <script src="/execution.js" defer></script>
+  <script src="/operators.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -157,13 +159,13 @@
               <section id="serving-results" class="card chart-card" hidden aria-labelledby="serving-results-heading"><div class="panel-heading"><h3 id="serving-results-heading">请求延迟与成批调度</h3><span class="mini-badge">FCFS · 固定成批</span></div><p id="serving-result-note" class="chart-caption"></p><div id="serving-percentiles" class="matrix-wrap"></div><div id="serving-goodput" class="serving-goodput"></div><h4>批次时间线</h4><p id="serving-timeline-note" class="chart-caption"></p><div id="serving-timeline" class="trace-chart"></div><h4>逐请求结果</h4><p id="serving-request-result-note" class="chart-caption"></p><div id="serving-request-results" class="matrix-wrap"></div></section>
               <section id="training-accounting-panel" class="card chart-card" hidden aria-labelledby="training-accounting-heading"><div class="panel-heading"><h3 id="training-accounting-heading">训练计算量与峰值利用比例</h3><span class="mini-badge">FLOPs · 明确分子</span></div><div id="training-accounting-kpis" class="kpi-grid"></div><p id="training-accounting-note" class="chart-caption"></p><div id="training-role-chart" class="bar-chart"></div><div id="training-accounting-tables" class="matrix-wrap"></div></section>
               <div id="ordinary-result-panels">
-              <section class="card chart-card"><div class="panel-heading"><h3>TTFT / TPOT（TPOP）时延拆解</h3><span class="mini-badge">ms · 关键依赖路径</span></div><div id="latency-breakdown" class="matrix-wrap"></div><p id="latency-note" class="chart-caption"></p></section>
+              <section class="card chart-card"><div class="panel-heading"><h3 id="latency-heading">TTFT / TPOT（TPOP）时延拆解</h3><span class="mini-badge">ms · 关键依赖路径</span></div><div id="latency-breakdown" class="matrix-wrap"></div><p id="latency-note" class="chart-caption"></p></section>
               <div class="result-card-grid">
                 <section class="card chart-card"><div class="panel-heading"><h3>通信流量</h3><span class="mini-badge">GB · 十进制</span></div><div class="chart-tabs" role="group" aria-label="通信统计视图"><button type="button" data-comm-view="physical_bytes_by_domain" class="selected" aria-pressed="true">物理链路域</button><button type="button" data-comm-view="payload_by_semantic_bytes" aria-pressed="false">应用语义</button><button type="button" data-comm-view="payload_by_collective_bytes" aria-pressed="false">Collective</button></div><div id="communication-chart" class="bar-chart"></div><p id="communication-note" class="chart-caption"></p></section>
                 <section class="card chart-card"><div class="panel-heading"><h3>内存容量与峰值</h3><select id="memory-filter" aria-label="内存池类型"><option value="all">所有内存池</option></select></div><div id="memory-chart" class="memory-chart"></div><p id="memory-note" class="chart-caption"></p></section>
               </div>
               <section class="card chart-card resource-card"><div class="panel-heading"><h3>资源利用率</h3><span id="resource-meta" class="subtle"></span></div><div id="resource-chart" class="resource-chart"></div><p class="chart-caption">使用引擎资源统计；解析估算不产生仿真利用率。</p></section>
-              <section class="card chart-card trace-card"><div class="panel-heading"><h3>事件时间线</h3><div class="trace-legend"><span><i class="compute-color"></i>计算</span><span><i class="comm-color"></i>通信</span><span><i class="other-color"></i>其他</span></div></div><p id="trace-note" class="chart-caption"></p><div id="trace-chart" class="trace-chart"></div></section>
+              <section id="operator-process-panel" class="card chart-card" aria-labelledby="operator-process-heading"><div class="panel-heading"><h3 id="operator-process-heading">算子级执行过程</h3><span class="mini-badge">实际事件 · 可筛选回放</span></div><p id="trace-note" class="chart-caption"></p><div id="trace-chart" class="operator-process"></div></section>
               </div>
               <section id="execution-evidence-panel" class="card chart-card" hidden aria-labelledby="execution-evidence-heading"><div class="panel-heading"><h3 id="execution-evidence-heading">执行粒度与校准证据</h3><select id="evidence-execution" aria-label="服务批次执行形状" hidden></select></div><p class="chart-caption">算子展开覆盖率表示建模细节；kernel / collective 命中表示计时记录适用范围。三者均不等于预测准确率。</p><div id="execution-evidence"></div><div id="operator-trace-events" class="matrix-wrap"></div></section>
               <section class="card insight-card"><details id="diagnostic-details"><summary>约束、假设与数据来源 <span id="diagnostic-count"></span></summary><div id="diagnostic-content"></div></details></section>

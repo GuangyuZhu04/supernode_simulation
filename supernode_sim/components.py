@@ -257,10 +257,10 @@ def parameter_inventory(model: dict) -> list[ParameterTensor]:
     if arch.get("attnres_block_size"):
         norm("attnres.output.norm", "AttnRes", layers - 1, h)
         linear("attnres.output.projection", "AttnRes", layers - 1, h, 1, tp_shard=False)
-    add("output.weight", "Output", layers - 1, (vocab, h), role="output",
+    add("output.weight", "Output", layers - 1, (arch.get('output_head_dim') or vocab, h), role="output",
         alias_of="word_embeddings.weight" if arch.get("tie_embeddings", False) else None,
         formula="tied alias of word_embeddings.weight" if arch.get("tie_embeddings", False)
-                else "vocab_size * hidden_dim")
+                else "output_head_dim (default vocab_size) * hidden_dim")
     return tensors
 
 
@@ -425,8 +425,9 @@ def component_activations(model: dict, layer: int, tokens: float, *, tp: int = 1
     if layer == 0:
         add("WordEmbedding", "embedding_output", tokens * h, "tokens * hidden_dim")
     if layer == model["layers"] - 1:
-        add("Output", "logits", tokens * arch["vocab_size"] / tp,
-            "tokens * vocab_size / TP; unfused logits materialization assumption")
+        output_dim = arch.get('output_head_dim') or arch['vocab_size']
+        add("Output", "logits", tokens * output_dim / (1 if output_dim == 1 else tp),
+            "tokens * output_head_dim / TP; scalar heads retain one partial scalar per token per rank")
     if arch.get("attnres_block_size") and tokens:
         scratch = attnres_state(model, layer, tokens)["workspace_elements"]
         add("AttnRes", "residual_attention_workspace", scratch,

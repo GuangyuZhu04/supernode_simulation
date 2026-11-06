@@ -205,6 +205,9 @@ def _fuse(graph, group, members, bridges, rank, config):
         "phase": members[0].metadata["phase"], "layer": members[0].metadata["layer"], "rank": rank,
         "flops": sum(amount for key, amount in work.items() if key.startswith(rank + ".compute")),
         "working_set_bytes": original_hbm + workspace_bytes, "megakernel": ledger}
+    for key in ('training_task', 'training_role', 'training_stage', 'training_update', 'training_iteration'):
+        if key in members[0].metadata and all(e.metadata.get(key) == members[0].metadata[key] for e in members):
+            metadata[key] = members[0].metadata[key]
     return Event(final_id, members[0].deps, dict(work), group["fused_startup_s"], members[0].slots,
                  allocations, releases, metadata)
 

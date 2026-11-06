@@ -4,6 +4,7 @@ from __future__ import annotations
 import gc
 import json
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from .config import Config
 from .report import write_report
 from .serving import ServingSpec, simulate_serving
 from .serving_report import write_serving_report
+from .host_memory import MIB, apply_worker_memory_limit, peak_memory_bytes, worker_memory_limit
 
 
 MODEL_METADATA_KEYS = ('operator_trace', 'kernel_calibration', 'collective_calibration', 'fidelity', 'feature_plan')
@@ -75,6 +77,87 @@ def execution_summary(result: dict) -> dict:
     }
 
 
+TRACE_METADATA_KEYS = (
+    'type', 'kind', 'category', 'operation', 'phase', 'layer', 'rank', 'semantic', 'collective',
+    'payload_bytes', 'physical_bytes_by_domain', 'component', 'replica', 'token',
+    'token_index', 'step', 'microbatch', 'src', 'dst', 'kernel', 'direction',
+    'round_index', 'pd_role', 'trace_id', 'original_kernel', 'trace_parent_event',
+    'operation_index', 'matmul', 'flops', 'workload_shape', 'operator_trace_completion',
+    'training_task', 'training_role', 'training_stage', 'training_update', 'training_iteration',
+    'dtype', 'trace_source', 'implementation', 'calibration', 'operator_workspace_bytes',
+    'working_set_bytes', 'working_set_scope',
+)
+
+
+def compact_event(row: dict) -> dict:
+    metadata = {k: v for k, v in row.get('metadata', {}).items() if k in TRACE_METADATA_KEYS}
+    bounded = _bounded(metadata)
+    event = {
+        **{k: row.get(k) for k in ('id', 'start_s', 'end_s', 'duration_s')},
+        **{k: row[k] for k in ('startup_s', 'dependency_ready_s', 'slot_wait_s', 'memory_wait_s') if k in row},
+        'slots': row.get('slots', [])[:16], 'metadata': bounded,
+    }
+    # Work is optional in compact engine runs. Never reconstruct it from time.
+    work = row.get('work', {})
+    if work:
+        event['work'] = dict(list(work.items())[:32])
+    if bounded != metadata or len(row.get('slots', [])) > 16 or len(work) > 32:
+        event['details_truncated'] = True
+    return event
+
+
+def operator_execution_summary(result: dict) -> dict:
+    """Count all observed events and retain bounded, contiguous suboperator chains.
+
+    Uniform timeline sampling can omit every member of a short expansion. Keep
+    the first 24 observed parents independently, without deriving timing or
+    critical-path percentages from either display sample.
+    """
+    if result.get('execution_mode', '').endswith('_streaming'):
+        return {'basis': 'not_retained', 'groups': [], 'unavailable_reason': 'streaming_execution'}
+    simulation = result.get('simulation', {})
+    trace = simulation.get('trace', [])
+    groups, parents = {}, set()
+    group_limit, operation_limit = 24, 64
+    counts = dict.fromkeys(('compute', 'communication', 'completion', 'other'), 0)
+    expanded = 0
+    for event in trace:
+        metadata = event.get('metadata', {})
+        if metadata.get('operator_trace_completion'):
+            kind = 'completion'
+        elif metadata.get('kernel') or metadata.get('flops'):
+            kind = 'compute'
+        elif metadata.get('type') == 'transfer' or metadata.get('collective') or metadata.get('semantic'):
+            kind = 'communication'
+        else:
+            kind = 'other'
+        counts[kind] += 1
+        parent = metadata.get('trace_parent_event')
+        if not (parent and metadata.get('trace_id') and metadata.get('kernel')):
+            continue
+        expanded += 1
+        parents.add(parent)
+        if parent not in groups:
+            if len(groups) >= group_limit:
+                continue
+            groups[parent] = {'parent_event': parent, 'original_kernel': metadata.get('original_kernel'),
+                              'trace_id': metadata['trace_id'], 'phase': metadata.get('phase'),
+                              'event_count': 0, 'events': []}
+        group = groups[parent]
+        group['event_count'] += 1
+        if len(group['events']) < operation_limit:
+            group['events'].append(compact_event(event))
+    for group in groups.values():
+        group['events'].sort(key=lambda event: (event['metadata'].get('operation_index', 0), event['id']))
+        group['truncated'] = group['event_count'] > len(group['events'])
+    return {
+        'basis': 'estimate_only' if result.get('mode') == 'estimate' else 'completed_trace' if simulation else 'unavailable',
+        'event_counts': counts, 'expanded_operations': expanded, 'parent_count': len(parents),
+        'groups': list(groups.values()), 'groups_truncated': len(parents) > len(groups),
+        'group_limit': group_limit, 'operations_per_group': operation_limit,
+    }
+
+
 def compact_result(result: dict) -> dict:
     """A bounded display view; all exact tables remain in report artifacts."""
     estimate = result.get('estimate', {})
@@ -91,26 +174,20 @@ def compact_result(result: dict) -> dict:
     trace = simulation.get('trace', [])
     indices = (range(len(trace)) if len(trace) <= 300 else
                sorted({round(i * (len(trace) - 1) / 299) for i in range(300)}))
-    metadata_keys = ('kind', 'category', 'operation', 'phase', 'layer', 'rank', 'semantic', 'collective',
-                     'payload_bytes', 'physical_bytes_by_domain', 'component', 'replica', 'token',
-                     'token_index', 'step', 'microbatch', 'src', 'dst', 'kernel', 'direction',
-                     'round_index', 'pd_role', 'trace_id', 'original_kernel', 'trace_parent_event',
-                     'operation_index', 'matmul', 'flops', 'workload_shape', 'operator_trace_completion')
-    events = []
-    for i in indices:
-        row = trace[i]
-        events.append({**{k: row.get(k) for k in ('id', 'start_s', 'end_s', 'duration_s')},
-                       'slots': row.get('slots', [])[:16],
-                       'metadata': _bounded({k: v for k, v in row.get('metadata', {}).items() if k in metadata_keys})})
+    events = [compact_event(trace[i]) for i in indices]
     model_metadata = {key: _bounded(result['model_metadata'][key]) for key in MODEL_METADATA_KEYS
                       if key in result.get('model_metadata', {})}
     training = result.get('metrics', {}).get('training_accounting')
     metrics = {k: v for k, v in result.get('metrics', {}).items()
-               if k == 'latency_breakdown' or not isinstance(v, (list, dict))}
+               if k in ('latency_breakdown', 'training_latency_breakdown') or not isinstance(v, (list, dict))}
+    if result.get('metrics', {}).get('training_task'):
+        metrics['training_task'] = _bounded(result['metrics']['training_task'])
     if training is not None:
         metrics['training_accounting'] = _bounded(training)
     return {
         **{k: result.get(k) for k in ('status', 'mode', 'config', 'config_sha256', 'units', 'slo', 'engine_version')},
+        'execution_mode': result.get('execution_mode', 'full_graph'),
+        'communication_basis': result.get('communication_basis', 'planned_graph'),
         'metrics': metrics, 'model_metadata': model_metadata,
         'estimate': {k: estimate.get(k) for k in ('duration_lower_bound_s', 'event_count', 'communication', 'memory_note')},
         'communication': estimate.get('communication', {}),
@@ -119,8 +196,11 @@ def compact_result(result: dict) -> dict:
                    'logical_component_state_bytes': memory.get('logical_component_state_bytes', {}),
                    'cluster': memory.get('cluster', {}), 'notes': memory.get('notes', [])},
         'resources': resources[:160], 'resource_count': len(resources),
-        'execution_summary': execution_summary(result),
-        'trace': {'events': events, 'total_events': len(trace), 'sampled': len(trace) > len(events)},
+        'execution_summary': result.get('execution_summary') or execution_summary(result),
+        'operator_execution': operator_execution_summary(result),
+        'trace': {'events': events, 'total_events': simulation.get('completed_events', 0),
+                  'sampled': len(trace) > len(events),
+                  'retained': result.get('artifact_export', {}).get('events_retained', True)},
         'simulation': {'duration_s': simulation.get('duration_s'), 'completed_events': simulation.get('completed_events')},
         'diagnostics': _bounded(simulation.get('diagnostics', [])),
         'sources': result.get('sources', {}), 'assumptions': result.get('assumptions', [])[:80],
@@ -186,10 +266,18 @@ def main(argv: list[str] | None = None) -> int:
     if len(args) != 2 or args[1] not in ('simulate', 'estimate', 'serve', 'pod_dflash'):
         raise ValueError('worker requires an output directory and simulate/estimate/serve mode')
     directory, mode = Path(args[0]), args[1]
+    memory_limit = None
+    emergency_reserve = None
     # Match the CLI's performance policy for acyclic, ID-linked event graphs.
     gc_was_enabled = gc.isenabled()
     gc.disable()
     try:
+        memory_limit = worker_memory_limit()
+        # Retain the Windows Job Object handle until process exit. Reserve a
+        # little room to report MemoryError without needing another large alloc.
+        memory_guard = apply_worker_memory_limit(memory_limit)
+        emergency_reserve = bytearray(MIB)
+        _phase('validating', f'已启用计算进程内存硬上限：{memory_limit // MIB} MiB')
         _phase('validating', '正在校验已保存的输入配置')
         if mode == 'pod_dflash':
             from .case_studies.v41_fp4 import simulate_case, write_report as write_case_report
@@ -211,18 +299,41 @@ def main(argv: list[str] | None = None) -> int:
             write_serving_report(result, directory)
             compact = compact_serving_result(result)
         else:
-            _phase('simulating' if mode == 'simulate' else 'estimating',
-                   '正在构建执行图、计算资源下界并运行离散事件仿真' if mode == 'simulate' else '正在构建执行图并计算解析下界')
-            result = run(config, mode, full_detail=False)
-            _phase('exporting', '数值计算完成，正在导出报告和完整结果表')
-            write_report(result, directory, full_detail=False)
+            from .web_streaming import should_stream, run_for_web, write_streaming_report
+            if should_stream(config, mode, memory_limit):
+                _phase('simulating', '大规模结构化推理使用分块执行，逐组件释放事件图；模型与负载参数保持不变')
+                last_progress = time.monotonic()
+
+                def progress(chunk):
+                    nonlocal last_progress
+                    now = time.monotonic()
+                    if now - last_progress >= 2:
+                        _phase('simulating', f"已执行 {chunk['phase']} token {chunk['token_index']} · {chunk['id']}")
+                        last_progress = now
+
+                result = run_for_web(config, memory_limit=memory_limit, progress=progress)
+                _phase('exporting', '正在导出流式数值结果、内存峰值与算子账本')
+                write_streaming_report(result, directory)
+            else:
+                _phase('simulating' if mode == 'simulate' else 'estimating',
+                       '正在构建执行图、计算资源下界并运行离散事件仿真' if mode == 'simulate' else '正在构建执行图并计算解析下界')
+                result = run(config, mode, full_detail=False)
+                _phase('exporting', '数值计算完成，正在导出报告和完整结果表')
+                write_report(result, directory, full_detail=False)
             compact = compact_result(result)
         _phase('summarizing', '正在生成网页可视化摘要')
         temporary = directory / 'ui.result.json.tmp'
-        temporary.write_text(json.dumps(compact, ensure_ascii=False, allow_nan=False), encoding='utf-8')
+        with temporary.open('w', encoding='utf-8') as handle:
+            json.dump(compact, handle, ensure_ascii=False, allow_nan=False)
         temporary.replace(directory / 'ui.result.json')
-        print(json.dumps({'phase': 'completed', 'message': '报告与可视化已生成', 'result_status': result['status']}, ensure_ascii=False), flush=True)
+        print(json.dumps({'phase': 'completed', 'message': '报告与可视化已生成', 'result_status': result['status'],
+                          'host_peak_memory_bytes': peak_memory_bytes()}, ensure_ascii=False), flush=True)
         return 0
+    except MemoryError:
+        emergency_reserve = None
+        _phase('failed', f'计算进程达到主机内存预算（{memory_limit // MIB if memory_limit else "未知"} MiB），已停止本次任务以保护电脑；输入快照已保留。此限制是 Python 主机内存，不是模拟设备 HBM。')
+        traceback.print_exc()
+        return 1
     except Exception as exc:
         print(json.dumps({'phase': 'failed', 'message': f'{type(exc).__name__}: {exc}'}, ensure_ascii=False), flush=True)
         traceback.print_exc()

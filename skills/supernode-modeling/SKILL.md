@@ -1,6 +1,6 @@
 ---
 name: supernode-modeling
-description: Model supernode training and inference resources, optional acceleration features, and TTFT/TPOT (TPOP) latency breakdowns with supernode_sim, automatically opening its editable local web dashboard. Use for megakernel fusion, prefill/decode disaggregation, DSpark draft/verify, CSA/HCA/KDA attention, quantization, checkpoint/offload, Adam/Muon, Kimi K3 and Ascend 950, SU/SO topology and minimum-SU searches, or feedback searches for TP/SP/EP, prefill length and decode batch under latency targets.
+description: Model supernode training and inference resources, optional acceleration features, and TTFT/TPOT (TPOP) latency breakdowns with supernode_sim, automatically opening its editable local web dashboard. Use for pretraining, SFT, DPO, PPO/GRPO post-training with operator-level rollout/scoring/update costs, megakernel fusion, prefill/decode disaggregation, DSpark draft/verify, CSA/HCA/KDA attention, quantization, checkpoint/offload, Adam/Muon, Kimi K3 and Ascend 950, SU/SO topology and minimum-SU searches, or feedback searches for TP/SP/EP, prefill length and decode batch under latency targets.
 ---
 
 # 超节点资源与通信建模
@@ -42,9 +42,9 @@ python -m supernode_sim schema
 - 提高仿真器自身运行速度、大型仿真、批量实验或本机内存/磁盘紧张：读 [resource-usage.md](references/resource-usage.md)，选择流式运行、多核候选搜索、缓存预算与导出粒度；用相同配置的基准验证主机耗时与数值一致性。
 - 按组件分析存储、activation、梯度、Adam/Muon：读 [memory-breakdown.md](references/memory-breakdown.md)。
 - Kimi K3 / Ascend 950 样例和真实性边界：读 [ascend950-kimi-k3.md](references/ascend950-kimi-k3.md)。
-- 训练/FSDP2/optimizer offload/10T 容量：读 [training.md](references/training.md)。
+- 预训练、继续预训练、SFT、DPO、后训练 RL（PPO/GRPO）：先读 [训练任务分类与参数](references/training-tasks.md)，用 `workload.training` 或 `features.training_task` 建立任务流程，再按 [training.md](references/training.md) 选择 FSDP2、checkpoint、Adam/Muon、optimizer offload 等执行策略。
 - 推理/KV 压缩与 offload/Engram：读 [inference.md](references/inference.md)。
-- TTFT、TPOT（TPOP）的计算、node 内 / scale-up / scale-out 通信与等待拆解：读 [latency-breakdown.md](references/latency-breakdown.md)。
+- 推理 TTFT、TPOT（TPOP）与训练步的时延、算子耗时占比及算子内计算 / 通信 / 访存 / 启动占比：读 [latency-breakdown.md](references/latency-breakdown.md)。
 - 固定模型、拓扑和硬件，输入 TTFT、TPOT（用户也可能写 TPOP），反求 TP/SP/EP、Prefill 长度及 Decode batch：读 [feedback.md](references/feedback.md)，运行 `feedback`，在满足目标的有限候选内优先最大化 Decode 吞吐量。
 - TTFT、TPOT（用户可能写作 TPOP）、实测对齐或性能优化：先读 [runtime-calibration.md](references/runtime-calibration.md)；引用 K3/950DT 的 10 ms 数据时再读 [kimi-k3-runtime-evidence.md](references/kimi-k3-runtime-evidence.md)。
 - 希望仿真拟合真实运行、根据 DeepInfer/NVIDIA/Ascend 数据改进预测：先读 [执行模型拟合](references/runtime-fitting.md)，实际调整 wire 精度/元数据、算法、NIC 资源和 collective/kernel 服务时间，运行拟合与留出实验并交付前后结果。不能仅输出真实性检查或缺失条件清单。
@@ -63,6 +63,14 @@ Feature 是模型与执行策略输入，不是固定加速倍率。对同一路
 Megakernel 要指定有序 kernel 组及融合启动成本，检查 `model_metadata.megakernel` 的实际匹配、跳过原因和未继承的成员 profile；零匹配不能声称提速。PD 使用两个独立物理池，当前相同 TP/EP、DP=PP=1，总卡数为 `2 × TP × EP`；双份权重、状态和首 token ID 传输按实际拓扑计费。TTFT 是 P 池首 token 完成，交接影响首个 decode 间隔，不是线上客户端延迟或生产 P99。
 
 DeepInfer 类部署选型优先比较 P 的小 EP、可选小 TP/SP 与请求 bs=1，以及 D 的 Wide-EP 与请求 bs=128/256；先声明 bs 是每 Attention replica 还是整个池。保留官方小 EP/Attention DP 基线，小 SP 是本项目候选，不能归为官方当前部署。不同 P/D 布局或 batch 使用独立阶段实验，不能套用现有同布局 PD handoff；具体 batch 换算、候选和能力边界见上述参考。
+
+## 训练任务的执行与核对
+
+先确定预训练、SFT、DPO 或 RL 算法，再配置任务专用参数。新任务使用 `workload.training`；原有未分类训练仍保持兼容。SFT 分开上下文、有效数据和监督标签；DPO 的 batch 计偏好对；RL 分开生成 batch、更新 microbatch、采样组、更新轮数及 actor/reference/reward/critic，不能统一套用普通训练 token 公式。
+
+按 [training-tasks.md](references/training-tasks.md) 的参数表和 feature 矩阵填写实际执行模型，使用相应 `examples/training_task_*.yaml` 起步。训练任务先构图，再统一展开算子与应用 profile；绑定时保留任务、角色、阶段和形状身份。对 checkpoint、packing、loss mask、reference、update epochs 等选项，核对它改变的是工作量、状态、依赖还是仅统计分母，不使用固定提速倍率。
+
+报告增加 `metrics.training_task` 和阶段 CSV，分列处理/有效/监督/生成 token、actor/critic 优化步与阶段时间；RL 的 step 表示完整迭代。MFU 只计可训练角色的模型前反向，冻结评分、rollout、loss 和优势计算单列。当前 RL 为共池串行、PP=FSDP=1；LoRA、异步 rollout、独立资源池等能力边界见任务参考，不把无法执行的参数写成已经支持。用 `scripts/evaluate_training_tasks.py` 可复跑五类任务及参数对照。
 
 ## 拓扑作为输入
 
@@ -88,6 +96,7 @@ DeepInfer 类部署选型优先比较 P 的小 EP、可选小 TP/SP 与请求 bs
 - 表明每张表的加和规则：逻辑静态容量可加；不同组件在不同时刻取得的峰值不能相加当作同一时刻设备峰值。应同时查看设备池峰值时刻的组件构成。
 - 区分 transport payload 与逐跳物理字节量；dispatch/combine 是 all-to-all-v 的语义视图，不能再相加。
 - 保留原有输出，并给出 TTFT、TPOT（TPOP）总时延及计算、node 内 / scale-up / scale-out / 其他通信、显式同步、调度槽位、内存准入等待和资源争用拆解。引用 `metrics.latency_breakdown` 与 `latency_breakdown.csv`；分项沿关键依赖路径可加和，不累加并发 rank 或重复计入上游同步依赖。搜索结果保留逐候选 CSV，并展示推荐候选拆解。仅估算、训练、执行失败或指标未定义时标注不可用，不补零；口径和请求选择见 [latency-breakdown.md](references/latency-breakdown.md)。
+- 最终报告同时展示算子耗时排行：推理分别按 TTFT、TPOT，训练按平均步、首步与可用的稳态步统计。使用对应记录的 `operator_breakdown` 和 `operator_breakdown.csv`，列出阶段、组件、实际算子名、耗时、占窗口比例，以及算子内计算、通信、访存、启动、等待、争用、未细分/其他比例。明确两个分母；保留完整表及来源，不仅列 Top N。计算/访存按限制资源归因，不能相加重叠服务；整 kernel 校准无内部证据时保留未细分。训练记录在 `metrics.training_latency_breakdown`，不将训练步命名为 TTFT/TPOT。细化与融合边界、零耗时和缺失处理见上述参考。
 - 给出配置、版本/来源、命令、结果文件，以及结论成立的约束。执行失败、不可行和缺参分别处理。
 - 缓存/MTE 的工作集、访问量和搬运需求不能直接换算成 L1/L2/L3 容量或通道数；需要硬件与 kernel 校准。
 - 固定 batch 仿真不提供生产请求排队或 P99 保证；SU “最小”限定为已检查候选集合与调度策略。

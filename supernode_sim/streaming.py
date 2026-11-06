@@ -26,7 +26,7 @@ from .config import Config
 from .features import build_feature_plan
 from .core import Allocation, Event, Graph
 from .engine import simulate
-from .latency_breakdown import latency_breakdown_metadata, window_breakdown
+from .latency_breakdown import combine_breakdowns, latency_breakdown_metadata, window_breakdown
 from .structured import Builder
 from .topology import Topology
 
@@ -46,14 +46,7 @@ _PREFIX = re.compile(r'^infer\.d\d+\.s\d+\.l\d+')
 
 def _sum_latency(records, divisor=1):
     """Combine consecutive, non-overlapping critical-path windows."""
-    components = defaultdict(float)
-    total = 0.0
-    for record in records:
-        total += record['total_s']
-        for name, value in record['components_s'].items():
-            components[name] += value
-    return {'total_s': total / divisor,
-            'components_s': {name: value / divisor for name, value in components.items()}}
+    return combine_breakdowns(records, divisor)
 
 
 class _Stop(Exception):
@@ -148,6 +141,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
     permanent = defaultdict(float)
     named = {}
     initialized = False
+    initial_resident = defaultdict(float)
     completed_barriers = set()
     marker_trace = []
     token_latency = {}
@@ -222,6 +216,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         if not initialized:
             for allocation in graph.initial_allocations:
                 remember(allocation)
+                initial_resident[allocation.pool] += allocation.size_bytes
             graph.initial_allocations.clear()
             initialized = True
 
@@ -258,7 +253,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         nonlocal duration, status, total_events, completed_events, final_memory
         label = 'prefill' if step == 0 else 'decode'
         phase_result = phases.setdefault(label, {
-            'status': 'feasible', 'duration_s': 0.0, 'event_count': 0,
+            'status': 'feasible', 'duration_s': 0.0, 'event_count': 0, 'completed_events': 0,
             'communication': _communication(), 'resource_work': defaultdict(float),
             'memory_peaks_bytes': defaultdict(float), 'steps': [],
         })
@@ -302,12 +297,12 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
             # Attribution changes are part of cache identity even when event
             # timings happen to match. The version prevents old compact cache
             # entries without a latency ledger from being replayed.
-            digest.update(b'stream_timing_latency_v1\n')
+            digest.update(b'stream_timing_latency_v2_operators\n')
             digest.update(json.dumps(chunk.metadata, sort_keys=True).encode('utf-8'))
             for event in chunk.events:
                 normalized = lambda value: _PREFIX.sub('infer.layer', value)
                 attribution = {key: event.metadata[key] for key in (
-                    'type', 'kernel', 'phase', 'operation', 'category', 'kind',
+                    'type', 'kernel', 'phase', 'component', 'semantic', 'collective', 'operation', 'category', 'kind',
                     'resource_domains', 'startup_s_by_domain', 'domains', 'src', 'dst', 'path')
                     if key in event.metadata}
                 signature = (normalized(event.id), tuple(normalized(d) for d in event.deps),
@@ -379,6 +374,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
             all_busy[resource] += seconds
         phase_result['duration_s'] += result['duration_s']
         phase_result['event_count'] += result['total_events']
+        phase_result['completed_events'] += result['completed_events']
         summary = {'id': terminal.id, 'phase': label, 'token_index': step,
                    'start_s': before, 'end_s': duration, 'duration_s': result['duration_s'],
                    'status': result['status'], 'event_count': result['total_events'],
@@ -572,7 +568,13 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
             'completed_events': completed_events, 'generated_events': generated_events,
             'memory_peaks_bytes': dict(peaks), 'memory_categories_at_peak_bytes': categories_at_peak,
             'memory_final_bytes': final_memory, 'resource_work': dict(all_work),
-            'resource_busy_s': dict(all_busy), 'diagnostics': diagnostics},
+            'resource_busy_s': dict(all_busy), 'diagnostics': diagnostics,
+            'resources': {key: {'capacity': resource.capacity, 'unit': resource.unit,
+                'kind': resource.kind, 'work': all_work.get(key, 0), 'busy_s': all_busy.get(key, 0),
+                'utilization': all_work.get(key, 0) / (resource.capacity * duration) if duration else 0}
+                for key, resource in graph.resources.items() if key in all_work}},
+        'memory_capacities_bytes': dict(graph.memory_caps),
+        'resident_memory_bytes': dict(initial_resident),
         'model_metadata': graph.metadata,
         'assumptions': [*graph.metadata.get('assumptions', []), *spec.assumptions,
             'Layer streaming preserves existing barriers, kernels, collectives, and memory admission for DP=PP=1.',

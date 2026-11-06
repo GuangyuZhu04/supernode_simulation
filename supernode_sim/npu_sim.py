@@ -27,6 +27,7 @@ REFERENCE_URL = ('https://gitcode.com/cann/npu-simulator/blob/'
                  + REFERENCE_REVISION + '/npusim/prof_demo/reports/summary.py')
 SCOPE_FIELDS = (
     'component', 'layer', 'model_shape_signature', 'tokens', 'workload_shape',
+    'training_task', 'training_role', 'training_stage', 'training_update',
     'tensor_parallel_degree', 'expert_parallel_degree', 'sequence_parallel_degree',
     'trace_id', 'original_kernel', 'operation_index', 'matmul', 'implementation',
 )

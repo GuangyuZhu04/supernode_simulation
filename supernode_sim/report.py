@@ -8,12 +8,14 @@ from pathlib import Path
 import re
 from typing import Iterable
 
+from .operator_costs import COST_LABELS
+
 
 AUTO_DETAIL_THRESHOLD = 50_000
 COMPRESS_TABLE_THRESHOLD = 50_000
 
 LATENCY_COMPONENT_LABELS = {
-    'compute_s': '计算',
+    'compute_s': 'kernel 服务（含计算 / 访存 / 启动）',
     'communication_node_s': '通信 · node 内',
     'communication_scaleup_s': '通信 · scale-up',
     'communication_scaleout_s': '通信 · scale-out',
@@ -65,9 +67,105 @@ def write_latency_csv(result: dict, directory: Path):
         'candidate_id', 'status', 'metric', 'alias', 'available', 'total_s',
         *LATENCY_COMPONENT_LABELS, 'replica', 'sequence', 'method', 'unavailable_reason',
     ], _latency_rows(result))
+    write_operator_csv(result, directory)
 
 
-def latency_markdown(metrics: dict, *, heading: str = '## TTFT / TPOT（TPOP）时延拆解') -> list[str]:
+OPERATOR_METRICS = {
+    'ttft': 'TTFT', 'tpot': 'TPOT（TPOP）', 'step': '平均训练步',
+    'first_step': '首个训练步', 'steady_step': '稳态平均训练步（第 2 步起）',
+}
+
+
+def operator_records(metrics: dict, scenario: str | None = None):
+    training = scenario == 'training' or 'training_latency_breakdown' in metrics
+    source = metrics.get('training_latency_breakdown' if training else 'latency_breakdown') or {}
+    for metric in (('step', 'first_step', 'steady_step') if training else ('ttft', 'tpot')):
+        record = source.get(metric)
+        breakdown = record.get('operator_breakdown') if record is not None else None
+        reason = (source.get(metric + '_unavailable_reason') or source.get('unavailable_reason')
+                  or 'operator_attribution_unavailable') if breakdown is None else None
+        yield metric, record, breakdown, reason
+
+
+def _operator_rows(result: dict):
+    for candidate_id, candidate in _latency_candidates(result):
+        scenario = candidate.get('config', {}).get('workload', {}).get('scenario')
+        for metric, record, breakdown, reason in operator_records(candidate.get('metrics', {}), scenario):
+            base = {'candidate_id': candidate_id, 'status': candidate.get('status'),
+                    'metric': metric, 'alias': 'tpop' if metric == 'tpot' else '',
+                    'available': breakdown is not None, 'unavailable_reason': reason}
+            if breakdown is None:
+                yield base
+                continue
+            base.update(window_total_s=breakdown['total_s'], method=breakdown['method'],
+                        replica=record.get('replica'), sequence=record.get('sequence'),
+                        interval_count=record.get('interval_count'))
+            # A defined zero-time window has no operator shares (0/0).
+            if not breakdown['operators']:
+                yield base
+            for row in breakdown['operators']:
+                yield {**base, **{key: row[key] for key in
+                                  ('phase', 'component', 'operator', 'total_s', 'share_pct')},
+                       **row['components_s'],
+                       **{key.removesuffix('_s') + '_pct': value
+                          for key, value in row['component_shares_pct'].items()}}
+
+
+def write_operator_csv(result: dict, directory: Path):
+    _csv(directory / 'operator_breakdown.csv', [
+        'candidate_id', 'status', 'metric', 'alias', 'available', 'unavailable_reason',
+        'window_total_s', 'phase', 'component', 'operator', 'total_s', 'share_pct',
+        *COST_LABELS, *(key.removesuffix('_s') + '_pct' for key in COST_LABELS),
+        'replica', 'sequence', 'interval_count', 'method',
+    ], _operator_rows(result))
+
+
+def operator_markdown(metrics: dict, scenario: str | None = None) -> list[str]:
+    records = list(operator_records(metrics, scenario))
+    lines = ['', '### 算子耗时占比与内部开销', '',
+             '算子占比 = 该算子关键路径归因耗时 / 对应窗口总时延；算子内占比 = 该分项耗时 / 该算子归因耗时。'
+             '按阶段、组件、实际算子名称汇总并按耗时排序，不累加并发 rank；时间为 ms，占比为 %。',
+             '计算与访存在 roofline 模型中重叠，服务时间归到限制资源（同值按资源 ID 稳定择一），'
+             '并非独立计算时间与访存时间之和；访存与内存准入等待分列。'
+             '链路启动归通信，kernel 启动单列；整 kernel 校准服务无法细分时保留“校准服务（未细分）”。',
+             '通信按实际通信算子单列，不猜测归属哪个计算算子；融合算子保留融合边界，'
+             '已展开的 kernel_traces 使用子算子名称。只列对该窗口关键路径有时间贡献的算子，缺席不代表未执行。']
+    available = [(metric, record, costs) for metric, record, costs, _ in records if costs is not None]
+    if available:
+        lines += ['', '#### 窗口总开销', '', '| 分项 | ' + ' | '.join(OPERATOR_METRICS[key] + ' / ms' for key, _, _ in available) + ' |',
+                  '|---|' + '---:|' * len(available)]
+        for key, label in [('total_s', '**总时延**'), *COST_LABELS.items()]:
+            values = [costs['total_s'] if key == 'total_s' else costs['components_s'][key] for _, _, costs in available]
+            lines.append('| ' + label + ' | ' + ' | '.join(_number(value * 1000) for value in values) + ' |')
+    groups = [('compute_s',), ('communication_s',), ('memory_access_s',), ('launch_s',),
+              ('synchronization_wait_s', 'scheduling_wait_s', 'memory_wait_s'),
+              ('resource_contention_s',), ('unattributed_service_s', 'other_s')]
+    for metric, record, costs, reason in records:
+        lines += ['', '#### ' + OPERATOR_METRICS[metric], '']
+        if costs is None:
+            lines += ['—：没有可用算子归因（' + _safe_cell(reason) + '），不补零。']
+            continue
+        if record.get('replica') is not None:
+            lines += [f"请求：DP {_safe_cell(record['replica'])} / sequence {_safe_cell(record['sequence'])}。", '']
+        lines += ['| 阶段 | 组件 | 算子 | 耗时 / ms | 占窗口 / % | 计算 / % | 通信 / % | 访存 / % | 启动 / % | 等待 / % | 争用 / % | 未细分及其他 / % |',
+                  '|---|---|---|' + '---:|' * 9]
+        for row in costs['operators']:
+            shares = row['component_shares_pct']
+            percentages = [sum(shares[key] for key in group) if row['total_s'] > 0 else None for group in groups]
+            cells = [_safe_cell(row[key]) for key in ('phase', 'component', 'operator')]
+            cells += [_number(row['total_s'] * 1000), _number(row['share_pct']), *map(_number, percentages)]
+            lines.append('| ' + ' | '.join(cells) + ' |')
+        lines += [f"| **合计** | | | {_number(costs['total_s'] * 1000)} | {'100' if costs['total_s'] > 0 else '—'} | | | | | | | |"]
+    lines += ['', '各行占窗口比例加和为 100%；每行内部各项比例加和为 100%（显示舍入可能产生尾差）。'
+              '零耗时分母的占比未定义，用“—”表示。训练使用训练步时间，不定义 TTFT/TPOT；稳态均值需要至少两步。'
+              '所有算子的分项秒值与比例见 operator_breakdown.csv；JSON 保留 operator_breakdown。']
+    return lines
+
+
+def latency_markdown(metrics: dict, *, heading: str = '## TTFT / TPOT（TPOP）时延拆解',
+                     scenario: str | None = None) -> list[str]:
+    if scenario == 'training' or 'training_latency_breakdown' in metrics:
+        return ['', '## 训练步时延拆解', '', '训练使用平均步、首步和第 2 步起的稳态平均步时间；TTFT / TPOT 不适用。'] + operator_markdown(metrics, 'training')
     breakdown = metrics.get('latency_breakdown') or {}
     records = [breakdown.get(key) for key in ('ttft', 'tpot')]
     lines = ['', heading, '', '单位：毫秒（ms）；JSON / latency_breakdown.csv 使用秒（s）。', '',
@@ -79,7 +177,7 @@ def latency_markdown(metrics: dict, *, heading: str = '## TTFT / TPOT（TPOP）�
         lines.append('| ' + label + ' | ' + ' | '.join(_number(value * 1000 if value is not None else None) for value in values) + ' |')
     if any(record is not None for record in records):
         lines += ['', '各分项沿决定该指标的请求关键依赖路径归因，可相加得到总时延；不累加所有 rank 或并发事件的耗时。TTFT 与最大平均 TPOT 可能来自不同请求。',
-                  '计算项包含 kernel 的计算/访存服务时间；通信服务时间按实际路径的限制资源归因，启动延迟按各跳链路域归因。node 内表示同主机 SU 或 host 搬运，scale-up 表示跨主机 SU 资源，scale-out 表示 SO 资源；其他项保留内存带宽或未分类路径，不按流量比例摊分时延。',
+                  'kernel 服务项包含计算、访存与启动；下方算子表进一步细分。通信服务时间按实际路径的限制资源归因，启动延迟按各跳链路域归因。node 内表示同主机 SU 或 host 搬运，scale-up 表示跨主机 SU 资源，scale-out 表示 SO 资源；其他项保留内存带宽或未分类路径，不按流量比例摊分时延。',
                   '依赖同步造成的延迟已沿上游关键路径归因，不再重复记作等待；显式同步等待、调度槽位等待、内存准入等待与共享资源争用分别列出。',
                   '跨 token 边界的事件按时间窗覆盖比例分配服务、争用或准入等待，未采样更细的事件内进度。']
         selected = [f"{label}：DP {_number(record.get('replica'))} / sequence {_number(record.get('sequence'))}"
@@ -88,7 +186,7 @@ def latency_markdown(metrics: dict, *, heading: str = '## TTFT / TPOT（TPOP）�
     if any(record is None for record in records):
         reason = breakdown.get('unavailable_reason')
         lines += ['', '“—”表示指标未定义或没有可用拆解（例如仅估算、训练、执行未完成、未执行 Prefill 或不足两个输出 token），不表示零时延。' + (f' 引擎说明：{_safe_cell(reason)}。' if reason else '')]
-    return lines
+    return lines + operator_markdown(metrics, scenario)
 
 
 def _candidate_latency_markdown(result: dict) -> list[str]:
@@ -99,6 +197,7 @@ def _candidate_latency_markdown(result: dict) -> list[str]:
         values = [metrics.get(key) for key in ('ttft_s', 'tpot_s')]
         lines.append(f'| {_safe_cell(candidate_id)} | ' + ' | '.join(_number(value * 1000 if value is not None else None) for value in values) + ' |')
     lines += ['', '每个候选的计算、node 内 / scale-up / scale-out 通信、显式同步、调度槽位等待、内存准入等待与资源争用拆解见 latency_breakdown.csv 和 result.json。CSV 每行对应一个候选的一项聚合指标，单位为秒；空值表示不可用。',
+              '逐候选的算子耗时、占窗口比例及算子内部计算 / 通信 / 访存 / 启动 / 等待 / 争用比例见 operator_breakdown.csv；比例单位为 %，空值表示不可用。',
               '分项沿关键依赖路径归因，可加和为对应总时延；并发工作不重复累加，依赖同步的上游时间不再重复记入等待。']
     return lines
 
@@ -241,6 +340,35 @@ def _memory_markdown(breakdown: dict, tensor_artifact: str = 'tensors.csv') -> l
     return lines
 
 
+def training_task_markdown(result: dict) -> list[str]:
+    task = result.get('model_metadata', {}).get('training_task')
+    if not task:
+        return []
+    metrics = result.get('metrics', {}).get('training_task', {})
+    labels = {'pretrain': '预训练', 'sft': '监督微调 SFT', 'dpo': '偏好优化 DPO', 'rl': '后训练 RL'}
+    lines = ['', '## 训练任务与阶段', '', f"任务：{labels[task['kind']]}；调度：`{task['schedule']}`。",
+             '', '处理 token 含 padding 和重复更新；有效 token 排除 padding；监督 token 仅计 loss 位置。',
+             'RL 的 step 是一次 rollout→更新迭代，optimizer_steps 单独计数；生成、打分、critic 不混入 actor 训练吞吐。',
+             '', '| 工作量 | 数值 |', '|---|---:|']
+    for key, label in (('processed_tokens', 'Actor 处理 token'), ('effective_tokens', 'Actor 有效 token'),
+                       ('supervised_tokens', '监督 token'), ('preference_pairs', '偏好对'),
+                       ('optimizer_steps', 'Actor 优化步'), ('critic_optimizer_steps', 'Critic 优化步'),
+                       ('rollout_generated_tokens', 'Rollout 生成 token'), ('rollout_sequences', 'Rollout 序列数')):
+        if key in task['counts']:
+            lines.append(f"| {label} | {_number(task['counts'][key])} |")
+    if metrics:
+        lines += ['', '| 阶段 | 累计时间 / s |', '|---|---:|']
+        lines += [f'| {_safe_cell(stage)} | {_number(seconds)} |' for stage, seconds in metrics['stage_times_s'].items()]
+        lines += ['', '阶段串行执行，可相加；逐次记录见 training_task_stages.csv。MFU 仅计可训练 actor/critic 的模型前反向，排除 rollout、冻结打分和 loss/优势算子。']
+        if metrics.get('budget_projection'):
+            projection = metrics['budget_projection']
+            lines += ['', f"数据预算推算：{projection['optimizer_steps']} 个优化步、{_number(projection['duration_s'])} s；按当前平均步时外推并向上取整，不包含数据加载或收敛预测。"]
+    else:
+        lines += ['', '没有完整可行执行，阶段时间和吞吐不可用；上表仅为计划工作量。']
+    lines += ['', '各角色的逻辑状态容量见 model_metadata.training_task.role_logical_memory_bytes；张量 metadata.training_role 区分 actor/reference/reward/critic。']
+    return lines
+
+
 def markdown_report(result: dict) -> str:
     if result.get('mode') == 'feedback':
         from .feedback_report import feedback_markdown
@@ -333,6 +461,7 @@ def markdown_report(result: dict) -> str:
         if result['mode'] == 'estimate':
             lines += ['', '解析结果提供必要下界，尚未证明资源争用下的 SLO 可行性。']
         accounting = result.get('metrics', {}).get('training_accounting')
+        lines += training_task_markdown(result)
         if accounting:
             lines += ['', '## 训练计算量与利用率口径', '',
                       '| 项目 | 数值 |', '|---|---:|']
@@ -346,7 +475,7 @@ def markdown_report(result: dict) -> str:
                 lines.append(f"| {label} | {_number(accounting.get(key))} |")
             lines += ['', 'model_mfu 排除重计算、优化器和转换/打包；各 dtype 分别除以裸峰值，再按完整卡数与执行时间归一。',
                       '这是当前模型的计算量代理，不能不核对分子就与其他工具或论文的同名 MFU 比较。CPU 工作单独统计；详细阶段、角色与 dtype 账本见 metrics.training_accounting。']
-        lines += latency_markdown(result.get('metrics', {}))
+        lines += latency_markdown(result.get('metrics', {}), scenario=result.get('config', {}).get('workload', {}).get('scenario'))
         logical = result.get('model_metadata', {}).get('logical_memory_bytes', {})
         if logical:
             lines += ['', '## 全局逻辑容量', '', '单位为十进制 TB；实际分片、复制和生命周期见设备明细。', '', '| 组成 | TB |', '|---|---:|']
@@ -628,6 +757,9 @@ def write_report(result: dict, directory: str | Path, *, full_detail: bool = Fal
             _csv(directory / 'model_parameters.csv', fields, (
                 {key: json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list, tuple)) else value
                  for key, value in row.items()} for row in inventory_tensors))
+    if result.get('model_metadata', {}).get('training_task'):
+        _csv(directory / 'training_task_stages.csv', ['iteration', 'stage', 'role', 'duration_s', 'start_event', 'end_event'],
+             result.get('metrics', {}).get('training_task', {}).get('stages', []))
     write_latency_csv(result, directory)
     _write_result_json(directory / 'result.json', exported)
     (directory / 'report.md').write_text(markdown_report(exported), encoding='utf-8')

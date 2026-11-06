@@ -1,0 +1,70 @@
+# Synthetic example; every numerical input is an explicit assumption.
+schema_version: '1.0'
+model:
+  name: synthetic-training-task-demo
+  layers: 1
+  hidden_dim: 16
+  num_heads: 4
+  kv_heads: 2
+  head_dim: 4
+  architecture:
+    vocab_size: 32
+    attention_by_layer:
+    - GQA
+    ffn_by_layer:
+    - Dense
+    dense_intermediate_dim: 32
+hardware:
+  name: synthetic-small-device-not-a-product
+  npu_count: 1
+  su_size: 1
+  npus_per_host: 1
+  npu:
+    hbm_bytes: 67108864
+    hbm_Bps: 1000000000
+    flops:
+      fp16: 1000000000
+      bf16: 1000000000
+      fp32: 100000000
+    efficiency: 1
+    runtime_bytes: 65536
+    workspace_bytes: 4096
+  cpu:
+    dram_bytes: 67108864
+    dram_Bps: 1000000000
+    flops: 100000000
+    efficiency: 1
+workload:
+  scenario: training
+  batch_size: 2
+  sequence_length: 16
+  gradient_accumulation: 1
+  training_steps: 2
+  training:
+    kind: pretrain
+    data:
+      batching: packed
+      sequence_lengths:
+      - 12
+      - 16
+    pretrain:
+      dataset_tokens: 1000000
+      epochs: 1
+features:
+  precision:
+    weight: bf16
+    compute: bf16
+    gradient: bf16
+    activation: bf16
+  activation_checkpointing: true
+  optimizer_offload: false
+  optimizer:
+    kind: adam
+sources:
+  '*':
+    status: assumed
+    description: Synthetic training-task demonstration. Model, hardware, role costs
+      and length distributions are assumptions, not a measured benchmark.
+assumptions:
+- Full-parameter training; analytical backward and serial operator traces require
+  independent hardware calibration.

@@ -152,7 +152,7 @@ function harness(config = fixture(), {views = false} = {}) {
     setTimeout: () => 1, clearTimeout() {}, requestAnimationFrame: callback => callback(),
     fetch: async () => { throw new Error('Unexpected network request'); },
   });
-  for (const filename of ['topology.js', 'execution.js']) {
+  for (const filename of ['topology.js', 'execution.js', 'operators.js']) {
     const file = path.join(root, 'supernode_sim/web_static', filename);
     if (fs.existsSync(file)) vm.runInContext(fs.readFileSync(file, 'utf8'), context, {filename});
   }

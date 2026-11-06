@@ -1,0 +1,69 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DeepSeek V4.1 FP4 算子级仿真</title>
+<style>
+:root{--ink:#18314c;--muted:#627387;--paper:#f4f6fa;--line:#dbe2eb;--compute:#3776aa;--memory:#8d70af;--communication:#d88a35;--launch:#46a299}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.6 "Segoe UI","Microsoft YaHei",sans-serif}main{max-width:1540px;margin:auto;padding:32px}h1{font-size:30px;line-height:1.3;margin:8px 0 12px}h2{font-size:19px;margin:0 0 14px}p{margin:6px 0 14px}.eyebrow{color:var(--muted);font-size:13px;letter-spacing:1px}.note{color:var(--muted);font-size:13px}.panel{background:white;border:1px solid var(--line);border-radius:10px;margin:22px 0;padding:22px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:22px 0}.stat{border-top:3px solid #6587a6;padding:12px 18px;background:white}.stat b{display:block;font-size:28px}.stat span{font-size:13px;color:var(--muted)}.filters{display:flex;flex-wrap:wrap;gap:14px}label{font-size:12px;color:var(--muted);display:grid;gap:4px}select,button{background:white;border:1px solid #becbd9;border-radius:5px;padding:8px 12px;color:var(--ink);font:inherit}button{cursor:pointer}button.primary{background:var(--ink);color:white}a{color:#27618d}.links{display:flex;gap:20px;flex-wrap:wrap}.tablewrap{overflow:auto;max-height:630px;border:1px solid var(--line)}table{border-collapse:collapse;white-space:nowrap;width:100%;font-size:12px}th,td{text-align:right;border-bottom:1px solid var(--line);padding:10px 12px}th{background:#213c5a;color:white;position:sticky;top:0;z-index:1;font-weight:500}th:first-child,td:first-child{text-align:left}tbody tr:hover{background:#f0f5fb}.fail{color:#a24d36}.good{color:#297457}.legend{display:flex;gap:22px;font-size:13px;margin:15px 0}.legend i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px}.chartrows{display:grid;gap:8px}.chartrow{display:grid;grid-template-columns:180px 1fr 110px;gap:14px;align-items:center;font-size:12px}.barbg{height:24px;background:#edf1f5;border-radius:3px;display:flex;overflow:hidden}.seg{height:24px}.chartlabel{white-space:nowrap;color:var(--muted)}.value{text-align:right;font-variant-numeric:tabular-nums}details summary{cursor:pointer;font-weight:600}.details{max-width:1000px}.details li{margin:9px 0}.status{display:flex;justify-content:space-between;align-items:center;margin:16px 0}.tag{font-size:12px;border:1px solid var(--line);border-radius:4px;padding:4px 8px}.two{display:grid;grid-template-columns:1fr 1fr;gap:28px}.empty{padding:18px;background:#fff5ea;color:#865627}.footer{margin:25px 0;color:var(--muted);font-size:12px}@media(max-width:900px){main{padding:18px}.stats{grid-template-columns:1fr 1fr}.two{grid-template-columns:1fr}.chartrow{grid-template-columns:140px 1fr 80px}.links{gap:10px}h1{font-size:24px}}
+</style></head><body><main>
+<div class="eyebrow">2026-11-05 · POD / DFLASH · 条件仿真</div>
+<h1>DeepSeek V4.1 Pro 10T<br>路由专家 FP4 算子级时延矩阵</h1>
+<p>覆盖 10 档输入长度、6 档 Decode batch、4 组 DFlash、8 档 EP、6 档卡数，以及 950PR / 950DT。</p>
+<p class="note">沿用此前 synthetic 模型设计。不同算子的启动费用已进入原生执行图；这些费用是工程假设，尚无同条件实测校准。</p>
+<div class="stats" id="stats"></div>
+<div class="links"><a href="DeepSeek_V41_FP4_算子级仿真.xlsx">Excel 结果表</a><a href="matrix.csv">23,040 组主矩阵</a><a href="layout_detail.csv">全部布局 CSV</a><a href="best_prefill_by_EP.csv">最优 Prefill CSV</a><a href="best_decode_by_EP.csv">最优 Decode CSV</a><a href="report.md">口径与完整说明</a></div>
+<section class="panel"><h2>选择场景</h2><div class="filters" id="filters"></div>
+<p class="note" style="margin-top:15px">Prefill batch=1；Decode batch 为全卡总量。主表优先选取两阶段均可行且 TPOT 最低的布局。若仅单阶段可行，会保留失败状态。TP=1/2/4/8、SP=1 或 TP、DP=卡数÷(TP×EP)。</p>
+<div class="status"><span id="match"></span><button id="download">下载当前筛选 CSV</button></div>
+<div class="tablewrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div><div class="status"><button id="prev">上一页</button><span id="pages"></span><button id="next">下一页</button></div></section>
+<section class="panel"><div class="status"><h2>时延拆解</h2><label>展示指标<select id="metric"><option value="tpot">TPOT · ms/token</option><option value="ttft">TTFT · ms</option></select></label></div>
+<p class="note">图中四项相加为总时延。表格中的“计算”包括计算服务与算子启动；通信包括 SU、host 搬运及网络启动。每个 kernel 的计算与 HBM 服务取较大者归因一次。</p>
+<div class="legend"><span><i style="background:var(--compute)"></i>计算服务</span><span><i style="background:var(--memory)"></i>访存</span><span><i style="background:var(--communication)"></i>通信</span><span><i style="background:var(--launch)"></i>算子启动</span></div>
+<div class="chartrows" id="chart"></div><p class="note" id="chartnote"></p></section>
+<section class="panel"><h2>固定布局参考</h2><p class="note">512 卡 / EP128 / TP4 / SP1 / DP1，Decode batch32，DFlash6/8。这里保持布局固定，便于看清上下文长度的影响；TTFT 单位为秒，TPOT 单位为毫秒。</p><div class="tablewrap"><table><thead><tr><th>芯片</th><th>输入</th><th>TTFT (s)</th><th>TPOT (ms)</th><th>P 显存 GB/卡</th><th>D 显存 GB/卡</th></tr></thead><tbody id="fixed"></tbody></table></div></section>
+<section class="panel"><details><summary>硬件、启动参数与适用范围</summary><div class="details">
+<ul><li>950PR：128 GB、1.6 TB/s HBM；950DT：96 GB、4 TB/s HBM。两芯片均沿用 FP8 1 PF/s 峰值×50% 效率和 FP32 50 TF/s×50% 效率；不是两 SKU 的实测 benchmark。</li>
+<li>单个逻辑 Full mesh SU POD；每方向 1 TB/s×80%，每轮启动 2.1 μs。每主机 8 卡、4 TB DDR；host link64 GB/s×85%、2 μs。无 SO 流量。沿用串行 barrier 和 rank 资源包络，无逐物理链路拥塞或在线队列。</li>
+<li>仅目标路由专家 gate/up/down 为 FP4 存储，每32元素1byte scale；FP8 GEMM，显式转换与缓冲成本。主干约10T，Engram 主机表额外3.4398T。</li>
+<li>TTFT=目标 Prefill+DFlash KV 初始化。TPOT=(draft+verify+commit)/净接受数；DFlash3/4等的分子是净产出，未加 bonus token。固定上下文，不是长输出平均或客户端 P99。</li>
+<li>投影矩阵、专家 gate/up/down、草稿 Q/K/V 分拆；SwiGLU 在 down 前。注意力 tile、mHC 与命名逐点组保留融合假设，未声称已复原真实 kernel 二进制。</li>
+<li>启动敏感性列只将算子启动变为0.5×/2×，网络启动保持不变；这不是置信区间。由于是串行图，其增量可以精确加减，并用原生重跑验证。</li>
+<li>容量失败时延为空。persistent_lower_bound 是权重与状态的必要下界；full_reserved_phase 含阶段 arena。4M 是容量/流量外推，不证明模型质量或实际可部署。</li></ul>
+<table><thead><tr><th>算子类别</th><th>启动 μs/次（假设）</th></tr></thead><tbody id="launches"></tbody></table>
+<p><a href="operator_startups.csv">逐算子费用</a> · <a href="experiment.json">配置及代码指纹</a> · <a href="validation.json">完整性与加和检查</a> · <a href="latency_breakdown.csv">拆解长表</a></p>
+</div></details></section><div class="footer" id="footer"></div></main>
+<script id="payload" type="application/json">__DATA__</script><script>
+const data=JSON.parse(document.getElementById('payload').textContent),d=data.presentation;
+const rows=data.matrix.rows.map(v=>Object.fromEntries(data.matrix.fields.map((k,i)=>[k,v[i]])));
+const $=x=>document.getElementById(x),f=x=>x===null||x===undefined?'—':Number(x).toLocaleString('zh-CN',{maximumFractionDigits:3,minimumFractionDigits:3});
+const esc=x=>String(x??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
+const status=x=>x==='feasible'?'可行':x==='incompatible'?'EP超卡数':'容量不足';
+$('stats').innerHTML=[[d.stats.matrix_rows,'请求组合'],[d.stats.layout_rows,'布局及不兼容记录'],[d.stats.joint_status.feasible,'两阶段均可行组合'],[d.stats.phase_cases,'去重阶段任务']].map(([n,label])=>`<div class="stat"><b>${n.toLocaleString()}</b><span>${label}</span></div>`).join('');
+const specs=[['chip','芯片',['all','950pr','950dt'],'all'],['cards','卡数',['all',16,32,64,128,256,512],512],['context','输入',['all','1k','4k','16k','32k','64k','128k','256k','512k','1M','4M'],'128k'],['decode_batch','Decode batch',['all',1,4,8,16,32,64],32],['accepted','DFlash',['all',3,6,9,12],6],['ep','EP',['all',2,4,8,16,32,64,128,256],'all']];
+$('filters').innerHTML=specs.map(([key,label,values,chosen])=>`<label>${label}<select id="filter_${key}">${values.map(v=>`<option value="${v}" ${v===chosen?'selected':''}>${v==='all'?'全部':key==='accepted'?v+'/'+({3:4,6:8,9:12,12:16}[v]):String(v).toUpperCase()}</option>`).join('')}</select></label>`).join('');
+const columns=[['chip','芯片'],['cards','卡数'],['context','输入'],['decode_batch','Batch'],['dflash','DFlash'],['ep','EP'],['layout','TP/SP/DP'],['prefill_status','Prefill'],['decode_status','Decode'],['ttft_ms','TTFT ms'],['tpot_ms','TPOT ms'],['tpot_compute_ms','D计算 ms'],['tpot_memory_ms','D访存 ms'],['tpot_communication_ms','D通信 ms'],['tpot_operator_launch_ms','其中启动 ms'],['tpot_launch_half_ms','启动0.5× TPOT'],['tpot_launch_double_ms','启动2× TPOT']];
+$('thead').innerHTML='<tr>'+columns.map(([k,label])=>'<th>'+label+'</th>').join('')+'</tr>';
+let selected=[],page=0;const pageSize=100;
+function render(){
+ selected=rows.filter(r=>specs.every(([key])=>$('filter_'+key).value==='all'||String(r[key])===$('filter_'+key).value));
+ const pageCount=Math.max(1,Math.ceil(selected.length/pageSize));page=Math.max(0,Math.min(page,pageCount-1));
+ $('match').textContent=`${selected.length.toLocaleString()} 组；两阶段均可行 ${selected.filter(r=>r.joint_status==='feasible').length.toLocaleString()} 组`;
+ $('pages').textContent=`第 ${page+1} / ${pageCount} 页`;
+ $('tbody').innerHTML=selected.slice(page*pageSize,(page+1)*pageSize).map(r=>'<tr>'+columns.map(([key])=>{
+ let value=r[key];if(key==='layout')value=r.tp==null?'—':`${r.tp}/${r.sp}/${r.dp}`;if(key==='dflash')value=r.accepted+'/'+r.block;
+ if(key.endsWith('_status'))return `<td class="${value==='feasible'?'good':'fail'}">${status(value)}</td>`;
+ return '<td>'+esc(key.endsWith('_ms')?f(value):value??'—')+'</td>';
+ }).join('')+'</tr>').join('');chart();
+}
+function chart(){
+ const metric=$('metric').value,eligible=selected.filter(r=>r[metric+'_ms']!=null),shown=eligible.slice(0,40),max=Math.max(...shown.map(r=>r[metric+'_ms']),1e-12);
+ $('chart').innerHTML=shown.length?shown.map(r=>{
+ const pieces=[['compute_service','compute'],['memory','memory'],['communication','communication'],['operator_launch','launch']];
+ return `<div class="chartrow"><span class="chartlabel">${r.chip.toUpperCase()} ${r.cards}卡 EP${r.ep} ${r.context} B${r.decode_batch}</span><div class="barbg">${pieces.map(([k,color])=>`<div class="seg" title="${k}: ${f(r[metric+'_'+k+'_ms'])} ms" style="width:${r[metric+'_'+k+'_ms']/max*100}%;background:var(--${color})"></div>`).join('')}</div><span class="value">${f(r[metric+'_ms'])} ms</span></div>`;
+ }).join(''):'<div class="empty">当前筛选没有该阶段的可行时延；请查看容量失败状态。</div>';
+ $('chartnote').textContent=eligible.length>40?`显示前40条可行结果（共${eligible.length}条），请收窄筛选。`:`显示 ${shown.length} 条可行结果。条长按当前图中的最大时延统一缩放。`;
+}
+specs.forEach(([key])=>$('filter_'+key).addEventListener('change',()=>{page=0;render()}));$('metric').addEventListener('change',chart);
+$('prev').onclick=()=>{page--;render()};$('next').onclick=()=>{page++;render()};
+$('download').onclick=()=>{const fields=data.matrix.fields,q=v=>'"'+String(v??'').replaceAll('"','""')+'"';const csv='\ufeff'+[fields,...selected.map(r=>fields.map(k=>r[k]))].map(r=>r.map(q).join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='filtered_v41_matrix.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+$('fixed').innerHTML=d.fixed.map(r=>`<tr><td>${r.chip.toUpperCase()}</td><td>${r.context}</td><td>${f(r.ttft_ms==null?null:r.ttft_ms/1000)}</td><td>${f(r.tpot_ms)}</td><td>${f(r.prefill_peak_GB)}</td><td>${f(r.decode_peak_GB)}</td></tr>`).join('');
+$('launches').innerHTML=Object.entries(data.profile.startup_us).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+$('footer').textContent=`全部请求组合已核对；${d.validation.latency_additivity_checks.toLocaleString()} 项时延加和检查通过。代码与配置指纹：${d.stats.fingerprint}`;
+render();
+</script></body></html>

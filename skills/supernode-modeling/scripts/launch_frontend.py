@@ -20,7 +20,7 @@ from urllib.request import ProxyHandler, Request, build_opener
 import uuid
 
 APP_ID = 'supernode_sim.web'
-ASSETS = ('index.html', 'app.js', 'topology.js', 'execution.js', 'styles.css')
+ASSETS = ('index.html', 'app.js', 'topology.js', 'execution.js', 'operators.js', 'styles.css', 'operators.css')
 _HTTP = build_opener(ProxyHandler({}))  # Local readiness must not use HTTP proxies.
 _PROBE = r'''
 import importlib.util, json, pathlib, sys
@@ -36,7 +36,7 @@ try:
     import supernode_sim.web
     directory = pathlib.Path(supernode_sim.web.__file__).resolve().parent
     result.update(root=str(directory.parent), version=supernode_sim.__version__)
-    missing_assets = [str(directory / 'web_static' / name) for name in ('index.html', 'app.js', 'topology.js', 'execution.js', 'styles.css')
+    missing_assets = [str(directory / 'web_static' / name) for name in ('index.html', 'app.js', 'topology.js', 'execution.js', 'operators.js', 'styles.css', 'operators.css')
                       if not (directory / 'web_static' / name).is_file() or not (directory / 'web_static' / name).stat().st_size]
     if missing_assets:
         result['missing_assets'] = missing_assets

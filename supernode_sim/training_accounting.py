@@ -22,7 +22,9 @@ POLICY = (
     'executed_compute_utilization includes every NPU compute resource FLOP. '
     'These are peak-normalized work ratios, not measured device busy fractions. '
     'CPU work uses its own peak and device count. Phase totals partition '
-    'execution; model/recompute fields are subsets, not extra work to add.'
+    'execution; model/recompute fields are subsets, not extra work to add. '
+    'Task schedules include only trainable actor/critic F+B in model_mfu; '
+    'rollout, frozen reference/reward/value scoring and objectives are auxiliary.'
 )
 
 
@@ -32,6 +34,8 @@ def _model_work(metadata: dict) -> tuple[float, float]:
     if fusion:
         pieces = [_model_work(member) for member in fusion.get('member_metadata', [])]
         return tuple(sum(piece[i] for piece in pieces) for i in (0, 1))
+    if metadata.get('training_update') is False:
+        return 0.0, 0.0
     kernel = metadata.get('original_kernel', metadata.get('kernel'))
     component = metadata.get('component')
     is_model = (kernel in ('training_forward', 'training_backward', 'training_recompute')
@@ -69,7 +73,8 @@ def training_accounting(config: Config, graph: Graph, simulation: dict) -> dict:
     by_dtype = {}
     npu_ranks, cpu_ranks = set(), set()
     unknown_resources, unknown_phases = set(), set()
-    known_phases = {'forward', 'backward', 'recompute', 'optimizer'}
+    known_phases = {'forward', 'backward', 'recompute', 'optimizer', 'weight_refresh', 'prefill', 'decode', 'loss', 'reward'}
+    task_roles = defaultdict(float)
     cpu_devices = {key.split('.')[0] for key, resource in graph.resources.items()
                    if re.fullmatch(r'cpu\d+\.compute', key)
                    and resource.kind == 'compute' and resource.unit == 'FLOP/s'}
@@ -103,6 +108,8 @@ def training_accounting(config: Config, graph: Graph, simulation: dict) -> dict:
             dtype = timed_dtype or scalar_dtype or config.execution.precision.compute
             npu_ranks.add(rank)
             npu_phases[phase] += amount
+            if event.metadata.get('training_role'):
+                task_roles[event.metadata['training_role']] += amount
             row = by_dtype.setdefault(dtype, {
                 'executed_flops': 0.0, 'model_forward_backward_flops': 0.0,
                 'model_recompute_flops': 0.0, 'flops_by_phase': defaultdict(float),
@@ -145,6 +152,7 @@ def training_accounting(config: Config, graph: Graph, simulation: dict) -> dict:
         'executed_npu_flops': sum(row['executed_flops'] for row in by_dtype.values()),
         'npu_flops_by_phase': dict(sorted(npu_phases.items())),
         'npu_flops_by_role': npu_roles,
+        'npu_flops_by_training_role': dict(task_roles),
         'npu_by_dtype': dict(sorted(by_dtype.items())),
         'unknown_compute_resources': sorted(unknown_resources),
         'unknown_compute_flops': dict(sorted(unknown_work.items())),

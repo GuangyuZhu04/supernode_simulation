@@ -18,7 +18,8 @@ from .operator_trace import apply_kernel_traces
 from .collective_calibration import collective_calibration_summary, summarize_collective_calibration
 from .components import inventory_summary
 from .memory_breakdown import build_memory_breakdown
-from .latency_breakdown import build_latency_breakdown, latency_breakdown_metadata
+from .latency_breakdown import (build_latency_breakdown, build_training_latency_breakdown,
+                                latency_breakdown_metadata)
 from .features import build_feature_plan
 from .training_accounting import training_accounting
 
@@ -62,7 +63,10 @@ def compile_graph(config: Config | dict) -> Graph:
     spec = config if isinstance(config, Config) else Config.model_validate(config)
     data = spec.model_dump()
     topology = Topology(data['hardware'], data['execution']['precision'])
-    if spec.execution.features.prefill_decode_disaggregation.enabled:
+    if spec.workload.training is not None:
+        from .training_tasks import build_training_task
+        graph = build_training_task(data, topology)
+    elif spec.execution.features.prefill_decode_disaggregation.enabled:
         from .disaggregated import build_disaggregated
         graph = build_disaggregated(data, topology)
     elif spec.execution.features.speculative_decode.enabled:
@@ -230,6 +234,11 @@ def execution_metrics(config: Config, graph: Graph, simulation: dict) -> dict:
     metrics = {'duration_s': duration}
     if w.scenario == 'training':
         tokens = w.batch_size * w.sequence_length * w.gradient_accumulation * e.dp * w.training_steps
+        from .training_tasks import training_task_metrics
+        task_metrics = training_task_metrics(config, graph, simulation)
+        if task_metrics:
+            metrics['training_task'] = task_metrics
+            tokens = task_metrics['processed_tokens']
         metrics.update(training_tokens=tokens, step_time_s=duration / w.training_steps,
                        throughput_tokens_s=tokens / duration if duration else 0,
                        throughput_per_replica_tokens_s=tokens / e.dp / duration if duration else 0)
@@ -242,6 +251,7 @@ def execution_metrics(config: Config, graph: Graph, simulation: dict) -> dict:
         metrics['first_step_time_s'] = step_times[0] if step_times else duration
         metrics['steady_step_time_s'] = sum(step_times[1:]) / len(step_times[1:]) if len(step_times) > 1 else None
         metrics['training_accounting'] = training_accounting(config, graph, simulation)
+        metrics['training_latency_breakdown'] = build_training_latency_breakdown(graph, simulation)
     else:
         completion = meta.get('sequence_token_completion_events', {})
         needed = {eid for sequences in completion.values() for ids in sequences.values() for eid in ids}
@@ -345,6 +355,8 @@ def run(config: Config | dict, mode: str = 'simulate', *, full_detail: bool = Tr
     if spec.targets.throughput_tokens_s:
         tokens = (spec.workload.batch_size * spec.workload.sequence_length * spec.workload.gradient_accumulation * spec.execution.dp * spec.workload.training_steps
                   if spec.workload.scenario == 'training' else sum(spec.workload.output_lengths) * spec.execution.dp)
+        if graph.metadata.get('training_task'):
+            tokens = graph.metadata['training_task']['counts']['processed_tokens']
         windows.append(tokens / spec.targets.throughput_tokens_s)
     target_window = min(windows) if windows else None
     devices = device_requirements(graph, spec.hardware.npu_count, estimate['resource_work'])

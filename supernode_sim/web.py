@@ -27,6 +27,7 @@ from pydantic import ValidationError
 
 from .config import Config, load_config, read_data
 from .serving import ServingSpec
+from .host_memory import MEMORY_ENV, MIB, worker_memory_limit
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
 MAX_WEB_BATCH_SIZE = 100_000
@@ -232,6 +233,9 @@ class JobManager:
                 job.update(status='running', started_at=_now(), phase='validating')
                 env = os.environ.copy()
                 env['PYTHONIOENCODING'] = 'utf-8'
+                memory_limit = worker_memory_limit()
+                env[MEMORY_ENV] = str(memory_limit // MIB)
+                job['host_memory_limit_bytes'] = memory_limit
                 package_root = str(Path(__file__).resolve().parent.parent)
                 env['PYTHONPATH'] = package_root + os.pathsep + env.get('PYTHONPATH', '')
                 process = subprocess.Popen([sys.executable, '-u', '-m', 'supernode_sim.web_worker', str(directory), job['mode']],
@@ -239,7 +243,7 @@ class JobManager:
                                            text=True, encoding='utf-8', errors='replace', env=env, cwd=package_root,
                                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
                 self.processes[job_id] = process
-                self._log(job, '计算进程已启动')
+                self._log(job, f'计算进程已启动，主机内存预算 {memory_limit // MIB} MiB')
                 self._save(job)
             with (directory / 'worker.log').open('w', encoding='utf-8') as logfile:
                 for line in process.stdout:
@@ -260,6 +264,8 @@ class JobManager:
                             job['error'] = progress.get('message', '计算失败')
                         if progress.get('result_status'):
                             job['result_status'] = progress['result_status']
+                        if isinstance(progress.get('host_peak_memory_bytes'), int):
+                            job['host_peak_memory_bytes'] = progress['host_peak_memory_bytes']
                         self._log(job, str(progress.get('message', progress['phase'])))
                         self._save(job)
             code = process.wait()
@@ -498,6 +504,9 @@ class WebHandler(BaseHTTPRequestHandler):
         if path == '/api/presets':
             priority = {'demo_inference': 0, 'demo_training': 1}
             names = {'demo_inference': 'MoE 推理演示', 'demo_training': '稠密模型训练演示'}
+            names.update(training_task_pretrain='预训练 · 合成任务示例', training_task_sft='SFT · 回复掩码与打包',
+                         training_task_dpo='DPO · 成对偏好优化', training_task_grpo='GRPO · 生成与多轮更新',
+                         training_task_ppo='PPO · 奖励模型与 Critic')
             self._json({'presets': [{'id': key, 'name': names.get(key, key.replace('_', ' ')),
                                     'scenario': config['workload']['scenario'], 'model': config['model']['name'],
                                     'description': next((s.get('description', '') for s in config.get('sources', {}).values()), '')}
@@ -521,7 +530,7 @@ class WebHandler(BaseHTTPRequestHandler):
                         'output': str(manager.output), 'pid': os.getpid(),
                         'launch_token': os.environ.get('SUPERNODE_WEB_LAUNCH_TOKEN'),
                         'static_ready': all((self.server.static_dir / name).is_file() and (self.server.static_dir / name).stat().st_size > 0
-                                            for name in ('index.html', 'app.js', 'topology.js', 'execution.js', 'styles.css'))})
+                                            for name in ('index.html', 'app.js', 'topology.js', 'execution.js', 'operators.js', 'styles.css', 'operators.css'))})
             return
         if len(parts) == 3 and parts[:2] == ['api', 'presets']:
             if parts[2] not in self.server.presets:

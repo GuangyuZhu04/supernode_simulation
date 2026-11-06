@@ -80,3 +80,11 @@ python -m supernode_sim simulate outputs/operator-traces/inference.operators.con
 对新增子算子采集独占服务时间，按其 kernel 名、phase、dtype、工作量、`matmul`、`workload_shape`、SKU 和运行环境填写 `hardware.kernel_profiles`。推理必须覆盖实际上下文，训练必须区分 forward/dgrad/wgrad/recompute。工作量与形状不匹配时保留解析回退，当前没有 kernel 形状插值或跨域外推。
 
 先核对 FLOPs、真实流量、依赖及峰值，再用未参与校准的实测配置比较 step time/TTFT/TPOT。没有同条件实测时只交付可重跑预测、覆盖率和剩余误差来源，不给出“准确率提升百分比”。在线到达、continuous batching、动态 KV 淘汰、专家倾斜、任意算子内部并行 DAG 仍需独立建模。
+
+## V4.1 Pro 10T FP4 / POD / DFlash 专用矩阵
+
+此设计使用独立的 CED/CSA2/Engram 四阶段适配器，不能把普通 `Config` 的开关当成已接入。`supernode_sim.case_studies.v41_fp4.fine` 已将当前 `apply_kernel_traces` 接入该适配器；矩阵入口是 `scripts/run_v41_fine_matrix.py`，报告入口是 `scripts/report_v41_fine_matrix.py`。范围、复跑命令和检查点约定见 [专用矩阵说明](../../../docs/v41-fp4-operator-matrix.md)。原固定 512 卡前端案例仍保留历史模式。
+
+默认扫描 TP=1/2/4/8、SP=1 或 TP，DP 按总卡数推导，保持 Prefill batch1 和全卡 Decode 总 batch。若用户指定其他布局策略，应修改候选，不把当前默认当成用户指定值。
+
+启动费用在 `operator_launch_assumptions.json` 中逐类声明，属于工程假设；trace 命中不代表取得 NPUSim 或真机校准。三项拆解的计算列包含算子启动，另列计算服务和启动子项；通信启动独立保留。0.5×/2× 启动敏感性不改变硬件工作量或网络启动。完整逐算子与精确匹配配置在参考案例审计文件中，全部阶段数值保存在带源码指纹的 SQLite 检查点。
