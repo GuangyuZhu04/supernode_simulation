@@ -10,7 +10,7 @@ import math
 import re
 
 from .calibration import _scope_mismatch
-from .core import Allocation, Event, Graph
+from .core import Allocation, Event, Graph, Resource
 
 
 POLICY = (
@@ -20,6 +20,9 @@ POLICY = (
     'Original allocations span the entire trace; workspace is private to one operation. '
     'Working-set reports retain the parent component proxy plus local workspace, not an inferred suboperator footprint. '
     'Trace coverage is execution-detail coverage, not measured timing accuracy. '
+    'Explicit resource service demands share capacity per physical NPU: demands on the same resource sum, '
+    'independent resources and the supplied dependency path form concurrent lower bounds. '
+    'These constraints do not add model FLOPs, HBM bytes, startup, or measured evidence. '
     'Suboperators use existing kernel_profiles; parent profiles are not inherited.'
 )
 
@@ -28,6 +31,7 @@ def operator_trace_summary() -> dict:
     return {'enabled': True, 'eligible_events': 0, 'matched_events': 0,
             'unmatched_events': 0, 'generated_operations': 0, 'coverage_fraction': 0.0,
             'additional_memory_bytes': 0.0, 'additional_startup_s': 0.0,
+            'resource_modeled_operations': 0, 'dependency_modeled_operations': 0,
             'matched_trace_ids': [], 'unmatched_kernels': [], 'skip_reasons': {},
             'by_phase': {}, 'policy': POLICY}
 
@@ -41,8 +45,9 @@ def _coverage(summary: dict) -> None:
 def merge_operator_trace_summaries(target: dict, source: dict) -> None:
     """Count represented parent events, including streaming macro replay."""
     for key in ('eligible_events', 'matched_events', 'generated_operations',
-                'additional_memory_bytes', 'additional_startup_s'):
-        target[key] += source[key]
+                'additional_memory_bytes', 'additional_startup_s',
+                'resource_modeled_operations', 'dependency_modeled_operations'):
+        target[key] = target.get(key, 0) + source.get(key, 0)
     for key in ('matched_trace_ids', 'unmatched_kernels'):
         target[key] = sorted(set(target[key]) | set(source[key]))
     for reason, count in source['skip_reasons'].items():
@@ -70,6 +75,36 @@ def _supported(event: Event, compute: str) -> str | None:
     if any(allocation.pool != rank + '.hbm' for allocation in event.allocs):
         return 'nonlocal_allocation'
     return None
+
+
+def _resource_demands(graph: Graph, rank: str, eid: str, operation: dict) -> dict[str, float]:
+    """Use normalized seconds without mislabeling local traffic as HBM work."""
+    work = {}
+    values = {}
+    for demand in operation.get('resource_demands', []):
+        key = f"{rank}.kernel_resource.{demand['resource']}"
+        kind = 'microarchitecture_' + demand['kind']
+        resource = graph.resources.get(key)
+        if resource is not None and (resource.kind != kind or resource.capacity != 1.0
+                                     or resource.unit != 'second/second'):
+            raise ValueError(f'Conflicting shared kernel resource definition: {key}')
+        graph.resources.setdefault(key, Resource(key, 1.0, 'second/second', kind))
+        values.setdefault(key, []).append(demand['service_s'])
+    for key, amounts in values.items():
+        try:
+            total = math.fsum(amounts)
+        except OverflowError as exc:
+            raise ValueError(f'Kernel resource demand must be finite: {key}') from exc
+        if not math.isfinite(total):
+            raise ValueError(f'Kernel resource demand must be finite: {key}')
+        work[key] = total
+    if operation.get('dependency_floor_s', 0):
+        key = f'kernel_dependency:{eid}'
+        if key in graph.resources:
+            raise ValueError(f'Kernel dependency generated duplicate resource ID: {key}')
+        graph.resources[key] = Resource(key, 1.0, 'second/second', 'microarchitecture_dependency')
+        work[key] = operation['dependency_floor_s']
+    return work
 
 
 def apply_kernel_traces(graph: Graph, config: dict) -> None:
@@ -169,8 +204,16 @@ def apply_kernel_traces(graph: Graph, config: dict) -> None:
                 metadata['matmul'] = operation['matmul']
             if operation.get('implementation'):
                 metadata['implementation'] = operation['implementation']
+            work = {compute: operation['flops'], rank + '.hbm': operation['memory_bytes']}
+            work.update(_resource_demands(graph, rank, eid, operation))
+            if operation.get('resource_demands'):
+                metadata['resource_demands'] = operation['resource_demands']
+                summary['resource_modeled_operations'] += 1
+            if operation.get('dependency_floor_s', 0):
+                metadata['dependency_floor_s'] = operation['dependency_floor_s']
+                summary['dependency_modeled_operations'] += 1
             expanded.append(Event(eid, dependencies,
-                {compute: operation['flops'], rank + '.hbm': operation['memory_bytes']},
+                work,
                 startup_s=(event.startup_s if index == 0 else 0) + operation.get('startup_s', 0),
                 slots=event.slots, allocs=allocations, releases=releases, metadata=metadata))
             dependencies = (eid,)

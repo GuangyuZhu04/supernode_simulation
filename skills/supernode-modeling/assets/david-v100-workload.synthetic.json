@@ -1,0 +1,26 @@
+{
+  "device_sku": "DavidV100",
+  "cann_version": "9.1.T560",
+  "enabled_ai_cores": 32,
+  "frequency_hz": 1000000000,
+  "cube": {
+    "mode": "fp32",
+    "useful_ops": 524288,
+    "executed_ops": 524288,
+    "active_aic": 1
+  },
+  "memory": [
+    {
+      "level": "hbm",
+      "access_path": "simt",
+      "read_bytes": 32768,
+      "write_bytes": 16384
+    },
+    {
+      "level": "l2",
+      "access_path": "simt",
+      "read_bytes": 65536,
+      "write_bytes": 16384
+    }
+  ]
+}

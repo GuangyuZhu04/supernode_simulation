@@ -365,12 +365,31 @@ class MatmulShape(Spec):
     batch: StrictInt = Field(default=1, gt=0)
 
 
+class KernelResourceDemand(Spec):
+    """Normalized service demand, not a complete kernel timing measurement."""
+    resource: str = Field(pattern=r'^[A-Za-z][A-Za-z0-9_-]*$')
+    service_s: float = Field(ge=0,
+        description='Service demand normalized to the declared physical resource capacity and scope.')
+    kind: Literal['compute', 'memory', 'issue']
+    source: str = Field(min_length=1)
+    evidence_kind: Literal['measured_reference', 'architecture', 'inferred', 'assumed'] = 'assumed'
+
+    @model_validator(mode='after')
+    def nonblank_source(self):
+        if not self.source.strip():
+            raise ValueError('resource demand source must be nonempty')
+        return self
+
+
 class KernelTraceOperation(Spec):
     kernel: str = Field(min_length=1)
     flops: float = Field(ge=0)
     memory_bytes: float = Field(ge=0)
     startup_s: float = Field(default=0.0, ge=0)
     workspace_bytes: float = Field(default=0.0, ge=0)
+    resource_demands: list[KernelResourceDemand] = Field(default_factory=list)
+    dependency_floor_s: float = Field(default=0.0, ge=0,
+        description='Required serial dependency path inside the kernel, excluding startup; a lower bound, not an added delay.')
     matmul: MatmulShape | None = None
     implementation: dict[str, Any] = Field(default_factory=dict,
         description='Explicit kernel binary, tiling and tensor layout identity; never inferred from FLOPs.')
@@ -380,6 +399,19 @@ class KernelTraceOperation(Spec):
         if not self.kernel.strip():
             raise ValueError('kernel trace operation kernel must be nonempty')
         validate_json_metadata(self.implementation)
+        demand_kinds = {}
+        demand_values = {}
+        for demand in self.resource_demands:
+            if demand.resource in demand_kinds and demand_kinds[demand.resource] != demand.kind:
+                raise ValueError('resource demand kind must agree for a shared resource')
+            demand_kinds[demand.resource] = demand.kind
+            demand_values.setdefault(demand.resource, []).append(demand.service_s)
+        try:
+            totals = [math.fsum(values) for values in demand_values.values()]
+        except OverflowError as exc:
+            raise ValueError('resource demand totals must be finite') from exc
+        if any(not math.isfinite(total) for total in totals):
+            raise ValueError('resource demand totals must be finite')
         if self.matmul is not None:
             shape = self.matmul
             expected = 2 * shape.batch * shape.m * shape.n * shape.k
@@ -412,6 +444,25 @@ class KernelTrace(Spec):
         validate_json_metadata(self.metadata_match)
         if self.calibration_context:
             validate_calibration_context(self.calibration_context, require_complete=True)
+        for operation in self.operations:
+            if 'david_v100_service_model' not in operation.implementation:
+                continue
+            reference = operation.implementation['david_v100_service_model']
+            if not isinstance(reference, dict):
+                raise ValueError('david_v100_service_model must contain the explicit reference workload')
+            identity = {'device_sku': 'DavidV100', 'cann_version': '9.1.T560'}
+            if any(self.calibration_context.get(key) != value or reference.get(key) != value
+                   for key, value in identity.items()):
+                raise ValueError('DavidV100 resource references require matching DavidV100 / CANN 9.1.T560 trace context')
+            if type(reference.get('enabled_ai_cores')) is not int or reference['enabled_ai_cores'] != 32:
+                raise ValueError('DavidV100 resource references require the measured 32 AI Core configuration')
+            cube = reference.get('cube')
+            if cube is not None:
+                if not isinstance(cube, dict):
+                    raise ValueError('DavidV100 Cube reference must contain its explicit mode')
+                mode = cube.get('mode')
+                if mode != self.dtype and not (mode == 'hf32' and self.dtype == 'fp32'):
+                    raise ValueError('DavidV100 Cube mode must match the trace dtype; HF32 requires FP32')
         try:
             total_flops = math.fsum(op.flops for op in self.operations)
             total_bytes = math.fsum(op.memory_bytes for op in self.operations)

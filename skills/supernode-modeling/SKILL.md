@@ -5,7 +5,7 @@ description: Model supernode training and inference resources, optional accelera
 
 # 超节点资源与通信建模
 
-默认先准备并打开可编辑的流量仿真网页，再把问题转为可复现配置，调用 Python 引擎计算，解释资源需求、瓶颈和适用条件。前端与引擎由 `supernode_sim` 统一提供；此 skill 包含调用说明和自动启动脚本，**不包含独立的 Python 引擎**，需要 `supernode_simulation` 仓库或已安装的 `supernode_sim` 包。
+实际开展建模时，默认先准备并打开可编辑的流量仿真网页，再把问题转为可复现配置，调用 Python 引擎计算，解释资源需求、瓶颈和适用条件。仅维护 skill、参考资料或引擎代码时无需启动前端。前端与引擎由 `supernode_sim` 统一提供；此 skill 包含调用说明和自动启动脚本，**不包含独立的 Python 引擎**，需要 `supernode_simulation` 仓库或已安装的 `supernode_sim` 包。
 
 ## 找到可运行环境
 
@@ -22,7 +22,7 @@ python -m supernode_sim schema
 
 ## 调用时自动准备前端
 
-每次启用本 skill，默认先执行 [前端启动流程](references/frontend.md)，无需等用户另行请求网页。用户明确指定只用 CLI、不要网页或运行环境不能启动服务时，按其要求或实际能力继续数值工作，并说明网页状态。
+每次使用本 skill 实际开展建模，默认先执行 [前端启动流程](references/frontend.md)，无需等用户另行请求网页；维护 skill 或引擎代码不触发此流程。用户明确指定只用 CLI、不要网页或运行环境不能启动服务时，按其要求或实际能力继续数值工作，并说明网页状态。
 
 1. 运行本 skill 自带的 `scripts/launch_frontend.py`，已定位仓库时传入 `--project-root <项目目录>`；仅使用安装包时省略该参数。脚本检查现有页面资源、选择 Python 环境并启动或复用本地服务，输出机器可读 JSON。当前前端无需 npm / Node 构建，复用项目 `supernode_sim/web_static/`，保持输入编辑、实验运行与结果展示使用同一引擎配置。
 2. 只有返回 `started` 或 `reused` 且资源检查成功，才报告网页就绪。用可用浏览器工具打开返回的 `inputs_url`；没有浏览器工具时提供实际 URL 和能力限制，不声称已打开。保护已有标签页中的未提交输入，优先使用新任务标签页或本任务已创建的标签页。
@@ -35,6 +35,7 @@ python -m supernode_sim schema
 
 - 配置、来源、单位、CLI：读 [configuration.md](references/configuration.md)。
 - 借鉴其他仿真器、提高训练/推理执行粒度：读 [参考程序映射](references/reference-simulators.md) 和 [子算子执行描述](references/operator-traces.md)。使用 `hardware.kernel_traces` 将有依据的组件展开为串行子算子，再按实际子算子 profile 校准；同时核对阶段、矩阵维度和逐请求长度分布，不将更细粒度或 synthetic 检查称为实测精度提升。
+- 根据 DavidV100 MicroBenchmark 改进核内计算、搬运或指令供给建模：读 [DavidV100 微架构服务需求](references/david-v100-microarchitecture.md)，在有范围约束的子算子上配置 `resource_demands` 与 `dependency_floor_s`。同物理资源先合并需求，独立资源才取最大值；保留 HBM 总流量与争用。报告参数仅适用于其 DavidV100 测试条件，不传播为其他 Ascend 型号的默认规格，也不把资源下界称为整网实测校准。
 - 用户提供 NPUSim/cannsim 报告、引用 CANN 算子仿真或要求改进算子级时序：读 [NPU 算子仿真接入](references/npu-simulator.md)。用 `build_npu_sim_calibration.py` 检查并将单 launch CA summary 绑定到有 shape、tiling、layout 和 binary 身份的已展开子算子；保留 HBM 争用与内核流水重叠，区分 simulator、synthetic 和硬件实测，不把 PV 功能结果当作性能校准。
 - 用户指定 msModeling/ServingCast 或请求到达、排队、多实例服务指标：读 [ServingCast 源码映射](references/msmodeling-servingcast.md) 与 [服务仿真](references/serving.md)，使用独立 `serve`。当前是隔离实例的 FCFS 固定成批；continuous batching、token budget、抢占和异构 PD 队列尚未实现，不能由固定 batch 结果乘并发数替代。
 - 用户指定 SimuMax-Zhanlu、TorchTitan 仿真或训练 MFU：读 [湛卢训练参考](references/zhanlu-training.md)，检查 `metrics.training_accounting` 的阶段、dtype 与分子。额外重算、optimizer、通信打包不可无说明混进模型 MFU。

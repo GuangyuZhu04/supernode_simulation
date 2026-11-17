@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 import json
 import hashlib
+import re
 
 from .core import Graph, Resource
 
@@ -126,7 +127,7 @@ def apply_kernel_profiles(graph: Graph, config: dict) -> None:
         kernel = event.metadata.get('kernel')
         if not kernel:
             continue
-        compute_keys = [key for key in event.work if key.startswith('npu') and '.compute' in key]
+        compute_keys = [key for key in event.work if re.match(r'^npu\d+\.compute(?:\.|$)', key)]
         if len(compute_keys) != 1:
             if kernel in profiles:
                 unmatched.add(kernel)
@@ -172,6 +173,9 @@ def apply_kernel_profiles(graph: Graph, config: dict) -> None:
         measured = profile['duration_s']
         peak = config['hardware']['npu']['flops'][dtype]
         physical_floor = max(flops / peak, memory / graph.resources[f'{node}.hbm'].capacity)
+        physical_floor = max(physical_floor, max((amount / graph.resources[resource].capacity
+            for resource, amount in event.work.items()
+            if graph.resources[resource].kind.startswith('microarchitecture_')), default=0.0))
         if measured < physical_floor * (1 - 1e-9):
             raise ValueError(f'Kernel calibration {kernel} is faster than configured physical compute/memory limits')
         calibrated_key = f'{node}.compute.calibrated.{dtype}'

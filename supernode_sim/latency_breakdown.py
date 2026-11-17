@@ -206,11 +206,11 @@ class _WindowAttributor:
         parts[component] += baseline
         parts["resource_contention_s"] += clipped_active - baseline
         resource = self.graph.resources[bottleneck]
-        if resource.kind == 'kernel_timing':
+        if resource.kind in {'kernel_timing', 'microarchitecture_dependency'}:
             detailed = 'unattributed_service_s'
-        elif bottleneck.endswith(('.hbm', '.dram', '.memory')):
+        elif bottleneck.endswith(('.hbm', '.dram', '.memory')) or resource.kind == 'microarchitecture_memory':
             detailed = 'memory_access_s'
-        elif resource.kind in {'compute', 'iops'}:
+        elif resource.kind in {'compute', 'iops', 'microarchitecture_compute', 'microarchitecture_issue'}:
             detailed = 'compute_s'
         elif transfer:
             detailed = 'communication_s'

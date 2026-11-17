@@ -37,11 +37,33 @@ python skills/supernode-modeling/scripts/build_operator_trace.py examples/featur
 
 子算子 FLOPs 总和必须与原组件相等；HBM 访问字节总和不得低于原值，允许显式增加未融合中间读写。GEMM 的 operand bytes、真实 HBM transaction bytes 和张量驻留容量不是同一项。trace 不用于用更少的 FLOPs/bytes 隐藏原模型误差；确有额外算子计算、融合节省或错误预算时，应修正编译公式或使用既有 megakernel，并提供验证。
 
-原组件 ID 保留为末尾完成点，后继通信/更新仍等待它。原 allocation 从首子算子开始，保守保留到原释放点；`workspace_bytes` 仅在对应子算子执行期间申请并释放，**不描述跨子算子的中间张量生命周期**。当前仅支持单 NPU compute/HBM 和本地 compute stream；带 selection 等其他资源的组件会保留原路径，并报告原因。
+原组件 ID 保留为末尾完成点，后继通信/更新仍等待它。原 allocation 从首子算子开始，保守保留到原释放点；`workspace_bytes` 仅在对应子算子执行期间申请并释放，**不描述跨子算子的中间张量生命周期**。可被展开的父组件限于单 NPU compute/HBM 和本地 compute stream；带 selection 等其他资源的父组件会保留原路径，并报告原因。展开后的子算子可显式增加下述微架构资源约束。
 
 原 `startup_s` 仅折入首子算子一次，operation 的启动时间为显式新增成本。子算子的 `kernel_profile.startup_s` 若提供，替换该子事件的完整启动值（包括首项原启动），不叠加；`duration_s` 仍不含启动。父组件 profile 不自动转移到子算子，否则会重复计时。
 
 trace 先展开，再处理 megakernel 和 kernel profiles。融合只对当前可匹配的子算子链生效；检查两种覆盖率，不能假定原组件融合组仍会命中。
+
+## 可选的微架构服务需求
+
+operation 可提供 `resource_demands` 列表，每项为 `resource`、`service_s`、`kind`、`source`、`evidence_kind`。`kind` 为 `compute`、`memory` 或 `issue`；`evidence_kind` 为 `measured_reference`、`architecture`、`inferred` 或 `assumed`。`source` 写明报告章节或本次测量身份。`service_s` 是同范围工作量除以可比有效吞吐后的资源服务秒数，不是已经包含所有资源的整个 kernel 时间。
+
+同 NPU、同 `resource` 的需求在一个 operation 内相加，在并发事件间共享；不同 NPU 隔离。资源名应指向实际共享的物理资源，不能给读写、MTE/SIMT 或每个算子任意起不同名来规避共享限制。只有已证明独立的资源使用不同名称。同名资源的 `kind` 应保持一致。
+
+可选 `dependency_floor_s` 表示该子算子内部必须串行的依赖路径下界，与各资源总需求取最大值。它不额外加到 `startup_s`，也不代表全局串行锁；若先后阶段必须逐段执行，应拆成串行 operations。原 compute/HBM 需求继续存在，新约束不能降低既有下界。省略这些字段时保持原行为。
+
+例如以下为**合成** operation 片段，服务下界为 `max(原计算/HBM下界, 2+3, 4, 6) μs`，外层启动成本另计：
+
+```yaml
+resource_demands:
+  - {resource: mte, service_s: 0.000002, kind: memory, source: synthetic path A, evidence_kind: assumed}
+  - {resource: mte, service_s: 0.000003, kind: memory, source: synthetic path B, evidence_kind: assumed}
+  - {resource: cube, service_s: 0.000004, kind: compute, source: synthetic compute, evidence_kind: assumed}
+dependency_floor_s: 0.000006
+```
+
+这些服务秒数不增加有效 FLOPs、HBM 字节或驻留容量，不模拟缓存命中、bank 仲裁、核分配与指令队列。片上 L2/UB 流量不要再次写入 `memory_bytes`；真实 spill、padding 或重排新增的 HBM 访问仍须计入该字段。计算补齐的额外工作可用于生成 compute 服务需求，但应单列核算，不能改写模型有效 FLOPs 分子。DavidV100 参数、计时反例和生成方法见 [david-v100-microarchitecture.md](david-v100-microarchitecture.md)。
+
+当前 NPUSim 导入和 megakernel 融合不接受带额外微架构资源的子算子；不能为了匹配而删除这些约束。普通 `kernel_profiles` 仍须使用同条件守卫，服务时间不能绕过已声明的资源下界。
 
 ## 绑定具体 kernel 实现与 NPUSim 报告
 
@@ -71,7 +93,7 @@ python -m supernode_sim simulate outputs/operator-traces/inference.operators.con
 
 ## 核对结果和校准
 
-检查 `model_metadata.operator_trace` 中 `matched_events`、`generated_operations`、`by_phase`、`skip_reasons`、`additional_memory_bytes`、`additional_startup_s`。这里的 memory bytes 是额外 HBM **访问量**，不是额外显存容量；峰值容量仍看 simulation 的 memory pools。覆盖率按原组件事件数计，不能与按子算子事件计的 kernel profile 覆盖率直接相加。
+检查 `model_metadata.operator_trace` 中 `matched_events`、`generated_operations`、`by_phase`、`skip_reasons`、`additional_memory_bytes`、`additional_startup_s`；使用微架构约束时另看 `resource_modeled_operations` 与 `dependency_modeled_operations`。这里的 memory bytes 是额外 HBM **访问量**，不是额外显存容量；峰值容量仍看 simulation 的 memory pools。覆盖率按原组件事件数计，不能与按子算子事件计的 kernel profile 覆盖率直接相加。资源建模计数也不是实测准确率。
 
 `max_operator_working_set_bytes` 保留父组件原工作集代理值并加上局部 workspace；事件标记 `working_set_scope=parent_component_proxy_plus_local_workspace`。这避免拆分后漏报原工作集，但不是从 HBM 访问字节推导的子算子精确 footprint，也不是硬件缓存容量建议。
 
@@ -88,3 +110,9 @@ python -m supernode_sim simulate outputs/operator-traces/inference.operators.con
 默认扫描 TP=1/2/4/8、SP=1 或 TP，DP 按总卡数推导，保持 Prefill batch1 和全卡 Decode 总 batch。若用户指定其他布局策略，应修改候选，不把当前默认当成用户指定值。
 
 启动费用在 `operator_launch_assumptions.json` 中逐类声明，属于工程假设；trace 命中不代表取得 NPUSim 或真机校准。三项拆解的计算列包含算子启动，另列计算服务和启动子项；通信启动独立保留。0.5×/2× 启动敏感性不改变硬件工作量或网络启动。完整逐算子与精确匹配配置在参考案例审计文件中，全部阶段数值保存在带源码指纹的 SQLite 检查点。
+
+## 本仓库 owner-star SP/CP 实验细化
+
+此前按上下文分片 Attention/KV 的独立 CP 预算实验，可用 `scripts/run_scaling_cp_fine.py` 接入原生子算子 trace，实际重跑 QK/softmax/AV、KDA、索引及专家 gate/up/activation/down 链。报告入口为 `scripts/report_scaling_cp_fine.py`；范围、前置数据、API、输出与验证见 [SP/CP 细粒度说明](../../../docs/cp-fine-operator-study.md)。
+
+该路径是上下文并行实验扩展，不是把 `execution.sequence_parallel` 开关改名。共享 D 与非整数专家预算仍明确保留未知形状；网络启动不随 kernel 启动假设缩放。默认 0/1 μs kernel 启动对照是工程敏感性，不能称作实机校准或实际 megakernel 收益。

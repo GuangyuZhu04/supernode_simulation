@@ -8,6 +8,8 @@ DeepInfer、NVIDIA、Ascend 的固定来源数值、可执行比较工具及本�
 
 Ascend 多环境使用 [响应曲线流程](ascend-runtime-adaptation.md) 与 [真实数据采集指南](ascend-measurement-sources.md)。环境和软件条件独立分组，消息量可在训练范围内插值；不将 H800 DeepEP 系数作为其他 Ascend 部署的通用修正。
 
+DavidV100 的算子微基准用于建立有适用范围的 [微架构服务需求](david-v100-microarchitecture.md)：分别约束 Cube、搬运和指令供给，保留物理共享及依赖下界。它不是其他 Ascend 机型的硬件参数表；报告实测参考也不等于当前目标算子已完成真机校准。
+
 ## 先确定测量的对象
 
 | 对象 | 计时边界 | 当前引擎可比较程度 |
@@ -45,7 +47,7 @@ PD 的总物理卡数是两个池的和，当前相同布局时为 `2 × TP × E
 |---|---|---|
 | 前缀缓存复用 | 跨请求复用已计算的 prompt KV，主要减少 prefill；未缓存后缀仍需计算，并读取已有前缀 | 未实现自动 prefix reuse；不能将“命中 90%”直接变成 decode 少读 90% |
 | KV 页驻留 | 需要的历史 KV 位于 HBM、host 或 remote；搬入、淘汰、抢占、重算会阻塞 decode | `kv_offload`/`kv_offload_fraction` 表示静态分层放置；不是动态命中率模型 |
-| 硬件缓存 | L2 等层级可能减少 HBM 实际流量，效果取决于工作集、tile、复用距离及并发 | 当前 HBM 是共享带宽资源，没有 L2 命中模拟；用同形状实测访存/kernel 校准，或单列敏感性假设 |
+| 硬件缓存 | L2 等层级可能减少 HBM 实际流量，效果取决于工作集、tile、复用距离及并发 | HBM 是共享带宽资源，没有 L2 命中模拟；子算子可用 `resource_demands` 显式约束已知 L2/UB 服务量，仍需独立的实际 HBM 字节证据；未知命中行为单列敏感性假设 |
 
 普通全注意力 decode 通常需要历史 KV；在 HBM 中“命中”仍然要付读带宽成本。KV 被丢弃时，不能直接跳过依赖或将缺失部分耗时设为零。Kimi K3 的 MLA KV 按上下文增长，KDA 保存 recurrent/conv state；不能对二者套同一个上下文长度或缓存命中公式。
 
@@ -56,6 +58,8 @@ PD 的总物理卡数是两个池的和，当前相同布局时为 `2 × TP × E
 ## 分项校准而非整体乘系数
 
 组件聚合边界无法对应真实 kernel 时，先按 [operator trace](operator-traces.md) 展开，再采集和匹配子算子服务时间。结构化 `workload_shape` 保留长度分布、query/context 与 signature；`matmul` 保留声明的 GEMM 维度。使用它们约束 profile，不用一个 token 数或全局效率跨 prefill/decode 复用测量。trace 覆盖与 profile 覆盖是不同指标，前者本身不构成校准证据。
+
+微架构约束与 kernel profile 是两层证据。`resource_demands` 记录资源服务需求，其 `measured_reference` 仅指参考微基准的来源；`kernel_profiles.evidence_kind=measurement` 则要求目标 kernel 的同条件硬件测量。不能把推导的 `max(资源需求, 依赖路径)` 直接包装成 measurement profile。周期转秒必须有对应模块时钟；核内吞吐与整芯片带宽先统一参与核数和范围。
 
 1. **建立 baseline。** 固定模型范围和软件路径，保存 resolved config。先对齐权重/KV/KDA 结构与存储精度，排除遗漏或重复复制。
 2. **测量 prefill 与 decode。** 按实际 batch、上下文长度、KV layout、矩阵形状与 dtype 采样。decode 采集多个输出位置；普通 decode 和投机验证分开。
@@ -76,7 +80,9 @@ PD 的总物理卡数是两个池的和，当前相同布局时为 `2 × TP × E
 | `duration_s` | 不含启动开销的独占服务时间，仍受真实 FLOPs、HBM 争用及计算流串行约束 |
 | `startup_s` | 可选的独立启动时间；给出时替换该事件原启动值，省略时保留原值 |
 
-先从未校准 `compile_graph`/事件明细确定真实 kernel 名与工作量。按来源记录 measurement 方法、形状、平台和版本。不能把 profiler 整个 wall time 同时写入 `duration_s`，又在 `startup_s` 重复计入启动。服务时间不能低于配置的物理计算/访存下界，增加启动项也不能绕过此校验。
+先从未校准 `compile_graph`/事件明细确定真实 kernel 名与工作量。按来源记录 measurement 方法、形状、平台和版本。不能把 profiler 整个 wall time 同时写入 `duration_s`，又在 `startup_s` 重复计入启动。服务时间不能低于配置的物理计算/访存及显式资源服务下界，增加启动项也不能绕过此校验。
+
+Ascend 短任务保留 `TaskStart→CoreStart→CoreEnd→TaskEnd→下一TaskStart` 的边界：Core Span、Device Task、同流 Gap 和 Host launch 不是同一成本。DavidV100 报告的约 22 ns 仅是供给充分后的 Gap，92 cycle 不是每个 64³ MMAD 的完整执行时间；空任务有 PMU 扰动，不能跨实验机械扣除固定差值。校准时分开缓存冷热、PMU 开关、连续异步与逐次同步，并记录预热、重复次数及离散程度。
 
 默认仍是 FLOPs/bytes/dtype/phase 的工作量匹配，不自动验证未声明的张量形状、融合或运行栈。条目可附 `hardware_name`、完整 `calibration_context`、`metadata_match` 和 `source`；不匹配则回退，报告 scope mismatch，不通过 legacy 同工作量条目绕过。结构化组件事件具有模型结构签名及 TP/EP 元数据，可用于明确的选择器；它们不认证真实 checkpoint、tile 或 fused kernel。同工作量不同形状不能无证据复用，也不能用整网含通信的耗时校准单 kernel 后再重复计算通信。
 
