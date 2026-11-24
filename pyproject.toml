@@ -1,10 +1,12 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "supernode-sim"
 version = "0.1.0"
+license = "MIT"
+license-files = ["LICENSE"]
 description = "Traceable analytical and discrete-event supernode resource modeling"
 requires-python = ">=3.11"
 dependencies = ["pydantic>=2.7,<3", "PyYAML>=6"]
