@@ -942,8 +942,17 @@ class TrainingMoERoutingSpec(Spec):
     sender_capacity_factor: float = Field(default=1.0, ge=1)
     expert_capacity_factor: float = Field(default=1.0, ge=1)
     assignment_drop_fraction: float = Field(default=0.0, ge=0, lt=1)
+    expert_row_multiple: StrictInt | None = Field(default=None, gt=0,
+        description='Materialized row alignment per nonempty routed expert in grouped GEMMs. Omit for continuous rows.')
     routed_width: StrictInt | None = Field(default=None, gt=0,
         description='Wire row width for parameter-budget models. Structured models derive it from the latent projection.')
+
+    @model_serializer(mode='wrap')
+    def omit_unspecified_alignment(self, handler):
+        data = handler(self)
+        if self.expert_row_multiple is None:
+            data.pop('expert_row_multiple', None)
+        return data
 
     @model_validator(mode='after')
     def capacities(self):

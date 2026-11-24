@@ -16,7 +16,7 @@ from .core import Allocation, DTYPE_BYTES, Event, Graph, Resource
 from .training import pipeline_schedule
 from .training_schedule import gather_dependencies, prefetch_depth, replica_all_reduce
 from .sparse_attention import sparse_attention_state, sparse_attention_work, position_bias_rows
-from .moe_wire import (moe_payload_matrix, moe_wire_metadata, training_routed_flops,
+from .moe_wire import (aligned_expert_factor, moe_payload_matrix, moe_wire_metadata, training_routed_flops,
                        training_routing_factors, wire_payload_parts)
 from .training_attention import causal_pairs
 from .calibration import model_shape_signature
@@ -282,6 +282,10 @@ class Builder:
             count *= max(heads, self.tp) / max(self.m['kv_heads'], self.tp)
         return count
 
+    def executed_expert_factor(self, local_tokens):
+        return aligned_expert_factor(local_tokens * self.ep * self.m['top_k'], self.m['num_experts'],
+                                     self.expert_factor, self.routing.get('expert_row_multiple'))
+
     def activation_rows(self, layer, tokens, *, checkpoint=False, training=None):
         model = self.m
         if self.active_kv and self.active_kv[layer] and training is not False:
@@ -291,7 +295,7 @@ class Builder:
         if self.routing and training is not False:
             for row in rows:
                 if row['name'] == 'routed_gate_up':
-                    row['elements'] *= self.expert_factor
+                    row['elements'] *= self.executed_expert_factor(tokens)
                     row['formula'] += ' * executed expert rows / requested rows'
         if self.training and self.x['flash_attention_blocks']:
             for row in rows:
@@ -439,8 +443,9 @@ class Builder:
         routing_work = {}
         if self.routing and component == 'MoE' and phase in ('forward', 'backward', 'recompute'):
             requested = 2 * routed_elements * tokens * (2 if backward else 1)
-            flops += requested * (self.expert_factor - 1)
-            routing_work = training_routed_flops(requested, self.expert_factor, self.accepted_factor)
+            expert_factor = self.executed_expert_factor(tokens)
+            flops += requested * (expert_factor - 1)
+            routing_work = training_routed_flops(requested, expert_factor, self.accepted_factor)
         if sparse is not None and sparse['indexer_score_workspace_elements'] and not backward:
             workspace = self.allocation(name + '.index_scores', rank,
                 sparse['indexer_score_workspace_elements'] * DTYPE_BYTES[self.p['compute']] / (self.ep if self.training else 1),

@@ -8,6 +8,8 @@ elements. Zero metadata is the backward-compatible tensor-only lower bound.
 """
 from __future__ import annotations
 
+from math import floor
+
 from .core import DTYPE_BYTES
 
 
@@ -52,6 +54,24 @@ def training_routing_factors(policy: dict | None) -> tuple[float, float, float]:
     if policy['mode'] == 'fixed_capacity':
         return policy['sender_capacity_factor'], policy['expert_capacity_factor'], accepted
     return accepted, accepted, accepted
+
+
+def aligned_expert_factor(requested_rows, num_experts, factor, multiple):
+    """Physical expert rows per requested assignment for a balanced EP group.
+
+    Distribute rows across experts as evenly as possible before alignment.
+    Interpolation between adjacent integer occupancies keeps empty experts empty
+    and retains the existing continuous expectation for fractional input counts.
+    """
+    if not multiple or multiple == 1 or not requested_rows:
+        return factor
+    mean = requested_rows * factor / num_experts
+    lower = floor(mean)
+    fraction = mean - lower
+    padded_lower = ((lower + multiple - 1) // multiple) * multiple
+    # The next row starts a new tile only at an exact tile boundary (including zero).
+    padded_mean = padded_lower + (fraction * multiple if lower % multiple == 0 else 0)
+    return max(factor, padded_mean * num_experts / requested_rows)
 
 
 def training_routed_flops(requested_flops, expert_factor, accepted_factor):

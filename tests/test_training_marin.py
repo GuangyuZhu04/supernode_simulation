@@ -157,3 +157,47 @@ def test_refined_moe_trace_conserves_padding_and_dropped_counters():
         original = original_result['metrics']['training_accounting'][component]
         refined = traced_result['metrics']['training_accounting'][component]
         assert refined == original
+
+
+@pytest.mark.parametrize('structured', [False, True])
+def test_materialized_expert_rows_change_compute_and_workspace_but_keep_wire(structured):
+    data = workload(structured)
+    policy = {'mode': 'ragged', 'routed_width': 8}
+    data['execution']['training_moe_routing'] = policy
+    baseline = run(data)
+    policy['expert_row_multiple'] = 8
+    aligned = run(data)
+    plain = baseline['metrics']['training_accounting']
+    padded = aligned['metrics']['training_accounting']
+    # Each replica has 28 assignments across 8 experts: four get 3, four get 4.
+    # Alignment materializes 8 rows in each, including at recompute.
+    active = 2 * 3 * 8 * 16 * 2 if structured else 16000 * .8 * 2 / 8
+    expected = 8 * 28 * active * (64 / 28 - 1)  # 2F + 4B + 2 replay FLOPs
+    assert padded['moe_routing']['expert_padding_flops'] == pytest.approx(expected)
+    assert padded['executed_npu_flops'] - plain['executed_npu_flops'] == pytest.approx(expected)
+    assert padded['model_forward_backward_flops'] == pytest.approx(plain['model_forward_backward_flops'])
+    assert aligned['training_summary']['moe_wire'] == baseline['training_summary']['moe_wire']
+    phase_bytes = aligned['training_summary']['moe_wire']['off_rank_sent_bytes_by_phase']
+    assert set(phase_bytes) == {'forward', 'backward', 'recompute'}
+    assert all(ops == {'dispatch': 896, 'combine': 896} for ops in phase_bytes.values())
+
+    def workspace():
+        graph = compile_graph(data)
+        return sum(a.size_bytes for e in graph.events for a in e.allocs if 'recompute' in a.id)
+    aligned_workspace = workspace()
+    del policy['expert_row_multiple']
+    assert workspace() < aligned_workspace
+
+
+@pytest.mark.parametrize('requested, factor', [(1, 1), (3, .75), (14, 1.25), (32, 1), (66, 1)])
+def test_alignment_matches_balanced_integer_expert_occupancy(requested, factor):
+    from math import ceil, floor
+    from supernode_sim.moe_wire import aligned_expert_factor
+
+    def explicit(total):
+        return sum(4 * ceil((total // 8 + (i < total % 8)) / 4) for i in range(8))
+    rows = requested * factor
+    lo, hi = floor(rows), ceil(rows)
+    expected = explicit(lo) + (rows - lo) * (explicit(hi) - explicit(lo))
+    assert aligned_expert_factor(requested, 8, factor, 4) * requested == pytest.approx(expected)
+    assert aligned_expert_factor(requested, 8, factor, 1) == factor

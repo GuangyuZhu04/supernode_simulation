@@ -130,6 +130,12 @@ def build_training_summary(spec, graph, result):
         summary['training_compute'] = {key: accounting[key] for key in
             ('model_mfu', 'executed_compute_utilization', 'npu_flops_by_role', 'moe_routing', 'reference_mfu')
             if key in accounting}
+    ep = result['metrics']['training_communication']['by_class'].get('ep', {})
+    if 'routed_payload_bytes_by_phase' in ep:
+        summary['moe_wire'] = {
+            'off_rank_sent_bytes_by_phase': ep['routed_payload_bytes_by_phase'],
+            'steps': spec.workload.training_steps, 'devices': spec.hardware.npu_count,
+            'basis': 'Cluster sender payload over the simulated run. Each off-rank transfer counts once, including supplied metadata.'}
     return {**summary, 'status': 'complete', 'duration_s': sim['duration_s'], 'groups': groups,
             'rank_activity_s': by_rank,
             'peak_hbm': {'pool': peak['pool'], 'time_s': peak['peak_time_s'], 'peak_bytes': peak['peak_bytes'],

@@ -84,6 +84,12 @@ def training_communication(graph, simulation):
             item['transfer_events'] += 1
             item['payload_bytes'] += meta['payload_bytes']
             item['slot_wait_event_s'] += row['slot_wait_s']
+            operation = meta.get('semantic') or meta.get('operation')
+            if meta.get('collective') == 'all_to_all_v' and operation in ('dispatch', 'combine'):
+                # Count each transfer once at its sender. Multi-hop link work is a different quantity.
+                phases = item.setdefault('routed_payload_bytes_by_phase', {})
+                directions = phases.setdefault(meta.get('phase', 'unclassified'), {})
+                directions[operation] = directions.get(operation, 0.0) + meta['payload_bytes']
             physical = item['physical_bytes_by_domain']
             for domain, size in meta['physical_bytes_by_domain'].items():
                 physical[domain] = physical.get(domain, 0.0) + size

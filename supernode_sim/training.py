@@ -11,7 +11,7 @@ from itertools import product
 from typing import TYPE_CHECKING
 
 from .core import Allocation, DTYPE_BYTES, Event, Graph, Resource
-from .moe_wire import (moe_token_bytes, moe_wire_metadata, training_routed_flops,
+from .moe_wire import (aligned_expert_factor, moe_token_bytes, moe_wire_metadata, training_routed_flops,
                        training_routing_factors, wire_payload_parts)
 from .training_attention import causal_pairs
 from .training_schedule import gather_dependencies, prefetch_depth, replica_all_reduce
@@ -55,6 +55,10 @@ class _TrainingBuilder:
                              for s in range(self.pp)}
         self.routing = self.exe.get("training_moe_routing")
         self.wire_factor, self.expert_factor, self.accepted_factor = training_routing_factors(self.routing)
+        if self.routing:
+            self.expert_factor = aligned_expert_factor(
+                self.tokens * self.model['top_k'], self.model['num_experts'],
+                self.expert_factor, self.routing.get('expert_row_multiple'))
         self.windows = self.exe.get("training_attention_windows")
         fraction = self.model["expert_parameter_fraction"]
         self.dense_per_layer = self.model["total_params"] * (1 - fraction) / self.layers / self.tp
