@@ -85,7 +85,8 @@ def rank_activity(graph, simulation, rank_count):
             kind = ('compute' if any(slot.endswith('.compute_stream') for slot in event.slots)
                     or any(graph.resources[key].kind == 'compute' for key in resources) else 'other')
             name = meta.get('kernel') or meta.get('operation') or 'unclassified'
-        for owner in owners:
+        # The shared operator ledgers accumulate floating point intervals across endpoints.
+        for owner in sorted(owners):
             rank = ranks[owner]
             rank.advance(start, compute_ops, exposed_ops)
             rank.start(end, kind, name)

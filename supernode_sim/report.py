@@ -497,6 +497,15 @@ def markdown_report(result: dict) -> str:
                           f"空泡占 {rank['idle']:.2f}%。", '',
                           '![训练显存、时延、通信暴露与空泡分段百分比图](training_breakdown.svg)', '',
                           *['- ' + note for note in summary['definitions']], '']
+                wire = summary.get('moe_wire')
+                if wire:
+                    rank_steps = wire['devices'] * wire['steps']
+                    lines += ['### MoE 跨卡发送量', '', '按所有配置卡和完整步数平均，在发送端计一次。', '',
+                              '| 阶段 | dispatch（B/卡/步） | combine（B/卡/步） |', '|---|---:|---:|']
+                    for phase, ops in wire['off_rank_sent_bytes_by_phase'].items():
+                        lines.append(f"| {phase} | {ops.get('dispatch', 0) / rank_steps:,.2f} | "
+                                     f"{ops.get('combine', 0) / rank_steps:,.2f} |")
+                    lines.append('')
             else:
                 lines.append(summary['reason'])
         if accounting:
@@ -730,6 +739,18 @@ def _write_result_json(path: Path, exported: dict):
         temporary.unlink(missing_ok=True)
 
 
+def write_training_summary(summary, directory: Path):
+    if summary:
+        _write_result_json(directory / 'training_summary.json', summary)
+    if summary and summary['status'] == 'complete':
+        from .training_chart import training_chart
+        (directory / 'training_breakdown.svg').write_text(training_chart(summary), encoding='utf-8')
+    else:
+        (directory / 'training_breakdown.svg').unlink(missing_ok=True)
+        if not summary:
+            (directory / 'training_summary.json').unlink(missing_ok=True)
+
+
 def write_report(result: dict, directory: str | Path, *, full_detail: bool = False) -> Path:
     """Stream report artifacts; automatically filter only large raw detail tables.
 
@@ -809,15 +830,6 @@ def write_report(result: dict, directory: str | Path, *, full_detail: bool = Fal
              result.get('metrics', {}).get('training_task', {}).get('stages', []))
     write_latency_csv(result, directory)
     _write_result_json(directory / 'result.json', exported)
-    summary = result.get('training_summary')
-    if summary:
-        _write_result_json(directory / 'training_summary.json', summary)
-    if summary and summary['status'] == 'complete':
-        from .training_chart import training_chart
-        (directory / 'training_breakdown.svg').write_text(training_chart(summary), encoding='utf-8')
-    else:
-        (directory / 'training_breakdown.svg').unlink(missing_ok=True)
-        if not summary:
-            (directory / 'training_summary.json').unlink(missing_ok=True)
+    write_training_summary(result.get('training_summary'), directory)
     (directory / 'report.md').write_text(markdown_report(exported), encoding='utf-8')
     return directory.resolve()

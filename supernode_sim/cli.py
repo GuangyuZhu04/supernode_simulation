@@ -60,6 +60,9 @@ def parser() -> argparse.ArgumentParser:
             p.add_argument('--output-length', type=int, help='输出 token 数（含首 token），至少为 2')
             p.add_argument('--max-candidates', type=int, help='允许评估的最大候选数')
             p.add_argument('--engine', choices=['auto', 'simulate', 'streaming'], help='候选仿真引擎')
+    p = sub.add_parser('training-scaling', help='冻结基线参数，验证训练强/弱扩展效率与留出实测误差')
+    p.add_argument('manifest', type=Path, help='含基线、留出配置与可选实测的 YAML/JSON')
+    p.add_argument('--output', '-o', type=Path, default=Path('outputs') / 'training-scaling')
     p = sub.add_parser('import-hf')
     p.add_argument('config', type=Path)
     p.add_argument('--overrides', type=Path)
@@ -101,6 +104,14 @@ def _main(argv: list[str] | None = None) -> int:
             else:
                 print(data)
             return 0
+        if args.command == 'training-scaling':
+            from .training_scaling import run_training_scaling, write_scaling_report
+            study = run_training_scaling(args.manifest, output=args.output)
+            path = write_scaling_report(study, args.output)
+            complete = all(row['comparability'] == 'matched' for row in study['cases'][1:])
+            print(json.dumps({'status': 'complete' if complete else 'incomplete', 'output': str(path),
+                              'measured_holdouts_compared': study['measured_holdouts_compared']}, ensure_ascii=False))
+            return 0 if complete else 3
         if args.command == 'import-hf':
             result = import_hf_config(args.config, read_data(args.overrides) if args.overrides else None)
             args.output.parent.mkdir(parents=True, exist_ok=True)
