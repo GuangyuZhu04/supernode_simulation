@@ -485,6 +485,20 @@ def markdown_report(result: dict) -> str:
             lines += ['', '解析结果提供必要下界，尚未证明资源争用下的 SLO 可行性。']
         accounting = result.get('metrics', {}).get('training_accounting')
         lines += training_task_markdown(result)
+        summary = result.get('training_summary')
+        if summary:
+            lines += ['', '## 训练占比总览', '', '[完整结果记录](training_summary.json)', '']
+            if summary['status'] == 'complete':
+                groups = summary['groups']
+                rank = {row['name']: row['percent'] for row in groups['rank_time']['segments']}
+                peak = summary['peak_hbm']
+                lines += [f"峰值卡 `{peak['pool']}` 使用 {peak['peak_bytes'] / 2**20:,.2f} MiB。"
+                          f"全部 NPU 的可用时间中，暴露通信占 {rank['exposed_transfer']:.2f}%，"
+                          f"空泡占 {rank['idle']:.2f}%。", '',
+                          '![训练显存、时延、通信暴露与空泡分段百分比图](training_breakdown.svg)', '',
+                          *['- ' + note for note in summary['definitions']], '']
+            else:
+                lines.append(summary['reason'])
         if accounting:
             lines += ['', '## 训练计算量与利用率口径', '',
                       '| 项目 | 数值 |', '|---|---:|']
@@ -788,5 +802,15 @@ def write_report(result: dict, directory: str | Path, *, full_detail: bool = Fal
              result.get('metrics', {}).get('training_task', {}).get('stages', []))
     write_latency_csv(result, directory)
     _write_result_json(directory / 'result.json', exported)
+    summary = result.get('training_summary')
+    if summary:
+        _write_result_json(directory / 'training_summary.json', summary)
+    if summary and summary['status'] == 'complete':
+        from .training_chart import training_chart
+        (directory / 'training_breakdown.svg').write_text(training_chart(summary), encoding='utf-8')
+    else:
+        (directory / 'training_breakdown.svg').unlink(missing_ok=True)
+        if not summary:
+            (directory / 'training_summary.json').unlink(missing_ok=True)
     (directory / 'report.md').write_text(markdown_report(exported), encoding='utf-8')
     return directory.resolve()

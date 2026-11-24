@@ -1,0 +1,364 @@
+{
+  "schema_version": 1,
+  "model": "synthetic-gqa-training",
+  "config_sha256": "1011217e8a2836f109c31b38862bccc2f9b07c7740c3f3579bea808a995ff9d1",
+  "npu_count": 8,
+  "pp": 2,
+  "status": "complete",
+  "duration_s": 0.0017055719976413915,
+  "groups": {
+    "hbm": {
+      "title": "峰值卡 HBM 构成",
+      "unit": "byte",
+      "total": 1837696.0,
+      "segments": [
+        {
+          "name": "gathered_weight",
+          "value": 254720.0,
+          "percent": 13.860834436163543
+        },
+        {
+          "name": "master_weights",
+          "value": 254720.0,
+          "percent": 13.860834436163543
+        },
+        {
+          "name": "momentum",
+          "value": 254720.0,
+          "percent": 13.860834436163543
+        },
+        {
+          "name": "unsharded_gradient_buffer",
+          "value": 254720.0,
+          "percent": 13.860834436163543
+        },
+        {
+          "name": "variance",
+          "value": 254720.0,
+          "percent": 13.860834436163543
+        },
+        {
+          "name": "gradients",
+          "value": 127360.0,
+          "percent": 6.930417218081772
+        },
+        {
+          "name": "weights",
+          "value": 127360.0,
+          "percent": 6.930417218081772
+        },
+        {
+          "name": "buffers",
+          "value": 123136.0,
+          "percent": 6.700564184718256
+        },
+        {
+          "name": "activation",
+          "value": 116608.0,
+          "percent": 6.345336769520094
+        },
+        {
+          "name": "runtime",
+          "value": 65536.0,
+          "percent": 3.566204638852128
+        },
+        {
+          "name": "pipeline_buffer",
+          "value": 4096.0,
+          "percent": 0.222887789928258
+        }
+      ]
+    },
+    "step_latency": {
+      "title": "平均训练步 · 关键路径时延",
+      "unit": "s",
+      "total": 0.0017055719976413915,
+      "segments": [
+        {
+          "name": "resource_contention_s",
+          "value": 0.0007595551129355064,
+          "percent": 44.5337466835691
+        },
+        {
+          "name": "communication_scaleout_s",
+          "value": 0.00041967058823529443,
+          "percent": 24.60585591318632
+        },
+        {
+          "name": "compute_s",
+          "value": 0.0003409011200000005,
+          "percent": 19.98749513192215
+        },
+        {
+          "name": "scheduling_wait_s",
+          "value": 0.00011462399999999994,
+          "percent": 6.72056061887224
+        },
+        {
+          "name": "communication_node_s",
+          "value": 7.082117647058834e-05,
+          "percent": 4.152341652450076
+        },
+        {
+          "name": "other_s",
+          "value": 1.81603863891322e-18,
+          "percent": 1.0647680903676837e-13
+        },
+        {
+          "name": "communication_other_s",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "communication_scaleup_s",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "memory_wait_s",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "synchronization_wait_s",
+          "value": 0.0,
+          "percent": 0.0
+        }
+      ]
+    },
+    "rank_time": {
+      "title": "全体 NPU · 时间分配",
+      "unit": "rank·s",
+      "total": 0.013644575981131134,
+      "segments": [
+        {
+          "name": "exposed_transfer",
+          "value": 0.009400501408904822,
+          "percent": 68.89551879006446
+        },
+        {
+          "name": "compute_only",
+          "value": 0.002047291569120464,
+          "percent": 15.004435256556384
+        },
+        {
+          "name": "idle",
+          "value": 0.0012341523370607717,
+          "percent": 9.045003221554566
+        },
+        {
+          "name": "compute_and_transfer",
+          "value": 0.0009070069860450751,
+          "percent": 6.647381254641849
+        },
+        {
+          "name": "other_local",
+          "value": 5.562368000000085e-05,
+          "percent": 0.4076614771827425
+        }
+      ]
+    },
+    "communication": {
+      "title": "通信时间 · 暴露与掩盖",
+      "unit": "rank·s",
+      "total": 0.010307508394949897,
+      "segments": [
+        {
+          "name": "exposed_transfer",
+          "value": 0.009400501408904822,
+          "percent": 91.20052149082451
+        },
+        {
+          "name": "compute_and_transfer",
+          "value": 0.0009070069860450751,
+          "percent": 8.799478509175485
+        }
+      ]
+    },
+    "compute_ops": {
+      "title": "计算时段 · 按计算算子",
+      "unit": "rank·s",
+      "total": 0.0029542985551655396,
+      "segments": [
+        {
+          "name": "dense",
+          "value": 0.001152400895349843,
+          "percent": 39.00759770318034
+        },
+        {
+          "name": "adam",
+          "value": 0.0006624384000000058,
+          "percent": 22.422865787946307
+        },
+        {
+          "name": "flash_qkv_projection",
+          "value": 0.0003883002489573104,
+          "percent": 13.14356831940273
+        },
+        {
+          "name": "flash_output_projection",
+          "value": 0.0001951399935999997,
+          "percent": 6.605290222235692
+        },
+        {
+          "name": "weight_conversion",
+          "value": 0.00015287040000000647,
+          "percent": 5.174507489526245
+        },
+        {
+          "name": "output",
+          "value": 0.00012582912000000038,
+          "percent": 4.259187676884936
+        },
+        {
+          "name": "weight_refresh",
+          "value": 0.00010191360000000229,
+          "percent": 3.4496716596840944
+        },
+        {
+          "name": "flash_tile_compute",
+          "value": 9.732096000000055e-05,
+          "percent": 3.2942154688407013
+        },
+        {
+          "name": "postnorm",
+          "value": 3.0656512000000433e-05,
+          "percent": 1.0376917372280487
+        },
+        {
+          "name": "prenorm",
+          "value": 2.7688448000000585e-05,
+          "percent": 0.9372257909271835
+        },
+        {
+          "name": "wordembedding",
+          "value": 1.973997725837019e-05,
+          "percent": 0.6681781441437319
+        }
+      ]
+    },
+    "exposed_ops": {
+      "title": "暴露通信时段 · 按通信算子",
+      "unit": "rank·s",
+      "total": 0.009400501408904817,
+      "segments": [
+        {
+          "name": "dp / all_reduce",
+          "value": 0.00899517528731378,
+          "percent": 95.68824997773967
+        },
+        {
+          "name": "fsdp_gather / all_gather",
+          "value": 0.0002573888666890756,
+          "percent": 2.738033382402972
+        },
+        {
+          "name": "fsdp_reduce_scatter / reduce_scatter",
+          "value": 0.00011267764705882345,
+          "percent": 1.1986344361598336
+        },
+        {
+          "name": "pp / pipeline",
+          "value": 3.525960784313749e-05,
+          "percent": 0.3750822036975295
+        }
+      ]
+    },
+    "idle": {
+      "title": "空泡 · 按每卡活动位置",
+      "unit": "rank·s",
+      "total": 0.0012341523370607717,
+      "segments": [
+        {
+          "name": "between_activities",
+          "value": 0.00102029254038417,
+          "percent": 82.67152358306713
+        },
+        {
+          "name": "before_first_activity",
+          "value": 0.0002136293966766013,
+          "percent": 17.309807732923478
+        },
+        {
+          "name": "after_last_activity",
+          "value": 2.304000000005052e-07,
+          "percent": 0.018668684009400367
+        }
+      ]
+    }
+  },
+  "rank_activity_s": {
+    "npu0": {
+      "compute_only": 0.0002423917943753519,
+      "compute_and_transfer": 0.00011280762484336953,
+      "exposed_transfer": 0.0011755688260146298,
+      "other_local": 6.9529600000001625e-06,
+      "idle": 0.00016785079240804008
+    },
+    "npu1": {
+      "compute_only": 0.00026943109790476404,
+      "compute_and_transfer": 0.00011394412166789926,
+      "exposed_transfer": 0.0011745565262115754,
+      "other_local": 6.952960000000051e-06,
+      "idle": 0.00014068729185715286
+    },
+    "npu2": {
+      "compute_only": 0.0002423917943753519,
+      "compute_and_transfer": 0.00011280762484336953,
+      "exposed_transfer": 0.0011755688260146298,
+      "other_local": 6.9529600000001625e-06,
+      "idle": 0.00016785079240804008
+    },
+    "npu3": {
+      "compute_only": 0.00026943109790476404,
+      "compute_and_transfer": 0.00011394412166789926,
+      "exposed_transfer": 0.0011745565262115754,
+      "other_local": 6.952960000000051e-06,
+      "idle": 0.00014068729185715286
+    },
+    "npu4": {
+      "compute_only": 0.0002423917943753519,
+      "compute_and_transfer": 0.00011280762484336953,
+      "exposed_transfer": 0.0011755688260146298,
+      "other_local": 6.9529600000001625e-06,
+      "idle": 0.00016785079240804008
+    },
+    "npu5": {
+      "compute_only": 0.00026943109790476404,
+      "compute_and_transfer": 0.00011394412166789926,
+      "exposed_transfer": 0.0011745565262115754,
+      "other_local": 6.952960000000051e-06,
+      "idle": 0.00014068729185715286
+    },
+    "npu6": {
+      "compute_only": 0.0002423917943753519,
+      "compute_and_transfer": 0.00011280762484336953,
+      "exposed_transfer": 0.0011755688260146298,
+      "other_local": 6.9529600000001625e-06,
+      "idle": 0.00016785079240804008
+    },
+    "npu7": {
+      "compute_only": 0.00026943109790476404,
+      "compute_and_transfer": 0.00011394412166789926,
+      "exposed_transfer": 0.0011745565262115754,
+      "other_local": 6.952960000000051e-06,
+      "idle": 0.00014068729185715286
+    }
+  },
+  "peak_hbm": {
+    "pool": "npu0.hbm",
+    "time_s": 0.000381000398981635,
+    "peak_bytes": 1837696.0,
+    "physical_bytes": 16777216.0,
+    "usable_bytes": 15099494.4,
+    "reserved_bytes": 1677721.5999999996
+  },
+  "definitions": [
+    "显存取占用峰值最高的单卡在同一时刻的实际分配；分母为已用 HBM，另列物理容量和预留。",
+    "步时延为已完成训练步的平均关键路径墙钟时间。设备时间分母为配置 NPU 数乘整个运行时长。",
+    "通信覆盖不同端点间有 NPU 参与的传输，含 SU、SO 和主机卸载。通信与计算在同卡重叠的部分计为掩盖，启动时间随事件计入。",
+    "暴露通信是同卡未与计算重叠的传输时间。其对端到端步时延的影响还取决于关键路径。",
+    "空泡是该卡没有计算、端点传输或其他本地资源活动的时段，含流水填充排空、依赖等待和 CPU 尾部。此口径不能单独识别纯 PP 空泡。",
+    "计算算子含占用计算流的 kernel；独立访存计入其他本地活动。同类事件并发时等分区间，各算子占比以其所属时段为分母。"
+  ]
+}

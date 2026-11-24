@@ -411,4 +411,7 @@ def run_compiled(spec, graph, estimate, mode, *, full_detail):
     allocation_count = len(graph.initial_allocations) + sum(len(event.allocs) for event in graph.events)
     result['memory_breakdown'] = build_memory_breakdown(graph, result.get('simulation'), estimate,
         include_ephemeral_details=full_detail or allocation_count <= 50_000)
+    if spec.workload.scenario == 'training':
+        from .training_summary import build_training_summary
+        result['training_summary'] = build_training_summary(spec, graph, result)
     return result

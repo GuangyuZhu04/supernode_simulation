@@ -7,6 +7,8 @@ description: Model supernode training and inference resources, optional accelera
 
 实际开展建模时，默认先准备并打开可编辑的流量仿真网页，再把问题转为可复现配置，调用 Python 引擎计算，解释资源需求、瓶颈和适用条件。仅维护 skill、参考资料或引擎代码时无需启动前端。前端与引擎由 `supernode_sim` 统一提供；此 skill 包含调用说明和自动启动脚本，**不包含独立的 Python 引擎**，需要 `supernode_simulation` 仓库或已安装的 `supernode_sim` 包。
 
+展示训练仿真结果时，交付输出目录中的 `training_summary.json` 和 `training_breakdown.svg`。用平均步关键路径解释时延，用同卡时间并集解释通信暴露和空泡，用峰值卡的同步快照解释 HBM。报告计算与暴露通信的主要算子时注明各自分母。估算或未完成的仿真请报告数据不可用。
+
 ## 找到可运行环境
 
 优先使用用户已给定的项目路径，其次检查 `SUPERNODE_SIM_ROOT` 环境变量，再检查当前工作目录及其父目录中的 `supernode_sim/` 与 `pyproject.toml`。如果本文件位于项目的 `skills/supernode-modeling/`，其上两级目录就是项目根目录。被复制到全局 skills 目录后，不能把该目录视为引擎所在项目。

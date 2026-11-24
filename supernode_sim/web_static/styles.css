@@ -2048,3 +2048,4 @@ h1 {
   #training-accounting-kpis { grid-template-columns:1fr; }
   .result-snapshot-actions { align-items:flex-start; flex-direction:column; gap:4px; }
 }
+#training-summary-chart img { display: block; width: 100%; max-width: 1000px; height: auto; }

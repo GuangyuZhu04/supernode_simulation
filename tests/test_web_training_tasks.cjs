@@ -3,6 +3,20 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {fixture, harness} = require('./web_frontend_harness.cjs');
 
+test('training report shows the job chart and exact record and clears both on job change', () => {
+  const h = harness(fixture());
+  Object.assign(h.context.location, {origin:'http://localhost:8090', href:'http://localhost:8090/'});
+  const files = ['training_breakdown.svg', 'training_summary.json'];
+  h.call('renderTrainingSummary', {artifacts:files.map(name => ({name, url:'/api/jobs/1/artifacts/'+name}))});
+  const panel = h.node('training-summary-panel'), chart = h.node('training-summary-chart');
+  assert.equal(panel.hidden, false);
+  assert.equal(chart.children[0].src, 'http://localhost:8090/api/jobs/1/artifacts/training_breakdown.svg');
+  assert.equal(chart.children[1].download, files[1]);
+  h.call('renderTrainingSummary', {artifacts:[]});
+  assert.equal(panel.hidden, true);
+  assert.equal(chart.children.length, 0);
+});
+
 test('RL preview separates generation, scoring and update roles including pending feature input', () => {
   const config = fixture();
   Object.assign(config.workload, {scenario:'training', training_steps:2, gradient_accumulation:2});

@@ -390,6 +390,7 @@ function metricCard(label, value, unit, note, stateClass = '') {
 }
 function renderResults(result, job) {
   stopOperatorPlayback();
+  renderTrainingSummary(job);
   state.result = result;
   $('#empty-results').hidden = true; $('#result-content').hidden = false;
   const serving = isServingResult(result);
@@ -1879,6 +1880,32 @@ function renderServingTimeline(result) {
     row.setAttribute('tabindex','0'); row.setAttribute('aria-label', row.title); row.append(lane); host.append(row);
   });
 }
+function renderTrainingSummary(job) {
+  const panel = $('#training-summary-panel');
+  const host = $('#training-summary-chart');
+  host.replaceChildren();
+  panel.hidden = true;
+  const chart = job.artifacts?.find(item => item.name === 'training_breakdown.svg');
+  if (!chart?.url) return;
+  const src = new URL(chart.url, location.href);
+  if (src.origin !== location.origin) return;
+  const image = el('img');
+  image.alt = '训练步时延、峰值显存、计算算子、通信暴露和空泡的百分比图';
+  image.src = src.href;
+  host.append(image);
+  const record = job.artifacts.find(item => item.name === 'training_summary.json');
+  if (record?.url) {
+    const url = new URL(record.url, location.href);
+    if (url.origin === location.origin) {
+      const link = el('a', '', '下载完整结果记录（JSON）');
+      link.href = url.href;
+      link.download = record.name;
+      host.append(link);
+    }
+  }
+  panel.hidden = false;
+}
+
 function renderTrainingAccounting(result) {
   const accounting = result.metrics?.training_accounting, panel = $('#training-accounting-panel');
   panel.hidden = !accounting;
