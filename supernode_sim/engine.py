@@ -106,6 +106,13 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
     """
     capacities = {key: value.capacity for key, value in graph.resources.items()}
     events = {event.id: event for event in graph.events}
+    qos_weights = {}
+    if graph.metadata.get('training_qos'):
+        from .training_qos import priority_order, weighted_fabric_rates
+        qos_weights = {event.id: event.metadata['qos_weight'] for event in graph.events
+                       if 'qos_weight' in event.metadata}
+        if len(set(qos_weights.values())) <= 1:
+            qos_weights = {}
     used: dict[str, float] = defaultdict(float)
     peaks: dict[str, float] = {key: 0.0 for key in graph.memory_caps}
     allocations: dict[str, Any] = {}
@@ -249,7 +256,10 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
         admitted = False
         blocked = []
         wait_reasons = {}
-        for eid in sorted(ready):
+        ordered = sorted(ready)
+        if qos_weights:
+            priority_order(ordered, events)
+        for eid in ordered:
             event = events[eid]
             if held_slots.intersection(event.slots):
                 wait_reasons[eid] = "slot_wait_s"
@@ -282,7 +292,8 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
                 break
             return fail("error", "scheduler_deadlock", "No executable event remains")
         working = {eid: state["service"] for eid, state in active.items() if now >= state["ready"]}
-        rates = _max_min_rates(working, capacities)
+        rates = (weighted_fabric_rates(working, capacities, qos_weights, _max_min_rates)
+                 if qos_weights and len(working) > 1 else _max_min_rates(working, capacities))
         intervals = [state["ready"] - now for state in active.values() if state["ready"] > now]
         intervals.extend(active[eid]["remaining"] / rate for eid, rate in rates.items() if rate > 0)
         if not intervals:
