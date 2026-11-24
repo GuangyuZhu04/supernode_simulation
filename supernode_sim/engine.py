@@ -127,15 +127,17 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
     held_slots: set[str] = set()
     diagnostics: list[dict[str, Any]] = []
     now = 0.0
+    changes = []
 
     def result(status: str) -> dict[str, Any]:
         metrics = {}
         for key, resource in graph.resources.items():
+            available = resource.available_work(now) if now and resource.capacity_schedule else resource.capacity * now
             metrics[key] = {
                 "capacity": resource.capacity, "unit": resource.unit,
                 "kind": resource.kind, "work": work_done[key],
                 "busy_s": busy[key],
-                "utilization": work_done[key] / (resource.capacity * now) if now and resource.capacity > 0 else 0.0,
+                "utilization": work_done[key] / available if available > 0 else 0.0,
             }
         return {
             "status": status, "duration_s": now, "trace": trace,
@@ -158,6 +160,17 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
     for key, capacity in capacities.items():
         if not math.isfinite(capacity) or capacity <= 0:
             return fail("error", "invalid_resource", "Resource capacity must be finite and positive", resource=key)
+        resource = graph.resources[key]
+        if resource.capacity_schedule:
+            try:
+                resource.validate_schedule()
+            except (TypeError, ValueError) as exc:
+                return fail("error", "invalid_capacity_schedule", str(exc), resource=key)
+            previous = capacity
+            for time, value in resource.capacity_schedule:
+                if value != previous:
+                    changes.append((time, key, value))
+                previous = value
     for key, capacity in graph.memory_caps.items():
         if not math.isfinite(capacity) or capacity < 0:
             return fail("error", "invalid_memory", "Memory capacity must be finite and nonnegative", pool=key)
@@ -178,6 +191,11 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
         for key, amount in event.work.items():
             if key not in capacities or not math.isfinite(amount) or amount < 0:
                 return fail("error", "invalid_work", "Work must reference a resource and be nonnegative", event=event.id, resource=key)
+    if changes:
+        used_resources = {key for event in graph.events for key, amount in event.work.items() if amount > 0}
+        changes = sorted((point for point in changes if point[1] in used_resources), reverse=True)
+    # A tiny residual can take appreciable time after a sharp bandwidth drop.
+    completion_tolerance = 0.0 if changes else 1e-10
     # Diagnose cycles independently of memory admission or numerical behavior.
     indegree = {eid: len(set(event.deps)) for eid, event in events.items()}
     successors: dict[str, list[str]] = defaultdict(list)
@@ -219,6 +237,15 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
     ready_timing = {eid: {"dependency_ready_s": 0.0, "slot_wait_s": 0.0, "memory_wait_s": 0.0}
                     for eid in ready}
     while completed_count < len(events):
+        if changes and changes[-1][0] <= now:
+            changed = set()
+            while changes and changes[-1][0] <= now:
+                _, key, value = changes.pop()
+                capacities[key] = value
+                changed.add(key)
+            for eid, state in active.items():
+                if not changed.isdisjoint(events[eid].work):
+                    state['service'] = _prepare_service(events[eid].work, capacities)
         # Complete events before admitting new ones, so same-time releases can
         # unblock allocations without introducing artificial overlap.
         finished = []
@@ -226,7 +253,7 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
         for eid, state in active.items():
             startup_over = now >= state["ready"] - time_tolerance
             no_work = not state["service"][1]
-            if startup_over and (state["remaining"] <= 1e-10 or no_work):
+            if startup_over and (state["remaining"] <= completion_tolerance or no_work):
                 finished.append(eid)
         for eid in sorted(finished):
             state = active.pop(eid)
@@ -299,11 +326,18 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
         if not intervals:
             return fail("error", "resource_deadlock", "Running events cannot make progress")
         delta = min(intervals)
+        next_time = now + delta
+        if changes and changes[-1][0] <= next_time:
+            next_time = changes[-1][0]
+            delta = next_time - now
         if not math.isfinite(delta) or delta < 0:
             return fail("error", "invalid_time_step", "Nonfinite or negative simulation time step")
         busy_resources: set[str] = set()
         for eid, rate in rates.items():
-            progress = min(active[eid]["remaining"], delta * rate)
+            remaining = active[eid]["remaining"]
+            progress = min(remaining, delta * rate)
+            if completion_tolerance == 0 and rate > 0 and remaining / rate <= delta:
+                progress = remaining
             active[eid]["remaining"] -= progress
             for key, amount in events[eid].work.items():
                 work_done[key] += amount * progress
@@ -315,6 +349,6 @@ def simulate(graph: Graph, *, retain_event_payload: bool = True) -> dict[str, An
         # these disjoint elapsed intervals sum to start - dependency-ready.
         for eid, reason in wait_reasons.items():
             ready_timing[eid][reason] += delta
-        now += delta
+        now = next_time
     trace.sort(key=lambda item: (item["start_s"], item["id"]))
     return result("feasible")

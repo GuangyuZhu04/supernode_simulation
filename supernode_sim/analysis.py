@@ -10,7 +10,7 @@ from dataclasses import asdict
 from typing import Any
 
 from .config import Config
-from .core import Allocation, Graph
+from .core import Allocation, Graph, scheduled_solo_service
 from .engine import simulate as simulate_graph
 from .topology import Topology
 from .calibration import apply_kernel_profiles, evidence_kind_counts
@@ -104,6 +104,7 @@ def compile_graph(config: Config | dict) -> Graph:
         from .megakernel import apply_megakernel
         apply_megakernel(graph, data)
     apply_kernel_profiles(graph, data)
+    topology.validate_scheduled_resources()
     graph.metadata['collective_calibration'] = summarize_collective_calibration(graph)
     assumptions = graph.metadata.setdefault('assumptions', [])
     assumptions.extend(graph.metadata.get('approximations', []))
@@ -127,6 +128,7 @@ def graph_estimate(graph: Graph) -> dict:
     if len(events) != len(graph.events):
         raise ValueError('duplicate event IDs')
     for resource in graph.resources.values():
+        resource.validate_schedule()
         if not math.isfinite(resource.capacity) or resource.capacity <= 0:
             raise ValueError(f'Invalid resource capacity: {resource.id}')
     for pool, capacity in graph.memory_caps.items():
@@ -165,11 +167,16 @@ def graph_estimate(graph: Graph) -> dict:
     ready = [key for key, value in indegree.items() if value == 0]
     heapq.heapify(ready)
     ends = {}
+    scheduled = {key for key, resource in graph.resources.items() if resource.capacity_schedule}
     while ready:
         eid = heapq.heappop(ready)
         event = events[eid]
         start = max((ends[d] for d in event.deps), default=0.0)
-        duration = event.startup_s + max((v / graph.resources[r].capacity for r, v in event.work.items()), default=0.0)
+        if scheduled and not scheduled.isdisjoint(event.work):
+            service, _ = scheduled_solo_service(event.work, graph.resources, start + event.startup_s)
+        else:
+            service = max((v / graph.resources[r].capacity for r, v in event.work.items()), default=0.0)
+        duration = event.startup_s + service
         ends[eid] = start + duration
         for child in children.pop(eid, ()):
             indegree[child] -= 1
@@ -198,6 +205,8 @@ def graph_estimate(graph: Graph) -> dict:
         optimistic_peak[pool] = max(optimistic_peak.get(pool, 0), current[pool])
     del changes
     resource_bounds = {r: v / graph.resources[r].capacity for r, v in work.items()}
+    for key in scheduled.intersection(work):
+        resource_bounds[key], _ = scheduled_solo_service({key: work[key]}, graph.resources, 0.0)
     critical = max(ends.values(), default=0.0)
     logical_payload = 0.0
     physical = defaultdict(float)

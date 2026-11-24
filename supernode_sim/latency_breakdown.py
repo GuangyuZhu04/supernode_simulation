@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from typing import Any, Iterable
 
-from .core import Event, Graph
+from .core import Event, Graph, scheduled_solo_service
 from .operator_costs import OperatorLedger, empty_costs, operator_identity
 
 
@@ -98,6 +98,7 @@ def _domain_component(domain: str) -> str:
 class _WindowAttributor:
     def __init__(self, graph: Graph, simulation: dict[str, Any]):
         self.graph = graph
+        self.scheduled = {key for key, resource in graph.resources.items() if resource.capacity_schedule}
         self.events = {event.id: event for event in graph.events}
         trace = simulation.get("trace", ())
         if isinstance(trace, (list, tuple)):
@@ -199,6 +200,8 @@ class _WindowAttributor:
             costs['other_s'] += clipped_active
             return
         solo, bottleneck = min(demands, key=lambda item: (-item[0], item[1]))
+        if self.scheduled and not self.scheduled.isdisjoint(event.work):
+            solo, bottleneck = scheduled_solo_service(event.work, self.graph.resources, startup_end)
         roundoff = 8 * (math.ulp(event_end) + math.ulp(startup_end) + math.ulp(solo))
         baseline = clipped_active if active - solo <= roundoff else clipped_active * min(1.0, solo / active)
         component = (_domain_component(self._resource_domain(event, bottleneck))

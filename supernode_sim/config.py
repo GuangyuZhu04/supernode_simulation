@@ -556,6 +556,8 @@ class CollectiveModel(Spec):
 
 
 class HardwareSpec(Spec):
+    bandwidth_schedules: dict[str, list[tuple[Annotated[float, Field(ge=0)], Annotated[float, Field(gt=0)]]]] = Field(
+        default_factory=dict, description='Resource ID to ordered (simulation seconds, effective byte/s) changes.')
     name: str = 'unspecified hardware profile'
     npu_count: int = Field(default=8, gt=0)
     su_size: int = Field(default=8, gt=0)
@@ -582,8 +584,18 @@ class HardwareSpec(Spec):
     calibration_context: dict[str, StrictStr] = Field(default_factory=dict)
     collective_models: list[CollectiveModel] = Field(default_factory=list)
 
+    @model_serializer(mode='wrap')
+    def omit_empty_bandwidth_schedules(self, handler):
+        data = handler(self)
+        if not self.bandwidth_schedules:
+            data.pop('bandwidth_schedules', None)
+        return data
+
     @model_validator(mode='after')
     def topology_valid(self):
+        for key, points in self.bandwidth_schedules.items():
+            if any(b[0] <= a[0] for a, b in zip(points, points[1:])):
+                raise ValueError(f'{key}: bandwidth schedule times must be strictly increasing')
         if self.su_size > self.npu_count or self.npu_count % self.su_size:
             raise ValueError('su_size must divide npu_count')
         if self.topology == 'explicit' and not self.explicit_links:

@@ -140,7 +140,10 @@ def _effective_hardware(hardware):
     # decomposition can change local service/contending work, so guard it.
     if hardware.get('kernel_traces'):
         result['kernel_traces'] = hardware['kernel_traces']
-    handled = set(result) | {"mesh_width", "leaf_size", "explicit_links", "remote", "ssd", "kernel_traces"}
+    schedules = {key: points for key, points in hardware.get('bandwidth_schedules', {}).items() if points}
+    if schedules:
+        result['bandwidth_schedules'] = schedules
+    handled = set(result) | {"mesh_width", "leaf_size", "explicit_links", "remote", "ssd", "kernel_traces", "bandwidth_schedules"}
     if hardware.get('calibration_context'):
         result['calibration_context'] = hardware['calibration_context']
     ignored = {"collective_profiles", "collective_models", "calibration_context", "source", "description", "notes", "metadata"}

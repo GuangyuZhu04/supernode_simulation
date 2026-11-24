@@ -138,6 +138,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         # the intentionally skipped prefill; the sink still records that state.
         builder.collective, builder.kernel = skip_prefill_collective, skip_prefill_kernel
     graph = builder.g
+    scheduled = spec.hardware.bandwidth_schedules
     permanent = defaultdict(float)
     named = {}
     initialized = False
@@ -282,6 +283,8 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
             else summarize_collective_calibration(chunk))
         used_resources = {key for event in chunk.events for key in event.work}
         chunk.resources = {key: chunk.resources[key] for key in used_resources}
+        for key in used_resources.intersection(scheduled):
+            chunk.resources[key] = chunk.resources[key].relative_to(duration)
         initial_bytes = defaultdict(float)
         initial_categories = defaultdict(lambda: defaultdict(float))
         for allocation in chunk.initial_allocations:
@@ -292,7 +295,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         # in the key. Token releases can refer to earlier layers and are cheap,
         # so they deliberately bypass caching.
         cache_key = None
-        if not replay and (terminal.id.endswith('.layer_done') or terminal.metadata.get('_stream_component')):
+        if not scheduled and not replay and (terminal.id.endswith('.layer_done') or terminal.metadata.get('_stream_component')):
             digest = hashlib.sha256()
             # Attribution changes are part of cache identity even when event
             # timings happen to match. The version prevents old compact cache
@@ -499,6 +502,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
         sink.accept = None
         sink = None
 
+    builder.topo.validate_scheduled_resources()
     metrics = {'duration_s': duration, 'ttft_s': None, 'tpot_s': None}
     latency = latency_breakdown_metadata()
     token_times = [row['end_s'] for row in marker_trace]
@@ -571,7 +575,7 @@ def run_streaming(config: Config | dict, *, phase: str = 'all',
             'resource_busy_s': dict(all_busy), 'diagnostics': diagnostics,
             'resources': {key: {'capacity': resource.capacity, 'unit': resource.unit,
                 'kind': resource.kind, 'work': all_work.get(key, 0), 'busy_s': all_busy.get(key, 0),
-                'utilization': all_work.get(key, 0) / (resource.capacity * duration) if duration else 0}
+                'utilization': all_work.get(key, 0) / resource.available_work(duration) if duration else 0}
                 for key, resource in graph.resources.items() if key in all_work}},
         'memory_capacities_bytes': dict(graph.memory_caps),
         'resident_memory_bytes': dict(initial_resident),

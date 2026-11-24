@@ -78,10 +78,18 @@ class Topology:
         self._build_network()
 
     def _resource(self, key: str, capacity: float, unit: str = "byte/s", kind: str = "bandwidth") -> None:
-        resource = Resource(key, float(capacity), unit, kind)
+        schedule = self.hardware.get('bandwidth_schedules', {}).get(key, ())
+        if schedule and unit != 'byte/s':
+            raise ValueError(f'{key} is not a bandwidth resource')
+        resource = Resource(key, float(capacity), unit, kind, tuple(map(tuple, schedule)))
         self.resources[key] = resource
         for graph in self.graphs:
             graph.resources[key] = resource
+
+    def validate_scheduled_resources(self):
+        unknown = set(self.hardware.get('bandwidth_schedules', ())).difference(self.resources)
+        if unknown:
+            raise ValueError(f'Unknown bandwidth schedule resources: {sorted(unknown)}')
 
     def _memory(self, key: str, capacity: float, bandwidth: float) -> None:
         self.memory_caps[key] = float(capacity)

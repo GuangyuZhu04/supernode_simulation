@@ -17,6 +17,7 @@ from pydantic import Field, StrictInt, StrictStr, model_validator
 from .analysis import run
 from .cache import BoundedCache
 from .config import Config, Spec
+from .core import shift_schedule
 
 
 class ServingRequest(Spec):
@@ -195,10 +196,16 @@ def simulate_serving(config: Config | dict, serving: ServingSpec | dict) -> dict
         input_lengths = tuple(request.input_tokens for _, request in batch)
         output_lengths = tuple(request.output_tokens for _, request in batch)
         key = (input_lengths, output_lengths)
+        model_start = _time_sum(dispatch, spec.scheduler_overhead_s)
+        schedules = {name: shift_schedule(points, model_start)
+                     for name, points in base_spec.hardware.bandwidth_schedules.items()}
+        if schedules:
+            key += (tuple(sorted(schedules.items())),)
         execution = cache.get(key)
         cache_hit = execution is not None
         if execution is None:
             data = deepcopy(base)
+            data['hardware']['bandwidth_schedules'] = schedules
             data['targets'] = {}
             data['workload'].update(batch_size=len(batch), input_length=input_lengths[0], output_length=output_lengths[0],
                                     input_lengths=list(input_lengths), output_lengths=list(output_lengths))
@@ -212,7 +219,6 @@ def simulate_serving(config: Config | dict, serving: ServingSpec | dict) -> dict
             cache[key] = execution
         else:
             cache_hits += 1
-        model_start = _time_sum(dispatch, spec.scheduler_overhead_s)
         end = _time_sum(model_start, execution['duration_s'])
         available[instance] = end
         success = execution['engine_status'] == 'feasible'
