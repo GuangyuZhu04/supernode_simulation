@@ -11,6 +11,10 @@ from typing import Any
 
 
 _SUPPORTED = {
+    'flash_attention': (['training'], ['execution.flash_attention_blocks', 'execution.overlap_attention_tp'],
+        'Structured dense causal attention uses explicit tile DMA and compute. Optional forward/recompute output blocks can feed TP all-reduce.'),
+    'training_qos': (['training'], ['execution.features.training_qos'],
+        'Weighted service on shared fabric and priority at ready collective slots. Weights are per transfer; benefits depend on contention.'),
     'training_task': (['training'], ['workload.training'],
         'Pretraining, masked SFT, DPO and synchronous PPO/GRPO schedules reuse structured operators; role state, rollout, scoring and updates are explicit. RL requires PP=FSDP=1 on a shared serial pool.'),
     'precision': (['training', 'inference'], ['execution.precision'],
@@ -24,9 +28,9 @@ _SUPPORTED = {
         'KV placement, page rounding, metadata and transfers are modeled; this is not a paged-attention scheduler implementation.'),
     'sequence_parallel': (['inference'], ['execution.sequence_parallel'],
         'Requires structured inference, TP>1 and PP=1; sequence parallelism shares TP ranks.'),
-    'fsdp': (['training'], ['execution.fsdp', 'execution.reshard_after_forward', 'execution.sync_each_microbatch', 'execution.prefetch'],
-        'FSDP is a DP subgroup. Structured lookahead prefetch is unsupported.'),
-    'parallelism': (['training', 'inference'], ['execution.tp', 'execution.pp', 'execution.ep', 'execution.dp', 'execution.rank_order'],
+    'fsdp': (['training'], ['execution.fsdp', 'execution.reshard_after_forward', 'execution.sync_each_microbatch', 'execution.prefetch', 'execution.prefetch_layers', 'execution.overlap_gradient_sync'],
+        'FSDP is a DP subgroup. Bounded layer prefetch and asynchronous gradient reduction retain live buffers until their consumers finish.'),
+    'parallelism': (['training', 'inference'], ['execution.tp', 'execution.pp', 'execution.ep', 'execution.dp', 'execution.dp_domain_size', 'execution.rank_order'],
         'Physical rank count, placement and collective work remain subject to configuration validation.'),
     'optimizer': (['training'], ['execution.optimizer'],
         'Adam and analytical Muon component work are modeled; distributed Muon is not implemented.'),
@@ -53,7 +57,6 @@ _UNSUPPORTED = {
     'prefix_cache': 'Dynamic prefix lookup, eviction and cross-request reuse are not implemented.',
     'chunked_prefill': 'Serving-level chunk scheduling and prefill/decode interleaving are not implemented.',
     'mhc': 'Manifold-constrained hyper-connections are not implemented.',
-    'flash_attention': 'No universal boolean speedup is modeled; select explicit kernel_profiles for a concrete kernel implementation.',
     'cuda_graphs': 'No universal graph-capture speedup is modeled; use explicit kernel_profiles and measured startup where appropriate.',
 }
 
@@ -134,7 +137,7 @@ def resolve_feature_input(data: dict) -> dict:
             disabled = value.get('enabled') is False
         if name == 'kv_offload' and isinstance(value, dict):
             disabled = value.get('location') == 'none' and not (set(value) - {'location'})
-        if name in ('speculative_decode', 'prefill_decode_disaggregation') and isinstance(value, dict):
+        if name in ('speculative_decode', 'prefill_decode_disaggregation', 'training_qos') and isinstance(value, dict):
             disabled = value.get('enabled') is False
         if name == 'fsdp' and isinstance(value, dict):
             disabled = value == {'degree': 1}
@@ -142,6 +145,7 @@ def resolve_feature_input(data: dict) -> dict:
             raise ValueError(f'features.{name} is only supported for {"/".join(scenarios)}')
 
     direct = {
+        'training_qos': 'execution.features.training_qos',
         'training_task': 'workload.training',
         'precision': 'execution.precision', 'optimizer': 'execution.optimizer',
         'sequence_parallel': 'execution.sequence_parallel',
@@ -169,6 +173,11 @@ def resolve_feature_input(data: dict) -> dict:
             target = {'location': 'kv_offload', 'fraction': 'kv_offload_fraction',
                       'page_tokens': 'kv_page_tokens', 'page_entry_bytes': 'kv_page_entry_bytes'}[key]
             _set_canonical(result, 'execution.features.' + target, value)
+    flash = supplied.get('flash_attention')
+    if flash:
+        _set_canonical(result, 'execution.flash_attention_blocks', flash['blocks'])
+        if 'overlap_tp' in flash:
+            _set_canonical(result, 'execution.overlap_attention_tp', flash['overlap_tp'])
     fsdp = supplied.get('fsdp')
     if fsdp is not None:
         for key, value in fsdp.items():
@@ -183,6 +192,8 @@ def build_feature_plan(config, calibration: dict | None = None) -> dict[str, Any
     options = execution['features']
     architecture = data['model'].get('architecture')
     selected = {
+        'flash_attention': execution['flash_attention_blocks'] > 0,
+        'training_qos': options['training_qos']['enabled'],
         'training_task': data['workload'].get('training') is not None,
         'precision': True,
         'activation_checkpointing': options['activation_checkpointing'],

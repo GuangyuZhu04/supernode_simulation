@@ -14,6 +14,7 @@ from .components import (parameter_inventory, inventory_summary, optimizer_state
                          attnres_state)
 from .core import Allocation, DTYPE_BYTES, Event, Graph, Resource
 from .training import pipeline_schedule
+from .training_schedule import gather_dependencies, prefetch_depth, replica_all_reduce
 from .sparse_attention import sparse_attention_state, sparse_attention_work, position_bias_rows
 from .moe_wire import moe_payload_matrix, moe_wire_metadata, wire_payload_parts
 from .calibration import model_shape_signature
@@ -34,7 +35,7 @@ class Builder:
         self.forward_only = False
         self.train_lengths = [self.w['sequence_length']] * self.w['batch_size']
         self.g = Graph()
-        topology.populate(self.g)
+        topology.populate(self.g, training_hbm_fraction=self.x['training_hbm_fraction'] if self.training else None)
         self.tensors = parameter_inventory(self.m)
         self.by_layer = {l: [t for t in self.tensors if t.layer == l] for l in range(self.m['layers'])}
         order = self.x['rank_order'] or list(range(self.h['npu_count']))
@@ -44,6 +45,7 @@ class Builder:
         self.saved = {}
         self.grad_buffers = {}
         self.retained_gathers = {}
+        self.attention_tp_outputs = {}
         self.cache = {}
         self.residual_blocks = defaultdict(list)
         self.pipeline_receives = {}
@@ -241,29 +243,38 @@ class Builder:
                 ['PreNorm', self.a['attention_by_layer'][layer], 'PostNorm', self.a['ffn_by_layer'][layer]] +
                 (['Output'] if layer == self.m['layers'] - 1 else []))
 
-    def gather(self, name, layer, stage, deps):
+    def gather(self, name, layer, stage, deps, phase):
         allocations = []
         retained = []
-        payload = 0.0
+        sizes = {}
+        for tensor in self.local_tensors(layer):
+            elements = tensor.local_elements(self.tp, self.ep)
+            dtype = self.weight_dtype(tensor)
+            sizes[tensor.component] = sizes.get(tensor.component, 0) + elements * DTYPE_BYTES[dtype] + self.scale(elements, dtype)
+        payload = sum(sizes.values())
         for rank, coord in self.coords.items():
             if coord[1] != stage:
                 continue
-            for component in self.component_order(layer):
-                amount = sum(t.local_elements(self.tp, self.ep) * DTYPE_BYTES[self.weight_dtype(t)] + self.scale(t.local_elements(self.tp, self.ep), self.weight_dtype(t)) for t in self.local_tensors(layer, component))
+            for component, amount in sizes.items():
                 if amount:
                     aid = name + f'.{rank}.{component}.gathered'
                     allocations.append(self.allocation(aid, rank, amount, component, 'gathered_weight', layer))
                     retained.append(aid)
-            payload = sum(t.local_elements(self.tp, self.ep) * DTYPE_BYTES[self.weight_dtype(t)] + self.scale(t.local_elements(self.tp, self.ep), self.weight_dtype(t)) for t in self.local_tensors(layer))
         ready = self.barrier(name + '.gather_allocate', deps, allocations)
         ends = []
         for i, ranks in enumerate(self.groups(stage, 'fsdp')):
-            ends += self.collective(name + f'.gather{i}', 'all_gather', ranks, payload, (ready,), 'System', layer)
+            ends += self.collective(name + f'.gather{i}', 'all_gather', ranks, payload, (ready,), 'System', layer,
+                phase=phase, wire_metadata={'parallel_axis': 'fsdp', 'category': 'fsdp_weights'})
         return self.barrier(name + '.gather_done', ends), retained
 
     def activation_rows(self, layer, tokens, *, checkpoint=False, training=None):
-        return component_activations(self.m, layer, tokens, tp=self.tp, ep=self.ep,
+        rows = component_activations(self.m, layer, tokens, tp=self.tp, ep=self.ep,
                                     training=self.training if training is None else training, checkpointing=checkpoint)
+        if self.training and self.x['flash_attention_blocks']:
+            for row in rows:
+                if row['name'] == 'softmax_lse' and row['component'] in ('MHA', 'GQA', 'MQA', 'MLA'):
+                    row['dtype'] = 'fp32'
+        return rows
 
     def inference_state_allocations(self, prefix, rank, layer, lengths, step):
         """Grow persistent committed state; speculative candidate buffers are separate."""
@@ -442,7 +453,7 @@ class Builder:
             work[selection] = sparse['selection_operations'] / (self.ep if self.training else 1)
         if backward:
             work[rank + '.hbm'] += active_elements * DTYPE_BYTES[self.p['gradient']]
-        return self.add(Event(name, tuple(pending), work, slots=(rank + '.compute_stream',),
+        event = Event(name, tuple(pending), work, slots=(rank + '.compute_stream',),
             allocs=tuple(allocations), releases=tuple(releases) + ((conversion_id,) if conversion_id else ()),
             metadata={'kernel': component.lower(), 'component': component, 'layer': layer, 'phase': phase,
                       'flops': flops, 'working_set_bytes': weight_reads + working + cache_reads,
@@ -453,7 +464,12 @@ class Builder:
                       'model_shape_signature': self.model_shape_signature,
                       'tensor_parallel_degree': self.tp, 'expert_parallel_degree': self.ep,
                        'sequence_parallel_degree': self.tp if self.sp else 1,
-                       **({'sparse_attention': sparse, 'selection_rate_assumption': 'Scalar operation throughput proxied by configured FP32 FLOP/s; calibrate with kernel profiles.'} if sparse is not None else {})}))
+                       **({'sparse_attention': sparse, 'selection_rate_assumption': 'Scalar operation throughput proxied by configured FP32 FLOP/s; calibrate with kernel profiles.'} if sparse is not None else {})})
+        if self.training and self.x['flash_attention_blocks'] and component in ('MLA', 'MHA', 'MQA', 'GQA'):
+            from .training_attention import flash_attention
+            parameter_bytes = weight_reads + (active_elements * DTYPE_BYTES[self.p['gradient']] if backward else 0)
+            return flash_attention(self, event, rank, lengths, tensors, parameter_bytes)
+        return self.add(event)
 
     def annotate_collective_allocations(self):
         for event in self.g.events:
@@ -498,6 +514,27 @@ class Builder:
         scales = (ceil(elements / self.f['kv_scale_block']) * self.f['scale_bytes']
                   if elements and self.p['kv'] in ('fp4', 'fp8', 'int8') else 0)
         return data + scales
+
+    def training_tp_reduce(self, name, component, layer, stage, ranks, tokens, deps, phase):
+        width = self.m['hidden_dim'] * DTYPE_BYTES[self.p['communication']]
+        groups = self.groups(stage, 'tp')
+        if deps[0] not in self.attention_tp_outputs:
+            return [end for i, group in enumerate(groups)
+                    for end in self.collective(name + f'.{component}.tp{i}', 'all_reduce', group,
+                        tokens * width, deps, component, layer, activation=True, phase=phase)]
+        chunks = {rank: self.attention_tp_outputs.pop(eid) for rank, eid in zip(ranks, deps)}
+        terminals = list(deps)  # Keep parent releases and any final compute on the layer path.
+        for i, group in enumerate(groups):
+            previous = []
+            for q, parts in enumerate(zip(*(chunks[rank] for rank in group))):
+                projected, rows, buffers = zip(*parts)
+                prefix = name + f'.{component}.tp{i}.q{q}'
+                ends = self.collective(prefix, 'all_reduce', group, rows[0] * width,
+                    [*projected, *previous], component, layer, activation=True, phase=phase,
+                    wire_metadata={'parallel_axis': 'tp', 'query_block': q})
+                previous = [self.barrier(prefix + '.done', ends, releases=buffers)]
+            terminals.extend(previous)
+        return terminals
 
     def recompute_layer(self, name, layer, stage, ranks, tokens, deps):
         """Replay the entire forward layer, including TP/EP communication."""
@@ -558,12 +595,8 @@ class Builder:
                         wire_metadata=moe_wire_metadata(self.p, 'combine', width, top_k=self.m['top_k'], num_experts=self.m['num_experts']))
                 previous = terminals
             if component in (self.a['attention_by_layer'][layer], self.a['ffn_by_layer'][layer]) and self.tp > 1:
-                terminals = []
-                for i, group in enumerate(self.groups(stage, 'tp')):
-                    terminals += self.collective(name + f'.recompute.{component}.tp{i}', 'all_reduce', group,
-                        tokens * self.m['hidden_dim'] * DTYPE_BYTES[self.p['communication']], previous,
-                        component, layer, activation=True)
-                previous = terminals
+                previous = self.training_tp_reduce(name + '.recompute', component, layer, stage,
+                                                   ranks, tokens, previous, 'recompute')
         return previous, retained
 
     def inference(self, *, phase='all', initial_dependencies=()):
@@ -867,13 +900,16 @@ class Builder:
                             deps += [f'train.s{step}.p{stage+1}.backward.m{micro}.send']
                     previous = [self.barrier(prefix + '.start', deps)]
                     objective_release = []
+                    gathers, layer_ends, gradient_ends = [], [], []
                     for layer in self.stage_layers[stage][::1 if forward else -1]:
                         name = prefix + f'.l{layer}'
                         gathered = []
                         if self.fsdp > 1:
                             if self.x['reshard_after_forward'] or (forward and micro == 0):
-                                end, gathered = self.gather(name, layer, stage, previous)
-                                previous = [end]
+                                gather_deps = gather_dependencies(previous, gathers, layer_ends, prefetch_depth(self.x))
+                                end, gathered = self.gather(name, layer, stage, gather_deps, phase)
+                                gathers.append(end)
+                                previous = list(dict.fromkeys([*previous, end]))
                                 if not self.x['reshard_after_forward']:
                                     self.retained_gathers[step, layer] = gathered
                                     gathered = []
@@ -971,25 +1007,37 @@ class Builder:
                                         phase=phase, wire_metadata=moe_wire_metadata(self.p, 'combine', width, top_k=self.m['top_k'], num_experts=self.m['num_experts']))
                                 previous = terminals
                             if component in (self.a['attention_by_layer'][layer], self.a['ffn_by_layer'][layer]) and self.tp > 1:
-                                terminals = []
-                                for i, group in enumerate(self.groups(stage, 'tp')):
-                                    terminals += self.collective(name + f'.{component}.tp{i}', 'all_reduce', group, local_tokens * self.m['hidden_dim'] * DTYPE_BYTES[self.p['communication']], previous, component, layer, activation=True)
-                                previous = terminals
+                                previous = self.training_tp_reduce(name, component, layer, stage,
+                                    ranks, local_tokens, previous, phase)
                         if not forward:
                             all_elements = sum(t.local_elements(self.tp, self.ep) for t in self.local_tensors(layer))
                             dense_elements = sum(t.local_elements(self.tp, self.ep) for t in self.local_tensors(layer) if not t.ep_shard)
                             sync = self.x['sync_each_microbatch'] or micro == self.w['gradient_accumulation'] - 1
                             if sync:
+                                compute_done = previous
+                                previous = [*previous, *gradient_ends[-1:]]
                                 for axis, kind, elements in [('fsdp', 'reduce_scatter', all_elements), ('replica', 'all_reduce', all_elements / self.fsdp), ('ep', 'all_reduce', dense_elements / self.fsdp)]:
+                                    if axis == 'replica':
+                                        previous = replica_all_reduce(self.g, self.topo, name + '.gradient.replica',
+                                            self.groups(stage, axis), elements * DTYPE_BYTES[self.p['gradient']],
+                                            previous, self.x, {'phase': phase, 'category': 'data_parallel_gradients',
+                                                               'component': 'System', 'layer': layer})
+                                        continue
                                     terminals = []
                                     for i, group in enumerate(self.groups(stage, axis)):
-                                        terminals += self.collective(name + f'.gradient.{axis}{i}', kind, group, elements * DTYPE_BYTES[self.p['gradient']], previous, 'System', layer)
-                                    previous = terminals
-                                if self.fsdp > 1:
-                                    layer_release += [aid for rank in ranks for aid in self.grad_buffers.pop((step, layer, rank))]
+                                        terminals += self.collective(name + f'.gradient.{axis}{i}', kind, group, elements * DTYPE_BYTES[self.p['gradient']], previous, 'System', layer, phase=phase,
+                                            wire_metadata={'parallel_axis': axis, 'buffer_dtype': self.p['gradient']})
+                                    previous = list(dict.fromkeys(terminals))
+                                grad_release = [aid for rank in ranks for aid in self.grad_buffers.pop((step, layer, rank), [])]
+                                if self.x['overlap_gradient_sync'] and (self.dp > 1 or self.ep > 1):
+                                    gradient_ends.append(self.barrier(name + '.gradient.done', previous, releases=grad_release))
+                                    previous = compute_done
+                                else:
+                                    layer_release.extend(grad_release)
                             if micro == self.w['gradient_accumulation'] - 1 and not self.x['reshard_after_forward']:
                                 layer_release += self.retained_gathers.pop((step, layer), [])
                         previous = [self.barrier(name + '.done', previous, releases=gathered + layer_release)]
+                        layer_ends.append(previous[0])
                     extra_release = []
                     source_stage = stage - 1 if forward else stage + 1
                     if 0 <= source_stage < self.pp:
@@ -1004,16 +1052,18 @@ class Builder:
                     if forward and stage == self.pp - 1 and loss_hook:
                         previous = loss_hook(prefix, stage, micro, previous)
                         extra_release += objective_release
-                    end = self.barrier(prefix + '.done', previous, releases=extra_release)
+                    end = self.barrier(prefix + '.done', previous + gradient_ends[-1:], releases=extra_release)
                     transfers = []
                     next_stage = stage + (1 if forward else -1)
                     if 0 <= next_stage < self.pp:
                         for d, e, t in product(range(self.dp), range(self.ep), range(self.tp)):
                             rank, dest = self.ranks[d, stage, e, t], self.ranks[d, next_stage, e, t]
                             transferred, _ = self.pipeline_transfer(prefix + f'.{rank}.pipeline', rank, dest,
-                                local_tokens * self.m['hidden_dim'], (end,))
+                                local_tokens * self.m['hidden_dim'], previous)
                             transfers.append(transferred)
-                    stage_previous[stage] = self.barrier(prefix + '.send', transfers or (end,))
+                    sent = self.barrier(prefix + '.send', transfers or (end,))
+                    stage_previous[stage] = end if self.x['overlap_pipeline_p2p'] else self.barrier(
+                        prefix + '.stage_ready', (end, sent))
             if self.forward_only:
                 self.barrier(f'train.step{step}.done', list(stage_previous.values()))
             else:

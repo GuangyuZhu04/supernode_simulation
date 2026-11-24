@@ -5,7 +5,7 @@ import copy
 import json
 import math
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, model_validator, model_serializer
@@ -893,7 +893,15 @@ class PrefillDecodeDisaggregationSpec(Spec):
         return self
 
 
+class TrainingQoSSpec(Spec):
+    enabled: StrictBool = False
+    weights: dict[Literal['pp', 'tp', 'ep', 'fsdp_gather', 'fsdp_reduce_scatter', 'dp', 'other'],
+                  Annotated[StrictInt, Field(gt=0, le=65535)]] = Field(default_factory=dict,
+        description='Relative fabric service weights per transfer. Unspecified classes have weight 1.')
+
+
 class FeatureSpec(Spec):
+    training_qos: TrainingQoSSpec = Field(default_factory=TrainingQoSSpec)
     optimizer_offload: bool = False
     activation_checkpointing: bool = False
     kv_offload: Literal['none', 'host', 'remote'] = 'none'
@@ -922,6 +930,17 @@ class ExecutionSpec(Spec):
     reshard_after_forward: bool = True
     sync_each_microbatch: bool = False
     prefetch: bool = False
+    prefetch_layers: StrictInt | None = Field(default=None, ge=0,
+        description='FSDP lookahead within a stage and pass. When omitted, prefetch=true selects one layer.')
+    overlap_gradient_sync: bool = False
+    overlap_pipeline_p2p: bool = True
+    overlap_attention_tp: bool = False
+    flash_attention_blocks: StrictInt = Field(default=0, ge=0,
+        description='Causal sequence partitions for the structured training FlashAttention I/O pipeline. Zero uses the component kernel.')
+    training_hbm_fraction: float = Field(default=0.90, gt=0, le=1,
+        description='Fraction of physical HBM available to all modeled training allocations, including runtime and workspaces.')
+    dp_domain_size: StrictInt | None = Field(default=None, gt=0,
+        description='Logical DP ranks per gradient-reduction domain, including FSDP shards. Omit for a flat replica all-reduce.')
     precision: PrecisionSpec = Field(default_factory=PrecisionSpec)
     features: FeatureSpec = Field(default_factory=FeatureSpec)
     optimizer: OptimizerSpec = Field(default_factory=OptimizerSpec)
@@ -933,6 +952,7 @@ class ParallelCandidate(Spec):
     ep: int = Field(default=1, gt=0)
     dp: int = Field(default=1, gt=0)
     fsdp: int = Field(default=1, gt=0)
+    dp_domain_size: StrictInt | None = Field(default=None, gt=0)
     rank_order: list[int] = Field(default_factory=list)
 
 
@@ -948,6 +968,8 @@ class FSDPSelection(Spec):
     reshard_after_forward: StrictBool = True
     sync_each_microbatch: StrictBool = False
     prefetch: StrictBool = False
+    prefetch_layers: StrictInt | None = Field(default=None, ge=0)
+    overlap_gradient_sync: StrictBool = False
 
 
 class ParallelismSelection(Spec):
@@ -955,6 +977,7 @@ class ParallelismSelection(Spec):
     pp: int = Field(default=1, gt=0)
     ep: int = Field(default=1, gt=0)
     dp: int = Field(default=1, gt=0)
+    dp_domain_size: StrictInt | None = Field(default=None, gt=0)
     rank_order: list[int] = Field(default_factory=list)
 
 
@@ -973,7 +996,14 @@ class AttentionSelection(Spec):
     hca: HCASpec | None = None
 
 
+class FlashAttentionSelection(Spec):
+    blocks: StrictInt = Field(ge=0)
+    overlap_tp: StrictBool = False
+
+
 class FeatureSelectionSpec(Spec):
+    training_qos: TrainingQoSSpec | None = None
+    flash_attention: FlashAttentionSelection | None = None
     training_task: TrainingTaskSpec | None = None
     precision: PrecisionSpec | None = None
     activation_checkpointing: StrictBool | None = None
@@ -999,6 +1029,9 @@ class TargetSpec(Spec):
     step_time_s: float | None = Field(default=None, gt=0)
     candidate_npu_counts: list[int] = Field(default_factory=list)
     candidate_su_sizes: list[int] = Field(default_factory=list)
+    candidate_dp_domain_sizes: list[StrictInt] = Field(default_factory=list)
+    training_global_batch_size: StrictInt | None = Field(default=None, gt=0,
+        description='In size-su training searches, keep this many microbatch samples per optimizer step by adjusting accumulation.')
     parallel_candidates: list[ParallelCandidate] = Field(default_factory=list)
     total_npus: int | None = Field(default=None, gt=0)
     max_total_npus: int | None = Field(default=None, gt=0)
@@ -1006,7 +1039,7 @@ class TargetSpec(Spec):
 
     @model_validator(mode='after')
     def ranges(self):
-        if any(x < 1 for x in self.candidate_npu_counts + self.candidate_su_sizes):
+        if any(x < 1 for x in self.candidate_npu_counts + self.candidate_su_sizes + self.candidate_dp_domain_sizes):
             raise ValueError('candidate counts must be positive')
         return self
 
@@ -1072,6 +1105,19 @@ class Config(Spec):
                 raise ValueError('sequence_parallel currently requires PP=1; SP pipeline forwarding is not modeled')
         if e.dp % e.fsdp:
             raise ValueError('fsdp must divide dp')
+        if e.dp_domain_size is not None and (e.dp % e.dp_domain_size or e.dp_domain_size % e.fsdp):
+            raise ValueError('dp_domain_size must divide dp and contain whole FSDP groups')
+        if e.flash_attention_blocks and (m.architecture is None or not any(
+                kind in ('MHA', 'GQA', 'MQA', 'MLA') for kind in m.architecture.attention_by_layer)):
+            raise ValueError('flash_attention_blocks requires structured MHA, GQA, MQA or MLA layers')
+        if e.overlap_attention_tp and (e.flash_attention_blocks < 2 or e.tp < 2):
+            raise ValueError('overlap_attention_tp requires flash_attention_blocks >= 2 and TP > 1')
+        if self.workload.scenario != 'training' and (e.prefetch or e.prefetch_layers or
+                e.flash_attention_blocks or e.overlap_gradient_sync or e.dp_domain_size is not None or
+                self.targets.candidate_dp_domain_sizes or self.targets.training_global_batch_size is not None):
+            raise ValueError('FSDP lookahead, training overlap and DP domain search require a training workload')
+        if self.workload.training and self.workload.training.kind == 'rl' and self.targets.training_global_batch_size:
+            raise ValueError('training_global_batch_size describes optimizer steps; RL search uses rollout/update batches')
         if e.optimizer.kind == 'muon' and m.architecture is None:
             raise ValueError('Muon requires explicit component tensor shapes in model.architecture')
         if m.architecture and m.architecture.tie_embeddings and e.pp > 1:
@@ -1084,8 +1130,6 @@ class Config(Spec):
         if unsupported_fp4:
             raise ValueError(f'FP4 is currently supported for component weight storage only, not {unsupported_fp4}')
         if m.architecture:
-            if e.prefetch:
-                raise ValueError('Component architecture path does not yet model FSDP lookahead prefetch; set prefetch=false')
             if m.num_heads % e.tp:
                 raise ValueError('Shape-derived attention requires num_heads divisible by TP')
             if 'KDA' in m.architecture.attention_by_layer and m.architecture.kda.num_heads % e.tp:
@@ -1143,6 +1187,8 @@ class Config(Spec):
         if any(i < 0 or i >= m.layers for i in f.engram.layers) or len(set(f.engram.layers)) != len(f.engram.layers):
             raise ValueError('engram.layers must be unique valid layer indices')
         if self.workload.scenario == 'inference':
+            if f.training_qos.enabled:
+                raise ValueError('training_qos requires a training workload')
             if f.optimizer_offload or f.activation_checkpointing or e.fsdp != 1:
                 raise ValueError('optimizer offload, activation checkpointing and FSDP are training-only')
             if self.targets.step_time_s is not None:

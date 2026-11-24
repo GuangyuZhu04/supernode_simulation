@@ -198,7 +198,7 @@ class _Schedule:
     def __init__(self, config, topology):
         self.config, self.topology = config, topology
         self.graph = Graph()
-        topology.populate(self.graph)
+        topology.populate(self.graph, training_hbm_fraction=config['execution']['training_hbm_fraction'])
         self.residents = {}
         self.previous = None
         self.stages = []
@@ -228,7 +228,8 @@ class _Schedule:
             for allocation in event.allocs:
                 allocations[allocation.id] = prefix + '.' + allocation.id
         self.graph.resources.update(graph.resources)
-        self.graph.memory_caps.update(graph.memory_caps)
+        # All roles share this physical pool, including rollout; keep the
+        # enclosing training budget across inference and training subgraphs.
         start = prefix + '.start'
         self.graph.events.append(Event(start, (self.previous,) if self.previous else (),
                                        metadata={'training_stage': stage, 'training_role': role}))

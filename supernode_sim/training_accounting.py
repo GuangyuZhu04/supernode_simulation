@@ -38,7 +38,7 @@ def _model_work(metadata: dict) -> tuple[float, float]:
         return 0.0, 0.0
     kernel = metadata.get('original_kernel', metadata.get('kernel'))
     component = metadata.get('component')
-    is_model = (kernel in ('training_forward', 'training_backward', 'training_recompute')
+    is_model = (metadata.get('training_attention_part') or kernel in ('training_forward', 'training_backward', 'training_recompute')
                 or bool(component and kernel == str(component).lower()))
     if not is_model:
         return 0.0, 0.0
@@ -55,6 +55,56 @@ def _optimizer_work(metadata: dict) -> float:
     return (metadata.get('flops', 0.0)
             if metadata.get('phase') == 'optimizer'
             and metadata.get('original_kernel', metadata.get('kernel')) in ('adam', 'muon') else 0.0)
+
+
+def training_communication(graph, simulation):
+    """Union intervals per physical rank. Concurrent sends and receives count once."""
+    compute, fabric = defaultdict(list), defaultdict(list)
+    classes = {}
+    events = {event.id: event for event in graph.events}
+
+    def append(intervals, start, end):
+        if intervals and start <= intervals[-1][1]:
+            intervals[-1][1] = max(intervals[-1][1], end)
+        else:
+            intervals.append([start, end])
+
+    for row in simulation['trace']:  # feasible simulation trace is start-time ordered
+        event = events[row['id']]
+        meta = event.metadata
+        start, end = row['start_s'], row['end_s']
+        if 'traffic_class' in meta:
+            for rank in (meta['src'], meta['dst']):
+                append(fabric[rank], start, end)
+            item = classes.setdefault(meta['traffic_class'], {'transfer_events': 0, 'payload_bytes': 0.0,
+                'slot_wait_event_s': 0.0, 'physical_bytes_by_domain': {}})
+            item['transfer_events'] += 1
+            item['payload_bytes'] += meta['payload_bytes']
+            item['slot_wait_event_s'] += row['slot_wait_s']
+            physical = item['physical_bytes_by_domain']
+            for domain, size in meta['physical_bytes_by_domain'].items():
+                physical[domain] = physical.get(domain, 0.0) + size
+        elif event.slots:
+            for key, amount in event.work.items():
+                rank, _, resource = key.partition('.')
+                if amount and rank.startswith('npu') and resource.startswith('compute'):
+                    append(compute[rank], start, end)
+                    break
+    overlap = communication = 0.0
+    for rank, transfers in fabric.items():
+        kernels = compute[rank]
+        communication += sum(end - start for start, end in transfers)
+        i = j = 0
+        while i < len(kernels) and j < len(transfers):
+            a, b = kernels[i], transfers[j]
+            overlap += max(0, min(a[1], b[1]) - max(a[0], b[0]))
+            if a[1] <= b[1]:
+                i += 1
+            else:
+                j += 1
+    return {'by_class': classes, 'network_rank_s': communication, 'overlap_with_compute_rank_s': overlap,
+            'overlap_fraction': overlap / communication if communication else None,
+            'basis': 'Union of SU/SO transfer event intervals intersected with NPU compute event intervals on the same rank, including launch time. Summed rank-seconds.'}
 
 
 def training_accounting(config: Config, graph: Graph, simulation: dict) -> dict:

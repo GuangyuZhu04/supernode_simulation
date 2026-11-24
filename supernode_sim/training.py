@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from .core import Allocation, DTYPE_BYTES, Event, Graph, Resource
 from .moe_wire import moe_token_bytes, moe_wire_metadata, wire_payload_parts
+from .training_schedule import gather_dependencies, prefetch_depth, replica_all_reduce
 
 if TYPE_CHECKING:
     from .topology import Topology
@@ -42,7 +43,7 @@ class _TrainingBuilder:
         self.checkpoint = self.features["activation_checkpointing"]
         self.reshard = self.exe["reshard_after_forward"]
         self.graph = Graph()
-        self.topo.populate(self.graph)
+        self.topo.populate(self.graph, training_hbm_fraction=self.exe['training_hbm_fraction'])
         order = self.exe.get("rank_order") or list(range(self.hw["npu_count"]))
         coords = product(range(self.dp), range(self.pp), range(self.ep), range(self.tp))
         self.ranks = {coord: f"npu{order[i]}" for i, coord in enumerate(coords)}
@@ -225,7 +226,9 @@ class _TrainingBuilder:
         pos = schedule.index((phase, micro))
         if pos:
             last_phase, last_micro = schedule[pos - 1]
-            return (self.phase_name(step, stage, last_phase, last_micro) + ".done",)
+            previous = self.phase_name(step, stage, last_phase, last_micro)
+            return (previous + ".done",) if self.exe["overlap_pipeline_p2p"] else (
+                previous + ".done", previous + ".send.done")
         return (f"train.step{step - 1}.done",) if step else ()
 
     def gather_name(self, step, stage, phase, micro, layer) -> str:
@@ -298,19 +301,16 @@ class _TrainingBuilder:
         start = self.barrier(prefix + ".start", deps)
         layers = self.stage_layers[stage][::1 if forward else -1]
         previous = start
-        for index, layer in enumerate(layers):
+        gathers, layer_ends, gradient_ends = [], [], []
+        depth = prefetch_depth(self.exe)
+        for layer in layers:
             name = self.layer_name(step, stage, phase, micro, layer)
             layer_deps = [previous]
             if self.fsdp > 1:
                 if self.reshard or (forward and micro == 0):
-                    # One-layer lookahead: next all-gather may overlap the
-                    # previous layer's compute but not its all-gather.
-                    gather_deps = [previous]
-                    if self.exe["prefetch"] and index:
-                        gather_deps = [self.gather_name(step, stage, phase, micro, layers[index - 1])]
-                        if index > 1:
-                            gather_deps.append(self.layer_name(step, stage, phase, micro, layers[index - 2]) + ".done")
-                    layer_deps.append(self.add_gather(step, stage, phase, micro, layer, gather_deps))
+                    gather_deps = gather_dependencies([previous], gathers, layer_ends, depth)
+                    gathers.append(self.add_gather(step, stage, phase, micro, layer, gather_deps))
+                    layer_deps.append(gathers[-1])
                 else:
                     layer_deps.append(self.gather_name(step, stage, phase, micro, layer))
             elif self.precision["compute"] != self.precision["weight"]:
@@ -401,7 +401,10 @@ class _TrainingBuilder:
                 terminals = self.collective(name + ".combine", stage, "ep", "all_to_all_v",
                     combine_bytes, terminals, {"phase": phase, "semantic": "combine", "layer": layer, **combine_wire})
             layer_releases = []
+            compute_done = terminals
             if not forward and (self.exe["sync_each_microbatch"] or micro == self.microbatches - 1):
+                if gradient_ends:
+                    terminals = [*terminals, gradient_ends[-1]]
                 if self.ep > 1 and self.dense_per_layer:
                     terminals = self.collective(name + ".dense_grad_ep", stage, "ep", "all_reduce",
                         self.size("gradient", self.dense_per_layer), terminals,
@@ -416,9 +419,12 @@ class _TrainingBuilder:
                             grad_id += f".m{micro}"
                         layer_releases.append(grad_id)
                 if self.dp > self.fsdp:
-                    terminals = self.collective(name + ".grad_replica", stage, "replica", "all_reduce",
-                        self.size("gradient", self.shard_params), terminals,
+                    terminals = replica_all_reduce(self.graph, self.topo, name + ".grad_replica",
+                        self.groups(stage, "replica"), self.size("gradient", self.shard_params), terminals, self.exe,
                         {"phase": phase, "category": "data_parallel_gradients", "layer": layer})
+                if self.exe["overlap_gradient_sync"] and (self.dp > 1 or self.ep > 1):
+                    gradient_ends.append(self.barrier(name + ".gradient.done", terminals, releases=layer_releases))
+                    terminals, layer_releases = compute_done, []
             if self.fsdp > 1 and (self.reshard or (not forward and micro == self.microbatches - 1)):
                 gather_prefix = name if self.reshard else self.layer_name(step, stage, "forward", 0, layer)
                 for rank in self.stage_ranks[stage]:
@@ -426,9 +432,10 @@ class _TrainingBuilder:
                     if self.precision["weight"] == "fp8":
                         layer_releases.append(gather_prefix + f".{rank}.gathered_scales")
             previous = self.barrier(name + ".done", terminals, releases=layer_releases)
+            layer_ends.append(previous)
         # End markers exclude asynchronous PP sends. A receiver waits for its
         # incoming send marker; a sender may continue computing after enqueue.
-        self.barrier(prefix + ".done", (previous,))
+        self.barrier(prefix + ".done", [previous, *gradient_ends[-1:]])
         neighbor = stage + 1 if forward else stage - 1
         transfers = []
         if 0 <= neighbor < self.pp:

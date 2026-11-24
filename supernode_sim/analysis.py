@@ -21,7 +21,7 @@ from .memory_breakdown import build_memory_breakdown
 from .latency_breakdown import (build_latency_breakdown, build_training_latency_breakdown,
                                 latency_breakdown_metadata)
 from .features import build_feature_plan
-from .training_accounting import training_accounting
+from .training_accounting import training_accounting, training_communication
 
 
 def model_fidelity(config: Config, calibration: dict, collective_calibration: dict | None = None) -> dict:
@@ -81,6 +81,11 @@ def compile_graph(config: Config | dict) -> Graph:
     else:
         from .inference import build_inference
         graph = build_inference(data, topology)
+    if spec.workload.scenario == 'training':
+        from .training_schedule import dp_domain_summary
+        from .training_qos import configure_training_qos
+        graph.metadata['dp_domains'] = dp_domain_summary(data['execution'], spec.hardware.su_size)
+        configure_training_qos(graph, data['execution'])
     if spec.model.architecture is None:
         graph.metadata['component_inventory'] = inventory_summary(data['model'])
         # Legacy training explicitly implements Adam, so its two same-size
@@ -251,6 +256,10 @@ def execution_metrics(config: Config, graph: Graph, simulation: dict) -> dict:
         metrics['first_step_time_s'] = step_times[0] if step_times else duration
         metrics['steady_step_time_s'] = sum(step_times[1:]) / len(step_times[1:]) if len(step_times) > 1 else None
         metrics['training_accounting'] = training_accounting(config, graph, simulation)
+        metrics['training_communication'] = training_communication(graph, simulation)
+        hbm_peak = max((size for pool, size in simulation['memory_peaks_bytes'].items() if pool.endswith('.hbm')), default=0)
+        metrics['training_hbm'] = {**meta['training_hbm'], 'peak_bytes_per_npu_max': hbm_peak,
+            'peak_fraction_of_physical': hbm_peak / config.hardware.npu.hbm_bytes}
         metrics['training_latency_breakdown'] = build_training_latency_breakdown(graph, simulation)
     else:
         completion = meta.get('sequence_token_completion_events', {})
@@ -330,12 +339,29 @@ def device_requirements(graph: Graph, npu_count: int, resource_work: dict) -> di
     return devices
 
 
+def workload_target_window(spec, graph):
+    windows = []
+    if spec.workload.scenario == 'training' and spec.targets.step_time_s:
+        windows.append(spec.targets.step_time_s * spec.workload.training_steps)
+    if spec.targets.throughput_tokens_s:
+        tokens = (spec.workload.batch_size * spec.workload.sequence_length * spec.workload.gradient_accumulation * spec.execution.dp * spec.workload.training_steps
+                  if spec.workload.scenario == 'training' else sum(spec.workload.output_lengths) * spec.execution.dp)
+        if graph.metadata.get('training_task'):
+            tokens = graph.metadata['training_task']['counts']['processed_tokens']
+        windows.append(tokens / spec.targets.throughput_tokens_s)
+    return min(windows) if windows else None
+
+
 def run(config: Config | dict, mode: str = 'simulate', *, full_detail: bool = True) -> dict[str, Any]:
     if mode not in ('estimate', 'simulate'):
         raise ValueError('mode must be estimate or simulate')
     spec = config if isinstance(config, Config) else Config.model_validate(config)
     graph = compile_graph(spec)
-    estimate = graph_estimate(graph)
+    return run_compiled(spec, graph, graph_estimate(graph), mode, full_detail=full_detail)
+
+
+def run_compiled(spec, graph, estimate, mode, *, full_detail):
+    """Use the same DAG and lower bound for candidate pruning and execution."""
     snapshot = spec.model_dump()
     snapshot['calibration'] = None  # Values and provenance are already resolved.
     result = {'schema_version': '1.0', 'engine_version': '0.1.0', 'mode': mode,
@@ -349,16 +375,7 @@ def run(config: Config | dict, mode: str = 'simulate', *, full_detail: bool = Tr
     # Avoid duplicating the entire DAG's analytical completion table in reports.
     result['estimate'].pop('optimistic_event_completion_s', None)
     duration = estimate['duration_lower_bound_s']
-    windows = []
-    if spec.workload.scenario == 'training' and spec.targets.step_time_s:
-        windows.append(spec.targets.step_time_s * spec.workload.training_steps)
-    if spec.targets.throughput_tokens_s:
-        tokens = (spec.workload.batch_size * spec.workload.sequence_length * spec.workload.gradient_accumulation * spec.execution.dp * spec.workload.training_steps
-                  if spec.workload.scenario == 'training' else sum(spec.workload.output_lengths) * spec.execution.dp)
-        if graph.metadata.get('training_task'):
-            tokens = graph.metadata['training_task']['counts']['processed_tokens']
-        windows.append(tokens / spec.targets.throughput_tokens_s)
-    target_window = min(windows) if windows else None
+    target_window = workload_target_window(spec, graph)
     devices = device_requirements(graph, spec.hardware.npu_count, estimate['resource_work'])
     result['requirements'] = {
         'per_resource': {key: {'work': amount, 'unit': graph.resources[key].unit,

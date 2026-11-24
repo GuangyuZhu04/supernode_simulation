@@ -216,9 +216,18 @@ class Topology:
                 for index in range(math.ceil(self.npu_count / self.npus_per_host)):
                     self._pair(f"cpu{index}", f"{name}0", params, "remote")
 
-    def populate(self, graph: Graph) -> None:
+    def populate(self, graph: Graph, *, training_hbm_fraction: float | None = None) -> None:
         graph.resources.update(self.resources)
         graph.memory_caps.update(self.memory_caps)
+        if training_hbm_fraction is not None:
+            physical = self.memory_caps['npu0.hbm']
+            usable = physical * training_hbm_fraction
+            for rank in range(self.npu_count):
+                graph.memory_caps[f'npu{rank}.hbm'] = usable
+            graph.metadata['training_hbm'] = {
+                'usable_fraction': training_hbm_fraction, 'physical_bytes_per_npu': physical,
+                'usable_bytes_per_npu': usable, 'reserved_bytes_per_npu': physical - usable,
+            }
         self.graphs.append(graph)
         graph.metadata.setdefault("topology", {"kind": self.kind, "npu_count": self.npu_count,
                                                "su_size": self.su_size, "npus_per_host": self.npus_per_host,
