@@ -144,7 +144,9 @@ def _main(argv: list[str] | None = None) -> int:
         output = write_report(result, args.output, full_detail=getattr(args, 'full_detail', False))
         summary = {'status': result['status'], 'output': str(output), 'metrics': {k: v for k, v in result.get('metrics', {}).items() if k != 'requests'}}
         if args.command == 'size-su':
-            summary['searches'] = {k: {'status': v['status'], 'minimum_su_size': v.get('minimum_su_size')} for k, v in result['searches'].items()}
+            summary['searches'] = {k: {'status': v['status'], 'minimum_su_size': v.get('minimum_su_size'),
+                                       **({'highest_throughput': v['highest_throughput']} if 'highest_throughput' in v else {})}
+                                   for k, v in result['searches'].items()}
         if args.command == 'feedback':
             best = result.get('best')
             summary.pop('metrics', None)
