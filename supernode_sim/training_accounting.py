@@ -28,24 +28,27 @@ POLICY = (
 )
 
 
-def _model_work(metadata: dict) -> tuple[float, float]:
-    """Return F+B and recompute work, including preserved fusion members."""
+def _model_work(metadata: dict) -> tuple[float, float, float, float]:
+    """Useful F+B, useful recompute, executed padding and dropped F+B work."""
     fusion = metadata.get('megakernel')
     if fusion:
         pieces = [_model_work(member) for member in fusion.get('member_metadata', [])]
-        return tuple(sum(piece[i] for piece in pieces) for i in (0, 1))
+        return tuple(sum(piece[i] for piece in pieces) for i in range(4))
     if metadata.get('training_update') is False:
-        return 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0
     kernel = metadata.get('original_kernel', metadata.get('kernel'))
     component = metadata.get('component')
     is_model = (metadata.get('training_attention_part') or kernel in ('training_forward', 'training_backward', 'training_recompute')
                 or bool(component and kernel == str(component).lower()))
     if not is_model:
-        return 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0
     flops = metadata.get('flops', 0.0)
     phase = metadata.get('phase')
-    return (flops if phase in ('forward', 'backward') else 0.0,
-            flops if phase == 'recompute' else 0.0)
+    padding = metadata.get('expert_padding_flops', 0.0)
+    useful = flops - padding
+    fb = phase in ('forward', 'backward')
+    return (useful if fb else 0.0, useful if phase == 'recompute' else 0.0,
+            padding, metadata.get('dropped_expert_flops', 0.0) if fb else 0.0)
 
 
 def _optimizer_work(metadata: dict) -> float:
@@ -81,6 +84,12 @@ def training_communication(graph, simulation):
             item['transfer_events'] += 1
             item['payload_bytes'] += meta['payload_bytes']
             item['slot_wait_event_s'] += row['slot_wait_s']
+            operation = meta.get('semantic') or meta.get('operation')
+            if meta.get('collective') == 'all_to_all_v' and operation in ('dispatch', 'combine'):
+                # Count each transfer once at its sender. Multi-hop link work is a different quantity.
+                phases = item.setdefault('routed_payload_bytes_by_phase', {})
+                directions = phases.setdefault(meta.get('phase', 'unclassified'), {})
+                directions[operation] = directions.get(operation, 0.0) + meta['payload_bytes']
             physical = item['physical_bytes_by_domain']
             for domain, size in meta['physical_bytes_by_domain'].items():
                 physical[domain] = physical.get(domain, 0.0) + size
@@ -119,6 +128,7 @@ def training_accounting(config: Config, graph: Graph, simulation: dict) -> dict:
 
     npu_phases, cpu_phases = defaultdict(float), defaultdict(float)
     npu_roles = dict.fromkeys(('model_forward_backward', 'model_recompute', 'optimizer', 'auxiliary'), 0.0)
+    dropped_fb = 0.0
     unknown_work = defaultdict(float)
     by_dtype = {}
     npu_ranks, cpu_ranks = set(), set()
@@ -137,12 +147,12 @@ def training_accounting(config: Config, graph: Graph, simulation: dict) -> dict:
         phase = str(event.metadata.get('phase') or 'unspecified')
         if phase not in known_phases:
             unknown_phases.add(phase)
-        model_flops, recompute_flops = _model_work(event.metadata)
+        model_flops, recompute_flops, padding, dropped = _model_work(event.metadata)
         optimizer_flops = _optimizer_work(event.metadata)
         # Supported compilers have exactly one compute resource per event.
         # Avoid attributing a metadata total twice if an imported graph does not.
         if len(computations) != 1:
-            model_flops = recompute_flops = optimizer_flops = 0.0
+            model_flops = recompute_flops = optimizer_flops = padding = dropped = 0.0
             unknown_resources.update(key for key, _ in computations)
         for key, amount in computations:
             if re.fullmatch(r'cpu\d+\.compute', key):
@@ -168,14 +178,17 @@ def training_accounting(config: Config, graph: Graph, simulation: dict) -> dict:
             row['executed_flops'] += amount
             row['flops_by_phase'][phase] += amount
             # A malformed metadata counter must not exceed the resource work.
-            if model_flops + recompute_flops + optimizer_flops > amount * (1 + 1e-9) + 1e-6:
+            if model_flops + recompute_flops + optimizer_flops + padding > amount * (1 + 1e-9) + 1e-6:
                 raise ValueError(f'Model FLOPs metadata exceeds executed work: {event.id}')
             row['model_forward_backward_flops'] += model_flops
             row['model_recompute_flops'] += recompute_flops
             npu_roles['model_forward_backward'] += model_flops
             npu_roles['model_recompute'] += recompute_flops
             npu_roles['optimizer'] += optimizer_flops
-            npu_roles['auxiliary'] += max(0.0, amount - model_flops - recompute_flops - optimizer_flops)
+            if padding:
+                npu_roles['expert_padding'] = npu_roles.get('expert_padding', 0.0) + padding
+            dropped_fb += dropped
+            npu_roles['auxiliary'] += max(0.0, amount - model_flops - recompute_flops - optimizer_flops - padding)
             if row['peak_flops_per_device_s'] is None:
                 unknown_resources.add(key)
 
@@ -189,11 +202,24 @@ def training_accounting(config: Config, graph: Graph, simulation: dict) -> dict:
             ideal_model_s += row['model_peak_device_seconds']
             ideal_executed_s += row['executed_peak_device_seconds']
     denominator = config.hardware.npu_count * duration
+    comparisons = {}
+    routing = config.execution.training_moe_routing
+    if routing:
+        comparisons['moe_routing'] = {**routing.model_dump(exclude_none=True),
+            'expert_padding_flops': npu_roles.get('expert_padding', 0.0),
+            'dropped_forward_backward_flops': dropped_fb}
+    reference = config.execution.training_mfu_reference
+    if reference:
+        w = config.workload
+        tokens = w.batch_size * w.sequence_length * w.gradient_accumulation * config.execution.dp * w.training_steps
+        peak = config.hardware.npu.flops[reference.dtype]
+        comparisons['reference_mfu'] = {**reference.model_dump(), 'tokens': tokens, 'peak_flops_per_device_s': peak,
+            'ratio': tokens * reference.model_flops_per_token / (denominator * peak)}
     cpu_flops = sum(cpu_phases.values())
     cpu_denominator = len(cpu_devices) * config.hardware.cpu.flops * duration
     return {
         'status': 'complete' if not unknown_resources else 'incomplete_resource_identity',
-        'duration_s': duration, 'npu_count': config.hardware.npu_count,
+        'duration_s': duration, 'npu_count': config.hardware.npu_count, **comparisons,
         'active_npu_ranks': sorted(npu_ranks),
         'model_mfu': ideal_model_s / denominator if not unknown_resources else None,
         'executed_compute_utilization': ideal_executed_s / denominator if not unknown_resources else None,

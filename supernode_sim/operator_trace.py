@@ -193,6 +193,11 @@ def apply_kernel_traces(graph: Graph, config: dict) -> None:
                 original_kernel=kernel, trace_id=trace['id'], trace_source=trace['source'],
                 trace_parent_event=event.id, operation_index=index,
                 operator_workspace_bytes=operation.get('workspace_bytes', 0))
+            # Parent-level routing counters follow the trace's conserved FLOP work.
+            for counter in ('expert_padding_flops', 'dropped_expert_flops'):
+                if counter in metadata:
+                    share = operation['flops'] / trace['flops'] if trace['flops'] else 0.0
+                    metadata[counter] *= share
             # HBM accesses are not a footprint. Preserve the existing component
             # proxy so refinement cannot erase it from device requirements.
             if 'working_set_bytes' in event.metadata:
@@ -220,7 +225,7 @@ def apply_kernel_traces(graph: Graph, config: dict) -> None:
         # Keep the original event identity for consumers, timing windows and
         # references held by pipeline/speculative/streaming compiler metadata.
         metadata = {key: value for key, value in event.metadata.items()
-                    if key not in ('kernel', 'flops', 'working_set_bytes', 'calibration')}
+                    if key not in ('kernel', 'flops', 'working_set_bytes', 'calibration', 'expert_padding_flops', 'dropped_expert_flops')}
         metadata.update(trace_id=trace['id'], trace_source=trace['source'],
                         original_kernel=kernel, operator_trace_completion=True)
         expanded.append(Event(event.id, dependencies, releases=event.releases, metadata=metadata))

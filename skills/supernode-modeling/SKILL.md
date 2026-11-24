@@ -9,6 +9,10 @@ description: Model supernode training and inference resources, optional accelera
 
 展示训练仿真结果时，交付输出目录中的 `training_summary.json` 和 `training_breakdown.svg`。用平均步关键路径解释时延，用同卡时间并集解释通信暴露和空泡，用峰值卡的同步快照解释 HBM。报告计算与暴露通信的主要算子时注明各自分母。估算或未完成的仿真请报告数据不可用。
 
+用公开训练日志校准 MFU 时，先对齐每步 token 数、激活卡数、精度峰值和日志的 FLOPs 分子。对比固定容量与 ragged EP 时，同时报告发送行、有效专家计算和填充开销。Marin 535B-A23B 的分阶段对照、可运行命令与适用范围见 [训练校准说明](references/training.md#marin-训练校准)。
+
+训练从单个超节点扩展到多个超节点时，用同一份已解析的模型、硬件速率和软件配置运行 `training-scaling`。先声明强扩展或弱扩展，再分列每卡发送字节、每卡暴露通信、步关键路径通信、峰值 HBM 和实测误差。实测留出点只用于评分。步骤、实测字段口径和 64/128/256 卡示例见 [跨规模训练验证](references/training.md#跨规模训练验证)。
+
 ## 找到可运行环境
 
 优先使用用户已给定的项目路径，其次检查 `SUPERNODE_SIM_ROOT` 环境变量，再检查当前工作目录及其父目录中的 `supernode_sim/` 与 `pyproject.toml`。如果本文件位于项目的 `skills/supernode-modeling/`，其上两级目录就是项目根目录。被复制到全局 skills 目录后，不能把该目录视为引擎所在项目。

@@ -1,0 +1,30 @@
+# Synthetic one-layer MoE for fast cross-supernode training scaling experiments.
+model:
+  name: synthetic-latent-moe
+  layers: 1
+  hidden_dim: 32
+  num_heads: 4
+  kv_heads: 2
+  head_dim: 8
+  architecture:
+    vocab_size: 64
+    attention_by_layer: [GQA]
+    ffn_by_layer: [MoE]
+    moe: {num_experts: 16, top_k: 2, num_shared_experts: 1, intermediate_dim: 64, latent_dim: 16}
+hardware:
+  name: synthetic-su64
+  npu_count: 64
+  npus_per_host: 8
+  su_size: 64
+  npu: {runtime_bytes: 65536, workspace_bytes: 16384, hbm_bytes: 268435456, hbm_Bps: 2.0e+11, flops: {fp32: 2.0e+11, fp16: 2.0e+12}}
+  scale_up: {bandwidth_Bps: 8.0e+10, latency_s: 1.0e-6}
+  scale_out: {bandwidth_Bps: 1.0e+10, latency_s: 5.0e-6}
+workload: {scenario: training, batch_size: 4, sequence_length: 8, training_steps: 1}
+execution:
+  ep: 2
+  dp: 32
+  dp_domain_size: 8
+  training_hbm_fraction: 0.9
+  training_moe_routing: {mode: ragged, expert_row_multiple: 4}
+sources:
+  '*': {status: assumed, description: 'Synthetic topology, rates, kernel alignment and workload for a regression example.'}

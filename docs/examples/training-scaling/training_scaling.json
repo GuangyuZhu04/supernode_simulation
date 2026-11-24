@@ -1,0 +1,276 @@
+{
+  "schema_version": 1,
+  "scaling": "strong",
+  "config": "training_scaling_moe.yaml",
+  "sources": {
+    "*": {
+      "status": "assumed",
+      "description": "Synthetic topology, rates, kernel alignment and workload for a regression example."
+    }
+  },
+  "calibration_context": {},
+  "assumptions": [],
+  "measured_holdouts_compared": 0,
+  "cases": [
+    {
+      "name": "n64",
+      "changes": {},
+      "prediction": {
+        "tokens_per_step": 1024.0,
+        "step_time_s": 3.752884002800257e-05,
+        "steady_step_time_s": null,
+        "throughput_tokens_s": 27285682.137682132,
+        "peak_hbm_bytes": 778752.0,
+        "exposed_comm_s_per_rank_per_step": 2.8721705882352958e-05,
+        "critical_path_comm_service_s_per_step": 2.872170588235296e-05,
+        "sent_payload_bytes_per_rank_per_step_by_class": {
+          "ep": 31936.0,
+          "dp": 153140.0
+        },
+        "ep_sent_bytes_per_rank_per_step_by_phase": {
+          "forward": {
+            "dispatch": 512.0,
+            "combine": 512.0
+          },
+          "backward": {
+            "dispatch": 512.0,
+            "combine": 512.0
+          }
+        },
+        "model_mfu": 0.024925470632772628,
+        "expert_padding_flops_per_step": 0.0
+      },
+      "observation": null,
+      "config_sha256": "19abe8a6c61b21763658bde232a71ada7cb07c95dcad6ffec19a84b89f8cb6eb",
+      "devices": 64,
+      "su_size": 64,
+      "parallelism": {
+        "dp": 32,
+        "tp": 1,
+        "pp": 1,
+        "ep": 2,
+        "fsdp": 1,
+        "dp_domain_size": 8
+      },
+      "simulation_status": "feasible",
+      "fidelity": {
+        "parameter_capacity": "shape_derived",
+        "activation_capacity": "analytical_kernel_layout",
+        "hardware_performance": "uncalibrated",
+        "hardware_performance_by_phase": {
+          "backward": "uncalibrated",
+          "forward": "uncalibrated",
+          "optimizer": "uncalibrated",
+          "weight_refresh": "uncalibrated"
+        },
+        "kernel_timing_evidence": {
+          "measurement": 0,
+          "simulator": 0,
+          "synthetic": 0,
+          "unspecified": 0
+        },
+        "kernel_measurement_matched_events": 0,
+        "timing_scope": "training_execution",
+        "serving_performance": "not_applicable",
+        "distributed_muon": "not_applicable"
+      },
+      "coverage": {
+        "kernel_calibration": {
+          "eligible_events": 1920,
+          "matched_events": 0,
+          "guarded_matched_events": 0
+        },
+        "collective_calibration": {
+          "eligible_collectives": 192,
+          "matched_collectives": 0,
+          "guarded_matched_collectives": 0
+        }
+      },
+      "summary_file": "case_000/training_summary.json",
+      "chart_file": "case_000/training_breakdown.svg",
+      "native_errors": {},
+      "validation_status": "prediction_only",
+      "role": "baseline"
+    },
+    {
+      "name": "n128",
+      "changes": {
+        "hardware.npu_count": 128,
+        "execution.dp": 64,
+        "workload.batch_size": 2
+      },
+      "prediction": {
+        "tokens_per_step": 1024.0,
+        "step_time_s": 0.000327076844224851,
+        "steady_step_time_s": null,
+        "throughput_tokens_s": 3130762.749123398,
+        "peak_hbm_bytes": 778752.0,
+        "exposed_comm_s_per_rank_per_step": 0.00017775230882352978,
+        "critical_path_comm_service_s_per_step": 0.00030452282352941214,
+        "sent_payload_bytes_per_rank_per_step_by_class": {
+          "ep": 30912.0,
+          "dp": 155610.0
+        },
+        "ep_sent_bytes_per_rank_per_step_by_phase": {
+          "forward": {
+            "dispatch": 256.0,
+            "combine": 256.0
+          },
+          "backward": {
+            "dispatch": 256.0,
+            "combine": 256.0
+          }
+        },
+        "model_mfu": 0.0014299758856621122,
+        "expert_padding_flops_per_step": 37748736.0
+      },
+      "observation": null,
+      "config_sha256": "d4666b13d995e3eca682e20266fa2c0695e26bdda15aea5f3ec5d5316fb4f303",
+      "devices": 128,
+      "su_size": 64,
+      "parallelism": {
+        "dp": 64,
+        "tp": 1,
+        "pp": 1,
+        "ep": 2,
+        "fsdp": 1,
+        "dp_domain_size": 8
+      },
+      "simulation_status": "feasible",
+      "fidelity": {
+        "parameter_capacity": "shape_derived",
+        "activation_capacity": "analytical_kernel_layout",
+        "hardware_performance": "uncalibrated",
+        "hardware_performance_by_phase": {
+          "backward": "uncalibrated",
+          "forward": "uncalibrated",
+          "optimizer": "uncalibrated",
+          "weight_refresh": "uncalibrated"
+        },
+        "kernel_timing_evidence": {
+          "measurement": 0,
+          "simulator": 0,
+          "synthetic": 0,
+          "unspecified": 0
+        },
+        "kernel_measurement_matched_events": 0,
+        "timing_scope": "training_execution",
+        "serving_performance": "not_applicable",
+        "distributed_muon": "not_applicable"
+      },
+      "coverage": {
+        "kernel_calibration": {
+          "eligible_events": 3840,
+          "matched_events": 0,
+          "guarded_matched_events": 0
+        },
+        "collective_calibration": {
+          "eligible_collectives": 368,
+          "matched_collectives": 0,
+          "guarded_matched_collectives": 0
+        }
+      },
+      "summary_file": "case_001/training_summary.json",
+      "chart_file": "case_001/training_breakdown.svg",
+      "native_errors": {},
+      "validation_status": "prediction_only",
+      "role": "holdout",
+      "comparability": "matched",
+      "scaling": {
+        "device_ratio": 2.0,
+        "throughput_speedup": 0.11474013122800934,
+        "efficiency": 0.05737006561400467
+      }
+    },
+    {
+      "name": "n256",
+      "changes": {
+        "hardware.npu_count": 256,
+        "execution.dp": 128,
+        "workload.batch_size": 1
+      },
+      "prediction": {
+        "tokens_per_step": 1024.0,
+        "step_time_s": 0.0006479936252610869,
+        "steady_step_time_s": null,
+        "throughput_tokens_s": 1580262.4595070889,
+        "peak_hbm_bytes": 778752.0,
+        "exposed_comm_s_per_rank_per_step": 0.00034633503676470594,
+        "critical_path_comm_service_s_per_step": 0.0006246605882352945,
+        "sent_payload_bytes_per_rank_per_step_by_class": {
+          "ep": 30400.0,
+          "dp": 156845.0
+        },
+        "ep_sent_bytes_per_rank_per_step_by_phase": {
+          "forward": {
+            "dispatch": 128.0,
+            "combine": 128.0
+          },
+          "backward": {
+            "dispatch": 128.0,
+            "combine": 128.0
+          }
+        },
+        "model_mfu": 0.0003608924391899314,
+        "expert_padding_flops_per_step": 113246208.0
+      },
+      "observation": null,
+      "config_sha256": "077eb5b393af0bfee80893fa4cbcfa72b4cc8056090324be3d55c847075697a8",
+      "devices": 256,
+      "su_size": 64,
+      "parallelism": {
+        "dp": 128,
+        "tp": 1,
+        "pp": 1,
+        "ep": 2,
+        "fsdp": 1,
+        "dp_domain_size": 8
+      },
+      "simulation_status": "feasible",
+      "fidelity": {
+        "parameter_capacity": "shape_derived",
+        "activation_capacity": "analytical_kernel_layout",
+        "hardware_performance": "uncalibrated",
+        "hardware_performance_by_phase": {
+          "backward": "uncalibrated",
+          "forward": "uncalibrated",
+          "optimizer": "uncalibrated",
+          "weight_refresh": "uncalibrated"
+        },
+        "kernel_timing_evidence": {
+          "measurement": 0,
+          "simulator": 0,
+          "synthetic": 0,
+          "unspecified": 0
+        },
+        "kernel_measurement_matched_events": 0,
+        "timing_scope": "training_execution",
+        "serving_performance": "not_applicable",
+        "distributed_muon": "not_applicable"
+      },
+      "coverage": {
+        "kernel_calibration": {
+          "eligible_events": 7680,
+          "matched_events": 0,
+          "guarded_matched_events": 0
+        },
+        "collective_calibration": {
+          "eligible_collectives": 720,
+          "matched_collectives": 0,
+          "guarded_matched_collectives": 0
+        }
+      },
+      "summary_file": "case_002/training_summary.json",
+      "chart_file": "case_002/training_breakdown.svg",
+      "native_errors": {},
+      "validation_status": "prediction_only",
+      "role": "holdout",
+      "comparability": "matched",
+      "scaling": {
+        "device_ratio": 4.0,
+        "throughput_speedup": 0.057915446333104914,
+        "efficiency": 0.014478861583276229
+      }
+    }
+  ]
+}

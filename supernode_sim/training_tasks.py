@@ -124,6 +124,10 @@ def _training_graph(config, topology, valid, *, frozen=False, model=None, accumu
         data['workload']['gradient_accumulation'] = accumulation
     if model is not None:
         data['model'] = deepcopy(model)
+        # The actor's layer masks and routed capacities belong to its own architecture.
+        data['execution'].pop('training_attention_windows', None)
+        data['execution'].pop('training_active_kv_heads', None)
+        data['execution'].pop('training_moe_routing', None)
     if frozen:
         data['execution']['fsdp'] = 1
         data['execution']['features'].update(optimizer_offload=False, activation_checkpointing=False)
@@ -421,6 +425,10 @@ def _variable_update(config, topology, groups, *, model, objective, extra):
     data['workload'].update(training_steps=1, batch_size=len(groups[0]), gradient_accumulation=len(groups))
     if model is not None:
         data['model'] = deepcopy(model)
+        # The actor's layer masks and routed capacities belong to its own architecture.
+        data['execution'].pop('training_attention_windows', None)
+        data['execution'].pop('training_active_kv_heads', None)
+        data['execution'].pop('training_moe_routing', None)
     builder = Builder(data, topology)
     builder.training_lengths_by_micro = [_lengths(config, values) for values in groups]
     builder._training_loss = _objective(builder, objective, extra)

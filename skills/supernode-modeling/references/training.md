@@ -86,3 +86,62 @@ features:
 只有总参数预算的旧模型按层/专家近似分布；配置 `model.architecture` 后，参数、优化器状态和注意力类型按明确张量形状生成。activation 检查点、梯度同步和预取行为以图中的事件及 `model_metadata.assumptions` 为准。验证真实平台预测时，使用独立于校准样本的测试配置报告误差。
 
 10T 表仍是 Adam 锚点，不能直接用于 Muon。Kimi K3 / Ascend 950 的真实维度示例与生产训练差异见 [ascend950-kimi-k3.md](ascend950-kimi-k3.md)。CPU optimizer offload 不保证 HBM 可容纳权重、梯度和工作集；不可行案例保留失败结果。
+
+## Marin 训练校准
+
+704 张 GB200 分布在 11 个 EP64 域，每步 46,137,344 个 token。公开训练先在 4K 上下文切换 EP 实现，后期才扩展到 16K 和 65K。比较阶段时，记录软件版本、上下文、有效 batch、BF16 单卡稠密峰值与 MFU 的分子。Marin 日志对局部和全局层使用不同的注意力跨度与 KV 头数，修正了 Latent MoE 的矩阵宽度，并按三倍前向工作估计前反向 FLOPs。[训练记录](https://github.com/marin-community/marin/issues/8435) · [训练代码](https://github.com/marin-community/marin/blob/12d8b6f09f96ad4f0277445765c1a00dbc81d5be/experiments/grug/moe_hero_ep/train.py)
+
+| 配置 | 对训练仿真的作用 |
+| --- | --- |
+| `execution.training_moe_routing` | `fixed_capacity` 分别用 `sender_capacity_factor` 和 `expert_capacity_factor` 控制两向传输的行数和专家执行的行数。`ragged` 按接收的有效行紧凑传输和执行。 |
+| `assignment_drop_fraction` | 显式声明丢弃的 token–expert 分配比例。共享专家、路由器、原始 token 数维持全量。预算模型可用 `routed_width` 声明传输宽度，结构化模型从 latent 投影导出。 |
+| `execution.training_attention_windows` | 每层填窗口宽度（含当前 token）或 `null`（全因果）。前向、反向、重计算与 FlashAttention 分块共享同一组文档边界和可见位置。 |
+| `execution.training_active_kv_heads` | 结构化 GQA 每层实际运行的 KV 头数。可按层切片 K/V 投影及激活，同时按存储宽度保留参数、梯度缓冲和优化器状态。 |
+| `execution.training_mfu_reference` | 在定长预训练中填 `name`、`dtype`、`sequence_length` 和公开的前反向 `model_flops_per_token`。报告同时输出外部口径 MFU、原生有效模型 MFU、全部执行计算的峰值归一比例。 |
+
+固定容量按均衡路由的期望值计费，发送容量和专家容量各自乘以请求分配数。ragged 默认保留全部分配，有丢弃时假设在发送前完成筛选。两种模式都沿用拓扑上的实际传输和竞争。容量概算将多波次合计，逐波启动、整数对齐、接收端负载偏斜及 XLA 具体调度需要算子或集合通信 trace。专家填充列覆盖前向、反向及重计算，丢弃分配的前反向工作另列为未执行 FLOPs。上述 EP 与滑窗配置也支持顶层 `features.training_moe_routing` 和 `features.training_attention_windows`。
+
+在仓库根目录运行下面的命令。JSON 保存 704 卡形状下的两组 MFU 对照，以及 16 卡、4 层的完整调度结果。每个切片目录另有显存、关键路径、通信暴露和空泡的原生报告。默认物理模型采用有效因果位置对，窗口长度随文档边界截断。更换模型、设备或精度时应使用对应的日志计数器和算子测量。[实验结果与复现说明](../../../docs/examples/marin-training/README.md)
+
+```bash
+python -m examples.marin_training --output outputs/marin/comparison.json --slice-reports outputs/marin --full-config outputs/marin/704-fixed.json
+```
+
+
+## 跨规模训练验证
+
+从 64 卡校准点预测 128、256 卡或跨超节点的训练时，在同一份模型、精度、优化器、设备速率、kernel/collective profile 和软件环境上重跑各规模的事件图。每次扩卡后检查各自实际命中的 profile 数、守卫条件和计时证据类型。配置的 `sources` 记录参数声明的来源。报告的 `coverage`、`fidelity` 记录本次运行实际使用了哪些计时依据。迁移到 Ascend、新 GPU 或不同软件栈时，建立对应的新基线。不同 MoE 模型可共用行数和字节公式，latent 宽度、专家数、top-k、线上精度及元数据取目标模型的值。
+
+```bash
+python -m supernode_sim training-scaling examples/training_scaling.yaml -o outputs/training-scaling
+```
+
+清单的 `config` 相对于清单所在目录解析。命名一个 `baseline` 和一个或多个 `holdouts`。每个点的 `changes` 使用点分路径，可以调整 TP、PP、EP、DP、FSDP、DP 域、rank 排布、物理拓扑、microbatch 和梯度累积。每个点都从相同基线配置独立生成。强扩展固定每步全局处理 token 数，弱扩展固定每卡每步处理 token 数。吞吐扩展效率等于吞吐倍率除以设备数倍率。跨节点后，应同时检查 DP 的 SO 通信和 EP 的局部收益。
+
+在对应规模的条目中填写可选 `observation`。实测来源应标明运行 ID、设备/软件版本和采样区间。下列数值仅演示字段，用 `synthetic` 标记。录入真机观测时填写 `kind: measured`，只填已有且边界相同的指标。可录入的四个字段已全部列在示例中。
+
+```yaml
+observation:
+  kind: synthetic
+  source: example-schema-only
+  step_time_s: 0.080
+  steady_step_time_s: 0.075
+  exposed_comm_s_per_rank_per_step: 0.012
+  peak_hbm_bytes: 21474836480
+```
+
+| 指标 | 用途 | 采样口径 |
+| --- | --- | --- |
+| `step_time_s` / `steady_step_time_s` | 可录入实测 | 前者为完整模拟窗口的平均步时。后者跳过第一步，至少需要两个完整训练步。只有稳态日志时填后者。 |
+| `ep_sent_bytes_per_rank_per_step_by_phase` | 仿真诊断 | 跨 rank 的端点发送 payload，含显式配置的 metadata。分开列前向、反向、重计算的 dispatch 和 combine，分母为全部配置卡数 × 步数。多跳链路负载另见单次运行的 `training_communication.by_class`。 |
+| `exposed_comm_s_per_rank_per_step` | 可录入实测 | 同卡端点传输区间去重，扣除同卡并行计算，横跨全体配置卡及完整窗口取每卡每步平均。包括主机卸载。 |
+| `critical_path_comm_service_s_per_step` | 仿真诊断 | 平均训练步关键路径上的直接通信服务时长。队列等待、资源争用等另列在分段图。 |
+| `peak_hbm_bytes` | 可录入实测 | 完整窗口中分配占用最高的单卡瞬时峰值，取这一时刻的各类分配。对比实测时对齐 allocator、runtime 常驻和缓存计数口径。 |
+
+结果索引 `training_scaling.json` 给出各点预测、观测来源、逐项有符号误差和相对误差，以正值表示高估。实测为零时保留绝对量差值。基线若有平均步时实测，另列条件预测 `baseline_adjusted_step_time_s = 基线实测步时 × 目标模拟步时 / 基线模拟步时`，原始预测仍可单独检验。未附观测的点标记为 `prediction_only`，附合成观测的点标记为 `synthetic_reference`。两者均不计入已比较的实测留出点数。重复观测保留在各行，已比较的留出配置数按解析配置哈希去重。显存不可行或强弱扩展工作量不匹配时保留诊断。通过各点的 `summary_file` 和 `chart_file` 可查看 HBM、关键路径、通信暴露、空泡及算子占比。[64/128/256 卡合成示例结果](../../../docs/examples/training-scaling/training_scaling.json) · [128 卡分段图](../../../docs/examples/training-scaling/case_001/training_breakdown.svg)
+
+### MoE 小批量下的专家行对齐
+
+对确实将 grouped GEMM 输入逐专家补齐并物化中间激活的实现，可设 `execution.training_moe_routing.expert_row_multiple`。例如 28 个有效分配均衡送到 8 个专家，有 4 个专家收 3 行、4 个收 4 行。若要求 8 行对齐，则专家端执行 64 行，ragged dispatch 仍按 28 行发送（含本地份额）。固定容量路径先应用 `expert_capacity_factor`，再对齐本地执行行。每次前向、反向和重计算按各自 microbatch 计算，填充计入执行 FLOPs 和相应激活工作区。有效模型 FLOPs 继续按接受的分配计数。空专家保留零行。
+
+这是均衡路由假设下的估计。需要从目标 kernel 的 grouped GEMM 描述或 tensor shape 核实实际物化的行对齐，单凭底层指令 tile 大小无法推断分配的 HBM。仅观察到 MFU 时保留默认连续行模型。路由倾斜仍需逐专家 token 直方图或逐 peer 流量验证。

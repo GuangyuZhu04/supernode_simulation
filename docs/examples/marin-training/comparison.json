@@ -1,0 +1,147 @@
+{
+  "sources": {
+    "run": "https://github.com/marin-community/marin/issues/8435",
+    "ep": "https://marin.community/blog/2026/09/29/expert-parallelism/",
+    "milestones": "https://wandb.ai/marin-community/marin/reports/535B-A23B-18T-Token-Hero-Run-Scaling-Ladder--VmlldzoxNzc2MDM5Ng",
+    "trainer": "https://github.com/marin-community/marin/blob/12d8b6f09f96ad4f0277445765c1a00dbc81d5be/experiments/grug/moe_hero_ep/train.py",
+    "logger": "https://github.com/marin-community/marin/blob/12d8b6f09f96ad4f0277445765c1a00dbc81d5be/lib/levanter/src/levanter/utils/flop_utils.py",
+    "peak": "https://github.com/marin-community/marin/blob/12d8b6f09f96ad4f0277445765c1a00dbc81d5be/lib/fray/src/fray/device_flops.py",
+    "midpoint": "https://x.com/percyliang/status/2107502170191155633"
+  },
+  "mesh": {
+    "active_gpus": 704,
+    "ep": 64,
+    "dp": 11,
+    "tokens_per_step": 46137344
+  },
+  "observed_mfu_pct": {
+    "fixed_4k": 21.5,
+    "ragged_4k_step_81716": 23,
+    "fa4_and_mask_free_mlp_step_146139": 26,
+    "midpoint_4k": 27,
+    "kernel_stack_4k_step_231464": 29,
+    "final_65k": 33
+  },
+  "full_shape_work": [
+    {
+      "sequence_length": 4096,
+      "mode": "fixed_capacity",
+      "logger_fb_flops_per_token": 149736259584,
+      "executed_fb_flops_per_gpu": 1.024378159623045e+16,
+      "useful_fb_flops_per_gpu": 9457199773812522.0,
+      "expert_padding_fb_flops_per_gpu": 786581822417927.9,
+      "outbound_dispatch_bytes_per_gpu_per_layer": 3646527897.6,
+      "attention_pairs_fraction_of_full": 0.8124542348059556,
+      "fixed_kernel_rate_mfu_pct": 21.5
+    },
+    {
+      "sequence_length": 4096,
+      "mode": "ragged",
+      "logger_fb_flops_per_token": 149736259584,
+      "executed_fb_flops_per_gpu": 9602546414911488.0,
+      "useful_fb_flops_per_gpu": 9602546414911488.0,
+      "expert_padding_fb_flops_per_gpu": 0.0,
+      "outbound_dispatch_bytes_per_gpu_per_layer": 3170893824.0,
+      "attention_pairs_fraction_of_full": 0.8124542348059556,
+      "fixed_kernel_rate_mfu_pct": 22.935718798187633
+    },
+    {
+      "sequence_length": 16384,
+      "mode": "ragged",
+      "logger_fb_flops_per_token": 160671596544,
+      "executed_fb_flops_per_gpu": 1.00255508987904e+16,
+      "useful_fb_flops_per_gpu": 1.00255508987904e+16,
+      "expert_padding_fb_flops_per_gpu": 0.0,
+      "outbound_dispatch_bytes_per_gpu_per_layer": 3170893824.0,
+      "attention_pairs_fraction_of_full": 0.42577624351541044,
+      "fixed_kernel_rate_mfu_pct": 23.57233763906559
+    },
+    {
+      "sequence_length": 65536,
+      "mode": "ragged",
+      "logger_fb_flops_per_token": 204412944384,
+      "executed_fb_flops_per_gpu": 1.1467208647507968e+16,
+      "useful_fb_flops_per_gpu": 1.1467208647507968e+16,
+      "expert_padding_fb_flops_per_gpu": 0.0,
+      "outbound_dispatch_bytes_per_gpu_per_layer": 3170893824.0,
+      "attention_pairs_fraction_of_full": 0.2961422316782886,
+      "fixed_kernel_rate_mfu_pct": 26.219383111089094
+    }
+  ],
+  "matched_4k_holdout": {
+    "anchor_pct": 21.5,
+    "observed_pct": 23,
+    "old_undifferentiated_prediction_pct": 21.5,
+    "predicted_pct": 22.935718798187633,
+    "signed_error_pp": -0.06428120181236707
+  },
+  "late_context_holdout": {
+    "anchor_4k_pct": 29.0,
+    "observed_final_65k_pct": 33.0,
+    "predicted_65k_pct": 33.15187620287999,
+    "signed_error_pp": 0.15187620287998982,
+    "assumption": "Same effective kernel rates from the late 4K stack through 65K. Other runtime changes may contribute."
+  },
+  "basis": "One fixed-EP production MFU anchors an assumed constant time per executed forward/backward FLOP. Equal per-rank work under balanced routing. This projection has no independent optimizer, recompute, communication or host timing. The first anchor evaluates the same-context ragged switch. 16K and 65K are counterfactuals with unchanged kernel rates.",
+  "slice_runs": {
+    "fixed_capacity": {
+      "layers": 4,
+      "ep": 8,
+      "dp": 2,
+      "tokens_per_gpu": 65536,
+      "step_s": 4.209523967002681,
+      "model_mfu": 0.10156914798448967,
+      "executed_compute_utilization": 0.49511460413748676,
+      "npu_flops_by_role": {
+        "model_forward_backward": 1.7102310509950054e+16,
+        "model_recompute": 5700770169983340.0,
+        "optimizer": 1893118301896704.0,
+        "auxiliary": 207244886016.0,
+        "expert_padding": 1398367684298539.0
+      },
+      "peak_hbm_bytes": 81712768409.6,
+      "rank_time_percent": {
+        "compute_only": 82.81696372885654,
+        "exposed_transfer": 17.183036271143447,
+        "compute_and_transfer": 0.0,
+        "idle": 0.0,
+        "other_local": 0.0
+      },
+      "exposed_communication_ops_percent": {
+        "dp / all_reduce": 84.29192962412566,
+        "ep / all_to_all_v (dispatch)": 7.040943105964837,
+        "ep / all_to_all_v (combine)": 7.040943105964703,
+        "ep / all_reduce": 1.626184163944806
+      }
+    },
+    "ragged": {
+      "layers": 4,
+      "ep": 8,
+      "dp": 2,
+      "tokens_per_gpu": 65536,
+      "step_s": 4.148761195092165,
+      "model_mfu": 0.1042245215986158,
+      "executed_compute_utilization": 0.49549669274039176,
+      "npu_flops_by_role": {
+        "model_forward_backward": 1.7296106031415296e+16,
+        "model_recompute": 5765368677138432.0,
+        "optimizer": 1893118301896704.0,
+        "auxiliary": 207244886016.0
+      },
+      "peak_hbm_bytes": 80746400768.0,
+      "rank_time_percent": {
+        "compute_only": 82.88500766585626,
+        "exposed_transfer": 17.114992334143736,
+        "compute_and_transfer": 0.0,
+        "idle": 0.0,
+        "other_local": 0.0
+      },
+      "exposed_communication_ops_percent": {
+        "dp / all_reduce": 85.8664964344696,
+        "ep / all_to_all_v (combine)": 6.238471202774829,
+        "ep / all_to_all_v (dispatch)": 6.238471202774828,
+        "ep / all_reduce": 1.656561159980753
+      }
+    }
+  }
+}

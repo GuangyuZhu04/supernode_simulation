@@ -1915,6 +1915,17 @@ function renderTrainingAccounting(result) {
   kpis.append(metricCard('全部 NPU 计算比例',percentage(accounting.executed_compute_utilization),'','包含重计算、优化器和辅助算子'));
   text('#training-accounting-note','分母为各 dtype 裸峰值 × 配置总卡数 × 完整执行时间；不是设备忙碌率，也不自动等同论文 MFU。CPU 单独统计。' + (accounting.status !== 'complete' ? ' 当前账本不完整：' + (accounting.reason || accounting.status) + '；—不代表零。' : ''));
   const tables = $('#training-accounting-tables'); tables.replaceChildren();
+  if (accounting.reference_mfu) {
+    const ref = accounting.reference_mfu;
+    kpis.append(metricCard(ref.name + ' 参考 MFU', percentage(ref.ratio), '',
+      number(ref.model_flops_per_token, 0) + ' FLOPs/token · 上下文 ' + number(ref.sequence_length, 0)));
+  }
+  if (accounting.moe_routing) {
+    const routing = accounting.moe_routing;
+    resultTable(tables, ['专家填充 FLOPs（含重计算）', '丢弃分配的前反向 FLOPs'],
+      [[number(routing.expert_padding_flops, 0), number(routing.dropped_forward_backward_flops, 0)]],
+      'MoE 路由工作量 · ' + routing.mode);
+  }
   const task = result.metrics?.training_task;
   if (task) {
     kpis.append(metricCard('训练任务', {pretrain:'预训练',sft:'SFT',dpo:'DPO',rl:'RL'}[task.kind] || task.kind, '', '包含任务专用阶段'));

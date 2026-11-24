@@ -2,6 +2,8 @@
 
 训练仿真的 `report.md` 和 Web 结果页均展示百分比堆叠图。完整数值记录在 `training_summary.json`，包含峰值卡 HBM 构成、平均步关键路径、各卡空泡、计算算子及暴露通信算子占比。可在仓库根目录运行 `python -m supernode_sim simulate examples/training_overlap_qos.yaml -o outputs/training-overlap` 复现这组 8 卡合成示例。[示例图表](docs/examples/training-overlap-qos/training_breakdown.svg) · [结果记录](docs/examples/training-overlap-qos/training_summary.json)
 
+训练扩卡可运行 `python -m supernode_sim training-scaling examples/training_scaling.yaml -o outputs/training-scaling`。同一份校准配置生成基线和各留出点的预测、独立实测误差及分段图。随仓示例在 64、128、256 卡上保持每步 1,024 个 token，硬件与负载为合成配置。[跨规模训练验证与指标定义](skills/supernode-modeling/references/training.md#跨规模训练验证) · [64/128/256 卡结果](docs/examples/training-scaling/training_scaling.json)
+
 仓库原创代码采用 [MIT 许可证](LICENSE)，版权归 Guangyu Zhu 所有。第三方模型资料、论文和源码摘录的许可见[来源说明](docs/sources/README.md)。
 
 `supernode_sim` 是面向架构分析的 Python 数值引擎。`supernode-modeling` skill 负责收集配置与解释结果；公式、通信映射和时序由可重跑代码执行。

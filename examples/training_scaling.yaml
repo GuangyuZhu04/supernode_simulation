@@ -1,0 +1,9 @@
+# Fixed 1,024 global input tokens per step. No device measurements supplied.
+config: training_scaling_moe.yaml
+scaling: strong
+baseline: {name: n64}
+holdouts:
+  - name: n128
+    changes: {hardware.npu_count: 128, execution.dp: 64, workload.batch_size: 2}
+  - name: n256
+    changes: {hardware.npu_count: 256, execution.dp: 128, workload.batch_size: 1}
