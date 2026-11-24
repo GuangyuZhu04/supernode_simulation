@@ -1,5 +1,7 @@
 # 超节点通信与资源需求建模
 
+仓库原创代码采用 [MIT 许可证](LICENSE)，版权归 Guangyu Zhu 所有。第三方模型资料、论文和源码摘录的许可见[来源说明](docs/sources/README.md)。
+
 `supernode_sim` 是面向架构分析的 Python 数值引擎。`supernode-modeling` skill 负责收集配置与解释结果；公式、通信映射和时序由可重跑代码执行。
 
 项目设计与实现：[整体架构设计文档](docs/simulation-architecture.md) · [函数级仿真流程图](docs/simulation-function-flows.md)。
@@ -280,3 +282,17 @@ FP8/FP16 是对同一官方模型结构重新指定精度的设计对比；MXFP4
 MLA 缓存默认采用明确标注的 `compressed` 优化布局：每 token 保存 512 + 64 元素。官方 Hugging Face 参考实现保存展开后的 K/V；使用 `examples/sweep_kimi_k3_kv_layout.yaml` 可比较 `compressed` 和 `expanded` 容量/访存。布局选择目前改变存储账本与访存需求，不能据此声称已经校准两种 kernel 的真实耗时。NoPE 不会移除配置中的 64 维 key 投影。
 
 [Skill 的组件分析说明](skills/supernode-modeling/references/memory-breakdown.md) 和 [样例选择及校准边界](skills/supernode-modeling/references/ascend950-kimi-k3.md) 给出报告的加和口径、Muon 参数组策略和实机校准需要的数据。不同组件的独立峰值不能相加当作同一时刻设备峰值。
+
+### 按仿真时间调整带宽
+
+在硬件配置的 `bandwidth_schedules` 中填写资源 ID 和按时间递增的 `[秒, 有效字节/秒]`。例如下面的配置让共享出口在第 4 ms 降至 5 GB/s，在第 8 ms 恢复至 10 GB/s。首次变更前使用资源的初始有效带宽，最后一次变更持续到仿真结束。资源 ID 可在仿真输出的 `resources.csv` 中查看。
+
+```yaml
+hardware:
+  bandwidth_schedules:
+    "shared:egress": [[0.004, 5000000000], [0.008, 10000000000]]
+```
+
+带宽使用十进制 B/s，数值已经包含链路效率。资源利用率等于已完成工作量除以该资源在整个模拟窗口可提供的累计服务量。流式推理跨层沿用同一时钟，独立 decode 实验从自身的零时刻开始。Serving 以首个请求到达为零时刻，所有后续批次沿用该时间表。当一次传输的瓶颈中途切换时，延迟报告把其独占服务时间归入主导时长最长的瓶颈域。
+
+两条物理支路经过同一个出口时，在两条 `explicit_links` 上设置相同的 `shared_group: egress`。在仓库根目录运行 `python -m examples.bandwidth_overlap`，可复现 100 MB 传输中途变速，以及两笔 50 MB 传输与独立计算重叠的四组对照。示例分别输出通信完成和整个任务完成的时刻。[可运行示例](examples/bandwidth_overlap.py)
