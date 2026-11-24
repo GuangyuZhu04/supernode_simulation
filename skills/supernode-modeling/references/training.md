@@ -86,3 +86,23 @@ features:
 只有总参数预算的旧模型按层/专家近似分布；配置 `model.architecture` 后，参数、优化器状态和注意力类型按明确张量形状生成。activation 检查点、梯度同步和预取行为以图中的事件及 `model_metadata.assumptions` 为准。验证真实平台预测时，使用独立于校准样本的测试配置报告误差。
 
 10T 表仍是 Adam 锚点，不能直接用于 Muon。Kimi K3 / Ascend 950 的真实维度示例与生产训练差异见 [ascend950-kimi-k3.md](ascend950-kimi-k3.md)。CPU optimizer offload 不保证 HBM 可容纳权重、梯度和工作集；不可行案例保留失败结果。
+
+## Marin 训练校准
+
+704 张 GB200 分布在 11 个 EP64 域，每步 46,137,344 个 token。公开训练先在 4K 上下文切换 EP 实现，后期才扩展到 16K 和 65K。比较阶段时，记录软件版本、上下文、有效 batch、BF16 单卡稠密峰值与 MFU 的分子。Marin 日志对局部和全局层使用不同的注意力跨度与 KV 头数，修正了 Latent MoE 的矩阵宽度，并按三倍前向工作估计前反向 FLOPs。[训练记录](https://github.com/marin-community/marin/issues/8435) · [训练代码](https://github.com/marin-community/marin/blob/12d8b6f09f96ad4f0277445765c1a00dbc81d5be/experiments/grug/moe_hero_ep/train.py)
+
+| 配置 | 对训练仿真的作用 |
+| --- | --- |
+| `execution.training_moe_routing` | `fixed_capacity` 分别用 `sender_capacity_factor` 和 `expert_capacity_factor` 控制两向传输的行数和专家执行的行数。`ragged` 按接收的有效行紧凑传输和执行。 |
+| `assignment_drop_fraction` | 显式声明丢弃的 token–expert 分配比例。共享专家、路由器、原始 token 数维持全量。预算模型可用 `routed_width` 声明传输宽度，结构化模型从 latent 投影导出。 |
+| `execution.training_attention_windows` | 每层填窗口宽度（含当前 token）或 `null`（全因果）。前向、反向、重计算与 FlashAttention 分块共享同一组文档边界和可见位置。 |
+| `execution.training_active_kv_heads` | 结构化 GQA 每层实际运行的 KV 头数。可按层切片 K/V 投影及激活，同时按存储宽度保留参数、梯度缓冲和优化器状态。 |
+| `execution.training_mfu_reference` | 在定长预训练中填 `name`、`dtype`、`sequence_length` 和公开的前反向 `model_flops_per_token`。报告同时输出外部口径 MFU、原生有效模型 MFU、全部执行计算的峰值归一比例。 |
+
+固定容量按均衡路由的期望值计费，发送容量和专家容量各自乘以请求分配数。ragged 默认保留全部分配，有丢弃时假设在发送前完成筛选。两种模式都沿用拓扑上的实际传输和竞争。容量概算将多波次合计，逐波启动、整数对齐、接收端负载偏斜及 XLA 具体调度需要算子或集合通信 trace。专家填充列覆盖前向、反向及重计算，丢弃分配的前反向工作另列为未执行 FLOPs。上述 EP 与滑窗配置也支持顶层 `features.training_moe_routing` 和 `features.training_attention_windows`。
+
+在仓库根目录运行下面的命令。JSON 保存 704 卡形状下的两组 MFU 对照，以及 16 卡、4 层的完整调度结果。每个切片目录另有显存、关键路径、通信暴露和空泡的原生报告。默认物理模型采用有效因果位置对，窗口长度随文档边界截断。更换模型、设备或精度时应使用对应的日志计数器和算子测量。[实验结果与复现说明](../../../docs/examples/marin-training/README.md)
+
+```bash
+python -m examples.marin_training --output outputs/marin/comparison.json --slice-reports outputs/marin --full-config outputs/marin/704-fixed.json
+```
