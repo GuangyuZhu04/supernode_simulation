@@ -1,0 +1,770 @@
+{
+  "schema_version": 1,
+  "model": "synthetic-latent-moe",
+  "config_sha256": "19abe8a6c61b21763658bde232a71ada7cb07c95dcad6ffec19a84b89f8cb6eb",
+  "npu_count": 64,
+  "pp": 1,
+  "status": "complete",
+  "training_compute": {
+    "model_mfu": 0.024925470632772628,
+    "executed_compute_utilization": 0.11970058218287791,
+    "npu_flops_by_role": {
+      "model_forward_backward": 119734272.0,
+      "model_recompute": 0.0,
+      "optimizer": 35409920.0,
+      "auxiliary": 10117120.0
+    },
+    "moe_routing": {
+      "mode": "ragged",
+      "sender_capacity_factor": 1.0,
+      "expert_capacity_factor": 1.0,
+      "assignment_drop_fraction": 0.0,
+      "expert_row_multiple": 4,
+      "expert_padding_flops": 0.0,
+      "dropped_forward_backward_flops": 0.0
+    }
+  },
+  "moe_wire": {
+    "off_rank_sent_bytes_by_phase": {
+      "forward": {
+        "dispatch": 32768.0,
+        "combine": 32768.0
+      },
+      "backward": {
+        "dispatch": 32768.0,
+        "combine": 32768.0
+      }
+    },
+    "steps": 1,
+    "devices": 64,
+    "basis": "Cluster sender payload over the simulated run. Each off-rank transfer counts once, including supplied metadata."
+  },
+  "duration_s": 3.752884002800257e-05,
+  "groups": {
+    "hbm": {
+      "title": "峰值卡 HBM 构成",
+      "unit": "byte",
+      "total": 778752.0,
+      "segments": [
+        {
+          "name": "master_weights",
+          "value": 158080.0,
+          "percent": 20.299145299145298
+        },
+        {
+          "name": "momentum",
+          "value": 158080.0,
+          "percent": 20.299145299145298
+        },
+        {
+          "name": "variance",
+          "value": 158080.0,
+          "percent": 20.299145299145298
+        },
+        {
+          "name": "buffers",
+          "value": 80896.0,
+          "percent": 10.387902695595002
+        },
+        {
+          "name": "gradients",
+          "value": 79040.0,
+          "percent": 10.149572649572649
+        },
+        {
+          "name": "weights",
+          "value": 79040.0,
+          "percent": 10.149572649572649
+        },
+        {
+          "name": "runtime",
+          "value": 65536.0,
+          "percent": 8.4155161078238
+        }
+      ]
+    },
+    "step_latency": {
+      "title": "平均训练步 · 关键路径时延",
+      "unit": "s",
+      "total": 3.752884002800257e-05,
+      "segments": [
+        {
+          "name": "communication_node_s",
+          "value": 2.250376470588237e-05,
+          "percent": 59.96392291659142
+        },
+        {
+          "name": "scheduling_wait_s",
+          "value": 6.744959999999998e-06,
+          "percent": 17.972737753064493
+        },
+        {
+          "name": "communication_scaleup_s",
+          "value": 6.217941176470591e-06,
+          "percent": 16.5684342277326
+        },
+        {
+          "name": "compute_s",
+          "value": 2.062174145649617e-06,
+          "percent": 5.494905102611492
+        },
+        {
+          "name": "communication_other_s",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "communication_scaleout_s",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "memory_wait_s",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "other_s",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "resource_contention_s",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "synchronization_wait_s",
+          "value": 0.0,
+          "percent": 0.0
+        }
+      ]
+    },
+    "rank_time": {
+      "title": "全体 NPU · 时间分配",
+      "unit": "rank·s",
+      "total": 0.0024018457617921668,
+      "segments": [
+        {
+          "name": "exposed_transfer",
+          "value": 0.0018381891764705912,
+          "percent": 76.53235714432402
+        },
+        {
+          "name": "compute_only",
+          "value": 0.0005636565853215757,
+          "percent": 23.467642855675976
+        },
+        {
+          "name": "compute_and_transfer",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "idle",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "other_local",
+          "value": 0.0,
+          "percent": 0.0
+        }
+      ]
+    },
+    "communication": {
+      "title": "通信时间 · 暴露与掩盖",
+      "unit": "rank·s",
+      "total": 0.0018381891764705912,
+      "segments": [
+        {
+          "name": "exposed_transfer",
+          "value": 0.0018381891764705912,
+          "percent": 100.0
+        },
+        {
+          "name": "compute_and_transfer",
+          "value": 0.0,
+          "percent": 0.0
+        }
+      ]
+    },
+    "compute_ops": {
+      "title": "计算时段 · 按计算算子",
+      "unit": "rank·s",
+      "total": 0.0005636565853215738,
+      "segments": [
+        {
+          "name": "adam",
+          "value": 0.0003288063999999979,
+          "percent": 58.33452647633122
+        },
+        {
+          "name": "weight_conversion",
+          "value": 7.587840000000028e-05,
+          "percent": 13.461813802230415
+        },
+        {
+          "name": "moe",
+          "value": 7.584346532157569e-05,
+          "percent": 13.455615936484794
+        },
+        {
+          "name": "weight_refresh",
+          "value": 5.05855999999999e-05,
+          "percent": 8.974542534820225
+        },
+        {
+          "name": "gqa",
+          "value": 1.720319999999999e-05,
+          "percent": 3.05207114544494
+        },
+        {
+          "name": "output",
+          "value": 1.0485759999999965e-05,
+          "percent": 1.8603100315092915
+        },
+        {
+          "name": "wordembedding",
+          "value": 2.6214400000000164e-06,
+          "percent": 0.46507750787732727
+        },
+        {
+          "name": "postnorm",
+          "value": 1.2629333333333379e-06,
+          "percent": 0.22406077853464926
+        },
+        {
+          "name": "prenorm",
+          "value": 9.693866666666703e-07,
+          "percent": 0.1719817867671362
+        }
+      ]
+    },
+    "exposed_ops": {
+      "title": "暴露通信时段 · 按通信算子",
+      "unit": "rank·s",
+      "total": 0.0018381891764705806,
+      "segments": [
+        {
+          "name": "dp / all_gather",
+          "value": 0.0005130917647058797,
+          "percent": 27.912892278641458
+        },
+        {
+          "name": "dp / reduce_scatter",
+          "value": 0.0005130917647058797,
+          "percent": 27.912892278641458
+        },
+        {
+          "name": "dp / all_reduce",
+          "value": 0.00039794823529411434,
+          "percent": 21.648927128283702
+        },
+        {
+          "name": "ep / all_reduce",
+          "value": 0.00015612988235294174,
+          "percent": 8.493678689411025
+        },
+        {
+          "name": "ep / all_to_all_v (combine)",
+          "value": 0.00012896376470588252,
+          "percent": 7.015804812511174
+        },
+        {
+          "name": "ep / all_to_all_v (dispatch)",
+          "value": 0.00012896376470588252,
+          "percent": 7.015804812511174
+        }
+      ]
+    },
+    "idle": {
+      "title": "空泡 · 按每卡活动位置",
+      "unit": "rank·s",
+      "total": 0.0,
+      "segments": [
+        {
+          "name": "after_last_activity",
+          "value": 0.0,
+          "percent": null
+        },
+        {
+          "name": "before_first_activity",
+          "value": 0.0,
+          "percent": null
+        },
+        {
+          "name": "between_activities",
+          "value": 0.0,
+          "percent": null
+        }
+      ]
+    }
+  },
+  "rank_activity_s": {
+    "npu0": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu1": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu2": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu3": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu4": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu5": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu6": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu7": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu8": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu9": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu10": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu11": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu12": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu13": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu14": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu15": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu16": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu17": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu18": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu19": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu20": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu21": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu22": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu23": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu24": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu25": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu26": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu27": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu28": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu29": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu30": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu31": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu32": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu33": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu34": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu35": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu36": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu37": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu38": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu39": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu40": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu41": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu42": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu43": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu44": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu45": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu46": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu47": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu48": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu49": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu50": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu51": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu52": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu53": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu54": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu55": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu56": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu57": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu58": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu59": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu60": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu61": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu62": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu63": {
+      "compute_only": 8.807134145649615e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 2.8721705882352958e-05,
+      "other_local": 0.0,
+      "idle": 0.0
+    }
+  },
+  "peak_hbm": {
+    "pool": "npu0.hbm",
+    "time_s": 3.516148002800258e-05,
+    "peak_bytes": 778752.0,
+    "physical_bytes": 268435456.0,
+    "usable_bytes": 241591910.4,
+    "reserved_bytes": 26843545.599999994
+  },
+  "definitions": [
+    "显存取占用峰值最高的单卡在同一时刻的实际分配；分母为已用 HBM，另列物理容量和预留。",
+    "步时延为已完成训练步的平均关键路径墙钟时间。设备时间分母为配置 NPU 数乘整个运行时长。",
+    "通信覆盖不同端点间有 NPU 参与的传输，含 SU、SO 和主机卸载。通信与计算在同卡重叠的部分计为掩盖，启动时间随事件计入。",
+    "暴露通信是同卡未与计算重叠的传输时间。其对端到端步时延的影响还取决于关键路径。",
+    "空泡是该卡没有计算、端点传输或其他本地资源活动的时段，含流水填充排空、依赖等待和 CPU 尾部。此口径不能单独识别纯 PP 空泡。",
+    "计算算子含占用计算流的 kernel；独立访存计入其他本地活动。同类事件并发时等分区间，各算子占比以其所属时段为分母。"
+  ]
+}

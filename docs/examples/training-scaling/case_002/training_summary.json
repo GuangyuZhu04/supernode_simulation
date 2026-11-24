@@ -1,0 +1,2115 @@
+{
+  "schema_version": 1,
+  "model": "synthetic-latent-moe",
+  "config_sha256": "077eb5b393af0bfee80893fa4cbcfa72b4cc8056090324be3d55c847075697a8",
+  "npu_count": 256,
+  "pp": 1,
+  "status": "complete",
+  "training_compute": {
+    "model_mfu": 0.0003608924391899314,
+    "executed_compute_utilization": 0.006191172017137616,
+    "npu_flops_by_role": {
+      "model_forward_backward": 119734272.0,
+      "model_recompute": 0.0,
+      "optimizer": 141639680.0,
+      "auxiliary": 40468480.0,
+      "expert_padding": 113246208.0
+    },
+    "moe_routing": {
+      "mode": "ragged",
+      "sender_capacity_factor": 1.0,
+      "expert_capacity_factor": 1.0,
+      "assignment_drop_fraction": 0.0,
+      "expert_row_multiple": 4,
+      "expert_padding_flops": 113246208.0,
+      "dropped_forward_backward_flops": 0.0
+    }
+  },
+  "moe_wire": {
+    "off_rank_sent_bytes_by_phase": {
+      "forward": {
+        "dispatch": 32768.0,
+        "combine": 32768.0
+      },
+      "backward": {
+        "dispatch": 32768.0,
+        "combine": 32768.0
+      }
+    },
+    "steps": 1,
+    "devices": 256,
+    "basis": "Cluster sender payload over the simulated run. Each off-rank transfer counts once, including supplied metadata."
+  },
+  "duration_s": 0.0006479936252610869,
+  "groups": {
+    "hbm": {
+      "title": "峰值卡 HBM 构成",
+      "unit": "byte",
+      "total": 778752.0,
+      "segments": [
+        {
+          "name": "master_weights",
+          "value": 158080.0,
+          "percent": 20.299145299145298
+        },
+        {
+          "name": "momentum",
+          "value": 158080.0,
+          "percent": 20.299145299145298
+        },
+        {
+          "name": "variance",
+          "value": 158080.0,
+          "percent": 20.299145299145298
+        },
+        {
+          "name": "buffers",
+          "value": 80896.0,
+          "percent": 10.387902695595002
+        },
+        {
+          "name": "gradients",
+          "value": 79040.0,
+          "percent": 10.149572649572649
+        },
+        {
+          "name": "weights",
+          "value": 79040.0,
+          "percent": 10.149572649572649
+        },
+        {
+          "name": "runtime",
+          "value": 65536.0,
+          "percent": 8.4155161078238
+        }
+      ]
+    },
+    "step_latency": {
+      "title": "平均训练步 · 关键路径时延",
+      "unit": "s",
+      "total": 0.0006479936252610869,
+      "segments": [
+        {
+          "name": "communication_scaleout_s",
+          "value": 0.0006021794117647063,
+          "percent": 92.92983577146747
+        },
+        {
+          "name": "communication_node_s",
+          "value": 2.2481176470588197e-05,
+          "percent": 3.4693514865258397
+        },
+        {
+          "name": "resource_contention_s",
+          "value": 1.5255882352940851e-05,
+          "percent": 2.3543259930672953
+        },
+        {
+          "name": "scheduling_wait_s",
+          "value": 6.74496e-06,
+          "percent": 1.0408991287965756
+        },
+        {
+          "name": "compute_s",
+          "value": 1.3321946728515462e-06,
+          "percent": 0.20558762014283458
+        },
+        {
+          "name": "other_s",
+          "value": 8.470329472543003e-22,
+          "percent": 1.307162469249628e-16
+        },
+        {
+          "name": "communication_other_s",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "communication_scaleup_s",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "memory_wait_s",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "synchronization_wait_s",
+          "value": 0.0,
+          "percent": 0.0
+        }
+      ]
+    },
+    "rank_time": {
+      "title": "全体 NPU · 时间分配",
+      "unit": "rank·s",
+      "total": 0.1658863680668382,
+      "segments": [
+        {
+          "name": "exposed_transfer",
+          "value": 0.08866176941176476,
+          "percent": 53.44729072375709
+        },
+        {
+          "name": "idle",
+          "value": 0.07515684705882346,
+          "percent": 45.306222527303504
+        },
+        {
+          "name": "compute_only",
+          "value": 0.0020677515962499965,
+          "percent": 1.2464867489394107
+        },
+        {
+          "name": "compute_and_transfer",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "other_local",
+          "value": 0.0,
+          "percent": 0.0
+        }
+      ]
+    },
+    "communication": {
+      "title": "通信时间 · 暴露与掩盖",
+      "unit": "rank·s",
+      "total": 0.08866176941176476,
+      "segments": [
+        {
+          "name": "exposed_transfer",
+          "value": 0.08866176941176476,
+          "percent": 100.0
+        },
+        {
+          "name": "compute_and_transfer",
+          "value": 0.0,
+          "percent": 0.0
+        }
+      ]
+    },
+    "compute_ops": {
+      "title": "计算时段 · 按计算算子",
+      "unit": "rank·s",
+      "total": 0.0020677515962499956,
+      "segments": [
+        {
+          "name": "adam",
+          "value": 0.0013152255999999696,
+          "percent": 63.60655711185126
+        },
+        {
+          "name": "weight_conversion",
+          "value": 0.0003035135999999994,
+          "percent": 14.67843625658137
+        },
+        {
+          "name": "weight_refresh",
+          "value": 0.00020234240000002734,
+          "percent": 9.78562417105559
+        },
+        {
+          "name": "moe",
+          "value": 0.0001950194362499994,
+          "percent": 9.431473132637404
+        },
+        {
+          "name": "gqa",
+          "value": 2.564096000000031e-05,
+          "percent": 1.2400406338218715
+        },
+        {
+          "name": "output",
+          "value": 1.7039359999999765e-05,
+          "percent": 0.8240525617729795
+        },
+        {
+          "name": "wordembedding",
+          "value": 6.553600000000031e-06,
+          "percent": 0.3169432929896134
+        },
+        {
+          "name": "postnorm",
+          "value": 1.3858133333332328e-06,
+          "percent": 0.06702030049675681
+        },
+        {
+          "name": "prenorm",
+          "value": 1.0308266666666133e-06,
+          "percent": 0.04985253879315512
+        }
+      ]
+    },
+    "exposed_ops": {
+      "title": "暴露通信时段 · 按通信算子",
+      "unit": "rank·s",
+      "total": 0.08866176941176576,
+      "segments": [
+        {
+          "name": "dp / all_reduce",
+          "value": 0.0829065882352952,
+          "percent": 93.50883564059932
+        },
+        {
+          "name": "dp / reduce_scatter",
+          "value": 0.0020523670588235058,
+          "percent": 2.314827543415966
+        },
+        {
+          "name": "dp / all_gather",
+          "value": 0.002052367058823501,
+          "percent": 2.314827543415961
+        },
+        {
+          "name": "ep / all_reduce",
+          "value": 0.0006245195294117822,
+          "percent": 0.7043842386128898
+        },
+        {
+          "name": "ep / all_to_all_v (combine)",
+          "value": 0.0005129637647058857,
+          "percent": 0.5785625169779359
+        },
+        {
+          "name": "ep / all_to_all_v (dispatch)",
+          "value": 0.0005129637647058857,
+          "percent": 0.5785625169779359
+        }
+      ]
+    },
+    "idle": {
+      "title": "空泡 · 按每卡活动位置",
+      "unit": "rank·s",
+      "total": 0.07515684705882346,
+      "segments": [
+        {
+          "name": "between_activities",
+          "value": 0.07515684705882346,
+          "percent": 100.0
+        },
+        {
+          "name": "after_last_activity",
+          "value": 0.0,
+          "percent": 0.0
+        },
+        {
+          "name": "before_first_activity",
+          "value": 0.0,
+          "percent": 0.0
+        }
+      ]
+    }
+  },
+  "rank_activity_s": {
+    "npu0": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu1": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu2": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu3": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu4": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu5": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu6": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu7": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu8": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu9": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu10": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu11": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu12": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu13": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu14": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu15": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu16": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu17": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu18": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu19": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu20": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu21": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu22": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu23": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu24": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu25": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu26": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu27": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu28": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu29": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu30": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu31": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu32": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu33": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu34": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu35": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu36": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu37": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu38": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu39": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu40": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu41": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu42": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu43": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu44": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu45": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu46": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu47": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu48": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu49": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu50": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu51": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu52": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu53": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu54": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu55": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu56": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu57": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu58": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu59": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu60": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu61": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu62": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu63": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu64": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu65": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu66": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu67": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu68": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu69": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu70": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu71": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu72": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu73": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu74": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu75": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu76": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu77": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu78": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu79": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu80": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu81": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu82": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu83": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu84": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu85": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu86": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu87": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu88": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu89": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu90": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu91": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu92": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu93": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu94": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu95": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu96": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu97": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu98": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu99": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu100": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu101": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu102": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu103": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu104": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu105": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu106": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu107": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu108": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu109": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu110": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu111": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu112": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu113": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu114": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu115": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu116": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu117": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu118": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu119": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu120": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu121": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu122": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu123": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu124": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu125": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu126": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu127": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu128": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu129": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu130": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu131": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu132": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu133": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu134": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu135": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu136": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu137": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu138": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu139": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu140": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu141": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu142": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu143": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu144": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu145": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu146": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu147": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu148": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu149": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu150": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu151": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu152": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu153": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu154": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu155": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu156": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu157": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu158": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu159": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu160": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu161": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu162": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu163": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu164": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu165": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu166": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu167": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu168": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu169": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu170": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu171": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu172": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu173": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu174": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu175": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu176": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu177": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu178": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu179": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu180": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu181": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu182": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu183": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu184": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu185": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu186": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu187": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu188": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu189": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu190": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu191": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu192": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu193": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu194": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu195": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu196": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu197": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu198": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu199": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu200": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu201": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu202": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu203": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu204": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu205": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu206": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu207": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu208": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu209": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu210": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu211": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu212": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu213": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu214": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu215": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu216": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu217": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu218": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu219": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu220": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu221": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu222": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu223": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu224": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu225": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu226": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu227": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu228": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu229": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu230": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu231": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu232": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu233": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu234": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu235": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu236": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu237": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu238": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu239": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 5.275360294117662e-05,
+      "other_local": 0.0,
+      "idle": 0.0005871628676470587
+    },
+    "npu240": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu241": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu242": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu243": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu244": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu245": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu246": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu247": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu248": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu249": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu250": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu251": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu252": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu253": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu254": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    },
+    "npu255": {
+      "compute_only": 8.077154672851547e-06,
+      "compute_and_transfer": 0.0,
+      "exposed_transfer": 0.0006399164705882353,
+      "other_local": 0.0,
+      "idle": 0.0
+    }
+  },
+  "peak_hbm": {
+    "pool": "npu0.hbm",
+    "time_s": 0.0006456262652610868,
+    "peak_bytes": 778752.0,
+    "physical_bytes": 268435456.0,
+    "usable_bytes": 241591910.4,
+    "reserved_bytes": 26843545.599999994
+  },
+  "definitions": [
+    "显存取占用峰值最高的单卡在同一时刻的实际分配；分母为已用 HBM，另列物理容量和预留。",
+    "步时延为已完成训练步的平均关键路径墙钟时间。设备时间分母为配置 NPU 数乘整个运行时长。",
+    "通信覆盖不同端点间有 NPU 参与的传输，含 SU、SO 和主机卸载。通信与计算在同卡重叠的部分计为掩盖，启动时间随事件计入。",
+    "暴露通信是同卡未与计算重叠的传输时间。其对端到端步时延的影响还取决于关键路径。",
+    "空泡是该卡没有计算、端点传输或其他本地资源活动的时段，含流水填充排空、依赖等待和 CPU 尾部。此口径不能单独识别纯 PP 空泡。",
+    "计算算子含占用计算流的 kernel；独立访存计入其他本地活动。同类事件并发时等分区间，各算子占比以其所属时段为分母。"
+  ]
+}
