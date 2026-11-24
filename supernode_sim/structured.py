@@ -16,7 +16,9 @@ from .core import Allocation, DTYPE_BYTES, Event, Graph, Resource
 from .training import pipeline_schedule
 from .training_schedule import gather_dependencies, prefetch_depth, replica_all_reduce
 from .sparse_attention import sparse_attention_state, sparse_attention_work, position_bias_rows
-from .moe_wire import moe_payload_matrix, moe_wire_metadata, wire_payload_parts
+from .moe_wire import (moe_payload_matrix, moe_wire_metadata, training_routed_flops,
+                       training_routing_factors, wire_payload_parts)
+from .training_attention import causal_pairs
 from .calibration import model_shape_signature
 from .kernel_workload import kernel_workload_shape
 
@@ -32,6 +34,10 @@ class Builder:
         self.sp = self.x.get('sequence_parallel', False)
         self.fsdp = self.x['fsdp']
         self.training = self.w['scenario'] == 'training'
+        self.routing = self.x.get('training_moe_routing') if self.training else None
+        self.wire_factor, self.expert_factor, self.accepted_factor = training_routing_factors(self.routing)
+        self.windows = self.x.get('training_attention_windows') if self.training else None
+        self.active_kv = self.x.get('training_active_kv_heads') if self.training else None
         self.forward_only = False
         self.train_lengths = [self.w['sequence_length']] * self.w['batch_size']
         self.g = Graph()
@@ -267,9 +273,26 @@ class Builder:
                 phase=phase, wire_metadata={'parallel_axis': 'fsdp', 'category': 'fsdp_weights'})
         return self.barrier(name + '.gather_done', ends), retained
 
+    def kernel_elements(self, tensor):
+        if tensor.alias_of:
+            return tensor.elements / self.tp
+        count = tensor.local_elements(self.tp, self.ep)
+        if self.active_kv and tensor.component == 'GQA' and tensor.tp_max_shards:
+            heads = self.active_kv[tensor.layer] or self.m['kv_heads']
+            count *= max(heads, self.tp) / max(self.m['kv_heads'], self.tp)
+        return count
+
     def activation_rows(self, layer, tokens, *, checkpoint=False, training=None):
-        rows = component_activations(self.m, layer, tokens, tp=self.tp, ep=self.ep,
+        model = self.m
+        if self.active_kv and self.active_kv[layer] and training is not False:
+            model = {**model, 'kv_heads': self.active_kv[layer]}
+        rows = component_activations(model, layer, tokens, tp=self.tp, ep=self.ep,
                                     training=self.training if training is None else training, checkpointing=checkpoint)
+        if self.routing and training is not False:
+            for row in rows:
+                if row['name'] == 'routed_gate_up':
+                    row['elements'] *= self.expert_factor
+                    row['formula'] += ' * executed expert rows / requested rows'
         if self.training and self.x['flash_attention_blocks']:
             for row in rows:
                 if row['name'] == 'softmax_lse' and row['component'] in ('MHA', 'GQA', 'MQA', 'MLA'):
@@ -353,15 +376,17 @@ class Builder:
         # Tied output still performs projection, without owning another tensor.
         if component == 'Output' and not tensors:
             tensors = [t for t in self.by_layer[layer] if t.component == 'Output']
-        active_elements = 0.0
+        active_elements = routed_elements = 0.0
         projection_elements = 0.0
         weight_reads = 0.0
         conversion_elements = 0.0
         for tensor in tensors:
-            elements = tensor.local_elements(self.tp, self.ep) if not tensor.alias_of else tensor.elements / self.tp
+            elements = self.kernel_elements(tensor)
             touched = 1 - (1 - self.m['top_k'] / self.m['num_experts']) ** total_tokens if tensor.ep_shard else 1.0
             active = tensor.active_fraction * self.ep if tensor.ep_shard else 1.0
             active_elements += elements * active
+            if tensor.ep_shard:
+                routed_elements += elements * active
             projection_elements += elements * active if tensor.role == 'matrix' else 0
             if component in ('CSA', 'HCA') and tensor.name.endswith('.position_bias'):
                 a = self.a[component.lower()]
@@ -382,6 +407,7 @@ class Builder:
         if component in ('PreNorm', 'PostNorm'):
             flops = 5 * tokens * sum(t.elements for t in tensors if t.role == 'norm')
         sparse = None
+        window = self.windows[layer] if self.windows and self.training else None
         if component in ('CSA', 'HCA'):
             sparse = sparse_attention_work(self.m, layer, lengths or [],
                 phase='prefill' if phase in ('forward', 'backward', 'recompute') else phase,
@@ -395,8 +421,12 @@ class Builder:
                 if query_lengths is None or len(query_lengths) != len(lengths or []):
                     raise ValueError('Verification attention requires per-request query lengths')
                 pairs = sum(q * (s - q) + q * (q + 1) / 2 for s, q in zip(lengths, query_lengths))
+            elif window is not None:
+                pairs = sum(causal_pairs(s, window) for s in lengths or [])
+            elif phase in ('prefill', 'forward', 'backward', 'recompute'):
+                pairs = sum(s * (s + 1) / 2 for s in lengths or [])
             else:
-                pairs = sum(s * (s + 1) / 2 for s in lengths) if lengths is not None and phase in ('prefill', 'forward', 'backward', 'recompute') else sum(lengths or [])
+                pairs = sum(lengths or [])
             pairs /= self.ep if self.training else 1
             qk_dim = self.a['mla']['qk_nope_head_dim'] + self.a['mla']['qk_rope_head_dim'] if component == 'MLA' else self.m['head_dim']
             v_dim = self.a['mla']['v_head_dim'] if component == 'MLA' else self.m['head_dim']
@@ -406,6 +436,11 @@ class Builder:
             flops += 10 * block['stored_elements']
         if backward:
             flops *= 2
+        routing_work = {}
+        if self.routing and component == 'MoE' and phase in ('forward', 'backward', 'recompute'):
+            requested = 2 * routed_elements * tokens * (2 if backward else 1)
+            flops += requested * (self.expert_factor - 1)
+            routing_work = training_routed_flops(requested, self.expert_factor, self.accepted_factor)
         if sparse is not None and sparse['indexer_score_workspace_elements'] and not backward:
             workspace = self.allocation(name + '.index_scores', rank,
                 sparse['indexer_score_workspace_elements'] * DTYPE_BYTES[self.p['compute']] / (self.ep if self.training else 1),
@@ -456,7 +491,9 @@ class Builder:
         event = Event(name, tuple(pending), work, slots=(rank + '.compute_stream',),
             allocs=tuple(allocations), releases=tuple(releases) + ((conversion_id,) if conversion_id else ()),
             metadata={'kernel': component.lower(), 'component': component, 'layer': layer, 'phase': phase,
-                      'flops': flops, 'working_set_bytes': weight_reads + working + cache_reads,
+                      'flops': flops, 'working_set_bytes': weight_reads + working + cache_reads, **routing_work,
+                      **({'attention_window': window} if window is not None and component in ('GQA', 'MHA', 'MQA', 'MLA') else {}),
+                      **({'active_kv_heads': self.active_kv[layer]} if self.active_kv and self.active_kv[layer] and component == 'GQA' else {}),
                       'tokens': tokens, 'sequence_parallel': self.sp,
                       'workload_shape': kernel_workload_shape(phase=phase, tokens=tokens,
                           lengths=list(lengths or []), query_lengths=query_lengths,
@@ -536,6 +573,17 @@ class Builder:
             terminals.extend(previous)
         return terminals
 
+    def training_ep(self, name, operation, layer, stage, tokens, deps, phase):
+        width = self.a['moe'].get('latent_dim') or self.m['hidden_dim']
+        top_k = self.m['top_k']
+        matrix = moe_payload_matrix(self.p, operation, [tokens * self.wire_factor] * self.ep, width, top_k)
+        metadata = moe_wire_metadata(self.p, operation, width, top_k=top_k, num_experts=self.m['num_experts'])
+        ends = []
+        for i, group in enumerate(self.groups(stage, 'ep')):
+            ends += self.collective(f'{name}.{operation}{i}', 'all_to_all_v', group, 0, deps,
+                'MoE', layer, matrix, True, phase=phase, wire_metadata=metadata)
+        return ends
+
     def recompute_layer(self, name, layer, stage, ranks, tokens, deps):
         """Replay the entire forward layer, including TP/EP communication."""
         previous, retained = list(deps), []
@@ -543,14 +591,7 @@ class Builder:
         lengths = self.train_lengths
         for component in self.component_order(layer):
             if component == 'MoE' and self.ep > 1:
-                width = self.a['moe'].get('latent_dim') or self.m['hidden_dim']
-                matrix = moe_payload_matrix(self.p, 'dispatch', [tokens] * self.ep, width, self.m['top_k'])
-                terminals = []
-                for i, group in enumerate(self.groups(stage, 'ep')):
-                    terminals += self.collective(name + f'.recompute.dispatch{i}', 'all_to_all_v',
-                        group, 0, previous, component, layer, matrix, True, phase='recompute',
-                        wire_metadata=moe_wire_metadata(self.p, 'dispatch', width, top_k=self.m['top_k'], num_experts=self.m['num_experts']))
-                previous = terminals
+                previous = self.training_ep(name + '.recompute', 'dispatch', layer, stage, tokens, previous, 'recompute')
             ends = []
             for rank in ranks:
                 allocations, releases = [], []
@@ -587,13 +628,7 @@ class Builder:
                 previous = self.sparse_index_collective(name + '.recompute', layer,
                     self.groups(stage, 'tp'), lengths, previous, phase='recompute', divisor=self.ep)
             if component == 'MoE' and self.ep > 1:
-                terminals = []
-                matrix = moe_payload_matrix(self.p, 'combine', [tokens] * self.ep, width, self.m['top_k'])
-                for i, group in enumerate(self.groups(stage, 'ep')):
-                    terminals += self.collective(name + f'.recompute.combine{i}', 'all_to_all_v',
-                        group, 0, previous, component, layer, matrix, True, phase='recompute',
-                        wire_metadata=moe_wire_metadata(self.p, 'combine', width, top_k=self.m['top_k'], num_experts=self.m['num_experts']))
-                previous = terminals
+                previous = self.training_ep(name + '.recompute', 'combine', layer, stage, tokens, previous, 'recompute')
             if component in (self.a['attention_by_layer'][layer], self.a['ffn_by_layer'][layer]) and self.tp > 1:
                 previous = self.training_tp_reduce(name + '.recompute', component, layer, stage,
                                                    ranks, tokens, previous, 'recompute')
@@ -942,13 +977,7 @@ class Builder:
                         for component in self.component_order(layer)[::1 if forward else -1]:
                             ends = []
                             if component == 'MoE' and self.ep > 1:
-                                width = self.a['moe'].get('latent_dim') or self.m['hidden_dim']
-                                terminals = []
-                                for i, group in enumerate(self.groups(stage, 'ep')):
-                                    matrix = moe_payload_matrix(self.p, 'dispatch', [local_tokens] * self.ep, width, self.m['top_k'])
-                                    terminals += self.collective(name + f'.dispatch{i}', 'all_to_all_v', group, 0, previous, component, layer, matrix, True,
-                                        phase=phase, wire_metadata=moe_wire_metadata(self.p, 'dispatch', width, top_k=self.m['top_k'], num_experts=self.m['num_experts']))
-                                previous = terminals
+                                previous = self.training_ep(name, 'dispatch', layer, stage, local_tokens, previous, phase)
                             for rank in ranks:
                                 key = step, micro, rank, layer, component
                                 allocations, releases = [], []
@@ -1000,12 +1029,7 @@ class Builder:
                                     self.train_lengths, previous,
                                     phase=phase, divisor=self.ep)
                             if component == 'MoE' and self.ep > 1:
-                                terminals = []
-                                for i, group in enumerate(self.groups(stage, 'ep')):
-                                    matrix = moe_payload_matrix(self.p, 'combine', [local_tokens] * self.ep, width, self.m['top_k'])
-                                    terminals += self.collective(name + f'.combine{i}', 'all_to_all_v', group, 0, previous, component, layer, matrix, True,
-                                        phase=phase, wire_metadata=moe_wire_metadata(self.p, 'combine', width, top_k=self.m['top_k'], num_experts=self.m['num_experts']))
-                                previous = terminals
+                                previous = self.training_ep(name, 'combine', layer, stage, local_tokens, previous, phase)
                             if component in (self.a['attention_by_layer'][layer], self.a['ffn_by_layer'][layer]) and self.tp > 1:
                                 previous = self.training_tp_reduce(name, component, layer, stage,
                                     ranks, local_tokens, previous, phase)

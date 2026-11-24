@@ -11,7 +11,9 @@ from itertools import product
 from typing import TYPE_CHECKING
 
 from .core import Allocation, DTYPE_BYTES, Event, Graph, Resource
-from .moe_wire import moe_token_bytes, moe_wire_metadata, wire_payload_parts
+from .moe_wire import (moe_token_bytes, moe_wire_metadata, training_routed_flops,
+                       training_routing_factors, wire_payload_parts)
+from .training_attention import causal_pairs
 from .training_schedule import gather_dependencies, prefetch_depth, replica_all_reduce
 
 if TYPE_CHECKING:
@@ -51,6 +53,9 @@ class _TrainingBuilder:
         self.stage_ranks = {s: [r for c, r in self.ranks.items() if c[1] == s] for s in range(self.pp)}
         self.stage_layers = {s: list(range(s * self.layers // self.pp, (s + 1) * self.layers // self.pp))
                              for s in range(self.pp)}
+        self.routing = self.exe.get("training_moe_routing")
+        self.wire_factor, self.expert_factor, self.accepted_factor = training_routing_factors(self.routing)
+        self.windows = self.exe.get("training_attention_windows")
         fraction = self.model["expert_parameter_fraction"]
         self.dense_per_layer = self.model["total_params"] * (1 - fraction) / self.layers / self.tp
         self.expert_per_layer = self.model["total_params"] * fraction / self.layers / self.tp / self.ep
@@ -259,12 +264,12 @@ class _TrainingBuilder:
                 {"phase": phase, "category": "quantization_metadata", "layer": layer})
         return self.barrier(name + ".gather.done", ends)
 
+    def full_activation_elements(self) -> float:
+        routed = self.model["moe_layer_fraction"] * self.model["top_k"] * self.expert_factor
+        return 2 * self.model["hidden_dim"] + self.model["intermediate_dim"] / self.tp * (1 + routed)
+
     def activation_size(self) -> float:
-        hidden, intermediate = self.model["hidden_dim"], self.model["intermediate_dim"]
-        if self.checkpoint:
-            elements_per_token = hidden
-        else:
-            elements_per_token = 2 * hidden + intermediate / self.tp * (1 + self.model["moe_layer_fraction"] * self.model["top_k"])
+        elements_per_token = self.model["hidden_dim"] if self.checkpoint else self.full_activation_elements()
         return self.size("activation", self.tokens * elements_per_token / self.ep)
 
     def kernel(self, name: str, rank: str, deps, forward: bool, *, allocs=(), releases=(),
@@ -274,9 +279,16 @@ class _TrainingBuilder:
         # The attention head width need not equal the residual hidden width.
         work = 2 * self.model["active_params"] / self.layers * self.tokens
         sequence = self.wl["sequence_length"]
-        pairs = self.wl["batch_size"] * sequence * (sequence + 1) / 2
+        window = self.windows[layer] if self.windows else None
+        pairs = self.wl["batch_size"] * causal_pairs(sequence, window)
         work += 4 * self.model["num_heads"] * self.model["head_dim"] * pairs
         flops = work / self.tp / self.ep * (1 if forward else 2)
+        routing_work = {}
+        if self.routing:
+            active_routed = max(0.0, self.model["active_params"] / self.layers / self.tp - self.dense_per_layer)
+            requested = 2 * active_routed * self.tokens / self.ep * (1 if forward else 2)
+            flops += requested * (self.expert_factor - 1)
+            routing_work = training_routed_flops(requested, self.expert_factor, self.accepted_factor)
         reads = self.size("weight", self.params_per_layer) + 2 * self.activation_size()
         if not forward:
             reads += 2 * self.size("gradient", self.params_per_layer)
@@ -284,7 +296,8 @@ class _TrainingBuilder:
                     "kernel": "training_recompute" if recompute else ("training_forward" if forward else "training_backward"),
                     "rank": rank, "layer": layer, "flops": flops,
                     "hbm_bytes": reads, "working_set_bytes": reads,
-                    "compute_precision": self.precision["compute"]}
+                    "compute_precision": self.precision["compute"], **routing_work,
+                    **({"attention_window": window} if window is not None else {})}
         return self.add(Event(name, tuple(deps), {rank + ".compute": flops, rank + ".hbm": reads},
             slots=(rank + ".compute_stream",), allocs=tuple(allocs), releases=tuple(releases), metadata=metadata))
 
@@ -320,7 +333,8 @@ class _TrainingBuilder:
             # A declared MoE layer fraction is applied continuously to each
             # layer's communication instead of guessing which layers are MoE.
             routed_tokens = self.tokens / self.ep * self.model["top_k"] * self.model["moe_layer_fraction"]
-            width = self.model['hidden_dim']
+            routed_tokens *= self.wire_factor
+            width = (self.routing or {}).get('routed_width') or self.model['hidden_dim']
             dispatch_wire = moe_wire_metadata(self.precision, 'dispatch', width, top_k=self.model['top_k'], num_experts=self.model['num_experts'])
             combine_wire = moe_wire_metadata(self.precision, 'combine', width, top_k=self.model['top_k'], num_experts=self.model['num_experts'])
             moe_bytes = routed_tokens * moe_token_bytes(self.precision, 'dispatch', width)
@@ -357,9 +371,7 @@ class _TrainingBuilder:
                     recompute_id = rank_name + ".recompute_activations"
                     # Recompute restores a full transient layer workspace, not
                     # merely the small saved checkpoint input.
-                    factor = (2 * self.model["hidden_dim"] + self.model["intermediate_dim"] / self.tp *
-                              (1 + self.model["moe_layer_fraction"] * self.model["top_k"]))
-                    amount = self.size("activation", self.tokens * factor / self.ep)
+                    amount = self.size("activation", self.tokens * self.full_activation_elements() / self.ep)
                     rank_deps = [self.kernel(rank_name + ".recompute", rank, rank_deps, True,
                         allocs=(self.allocation(recompute_id, rank, amount, "recompute_workspace", self.precision["activation"]),),
                         recompute=True, layer=layer)]

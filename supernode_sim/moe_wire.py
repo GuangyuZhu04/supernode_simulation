@@ -39,6 +39,29 @@ def moe_payload_matrix(precision: dict, operation: str, source_tokens: list[floa
     return list(map(list, zip(*matrix))) if operation == 'combine' else matrix
 
 
+def training_routing_factors(policy: dict | None) -> tuple[float, float, float]:
+    """Wire rows, executed expert rows and accepted rows per requested assignment.
+
+    Balanced, continuous capacity model. Fixed transport sends every reserved
+    row in both directions. Ragged routing compacts the accepted assignments
+    before transport and GEMM. Shared experts and the router see all tokens.
+    """
+    if not policy:
+        return 1.0, 1.0, 1.0
+    accepted = 1 - policy['assignment_drop_fraction']
+    if policy['mode'] == 'fixed_capacity':
+        return policy['sender_capacity_factor'], policy['expert_capacity_factor'], accepted
+    return accepted, accepted, accepted
+
+
+def training_routed_flops(requested_flops, expert_factor, accepted_factor):
+    """Separate physically executed padding from dropped logical assignments."""
+    return {
+        'expert_padding_flops': requested_flops * (expert_factor - accepted_factor),
+        'dropped_expert_flops': requested_flops * (1 - accepted_factor),
+    }
+
+
 def wire_payload_parts(payload: float, dtype: str, metadata: dict) -> tuple[float, float]:
     """Return tensor element count and unchanged metadata bytes in a payload."""
     extra_per_token = metadata.get('moe_metadata_bytes_per_token', 0)

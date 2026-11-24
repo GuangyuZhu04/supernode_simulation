@@ -4,21 +4,44 @@ from collections import Counter, defaultdict
 from .core import DTYPE_BYTES, Event
 
 
-def causal_tiles(lengths, blocks):
-    """Group matching tiles across sequences; document boundaries stay independent."""
+def causal_pairs(length, window=None):
+    """Valid Q/K pairs for one unpadded document, including the diagonal."""
+    width = length if window is None else min(length, window)
+    return width * (width + 1) // 2 + (length - width) * width
+
+
+def _triangle(x):
+    return x * (x + 1) // 2 if x > 0 else 0
+
+
+def _pairs_through(q0, q1, k0, k1):
+    # Sum the clipped linear ramp of valid key counts over these query rows.
+    return _triangle(q1 - k0) - _triangle(q0 - k0) - _triangle(q1 - k1) + _triangle(q0 - k1)
+
+
+def causal_tiles(lengths, blocks, window=None):
+    """Aggregate live tiles across documents, counting each query load/store once."""
     tiles = defaultdict(lambda: [0, 0, 0, 0])
     for length, count in Counter(lengths).items():
         n = min(blocks, length)
-        widths = [(i + 1) * length // n - i * length // n for i in range(n)]
-        for q, queries in enumerate(widths):
+        edges = [i * length // n for i in range(n + 1)]
+        for q in range(n):
+            q0, q1 = edges[q:q + 2]
+            first = True
             for k in range(q + 1):
-                keys = widths[k]
-                pairs = queries * (queries + 1) // 2 if q == k else queries * keys
+                k0, k1 = edges[k:k + 2]
+                pairs = _pairs_through(q0, q1, k0, k1)
+                if window is not None:
+                    pairs -= _pairs_through(q0 - window, q1 - window, k0, k1)
+                if not pairs:
+                    continue
+                keys = k1 - (k0 if window is None else max(k0, q0 - window + 1))
                 tile = tiles[q, k]
                 tile[0] += count * pairs
                 tile[1] += count * keys
-                tile[2] += count * queries if k == 0 else 0
-                tile[3] += count * queries if q == k else 0
+                tile[2] += count * (q1 - q0) if first else 0
+                tile[3] += count * (q1 - q0) if q == k else 0
+                first = False
     return sorted(tiles.items())
 
 
@@ -34,7 +57,7 @@ def flash_attention(builder, event, rank, lengths, tensors, parameter_bytes):
     q_heads = m['num_heads'] / builder.tp
     q_dim = v_dim = m['head_dim']
     heads = {'MHA': m['num_heads'], 'MQA': 1, 'GQA': m['kv_heads'], 'MLA': m['num_heads']}
-    kv_heads = max(heads[component] / builder.tp, 1)
+    kv_heads = max(meta.get('active_kv_heads', heads[component]) / builder.tp, 1)
     if component == 'MLA':
         mla = builder.a['mla']
         q_dim, v_dim = mla['qk_nope_head_dim'] + mla['qk_rope_head_dim'], mla['v_head_dim']
@@ -46,12 +69,12 @@ def flash_attention(builder, event, rank, lengths, tensors, parameter_bytes):
     qkv = tokens * (q_bytes + kv_bytes)
     output = tokens * o_bytes
     hidden = tokens * m['hidden_dim'] * width
-    tiles = causal_tiles(lengths, builder.x['flash_attention_blocks'])
+    tiles = causal_tiles(lengths, builder.x['flash_attention_blocks'], meta.get('attention_window'))
     flops_per_pair = 2 * q_heads * (q_dim + v_dim) * (2 if backward else 1) / builder.ep
     attention_flops = sum(tile[0] for _, tile in tiles) * flops_per_pair
     projection_flops = max(0.0, meta['flops'] - attention_flops)
-    elements = sum(t.local_elements(builder.tp, builder.ep) for t in tensors)
-    out_fraction = sum(t.local_elements(builder.tp, builder.ep) for t in tensors
+    elements = sum(builder.kernel_elements(t) for t in tensors)
+    out_fraction = sum(builder.kernel_elements(t) for t in tensors
                        if '.output.' in t.name) / elements
     qkv_io = parameter_bytes * (1 - out_fraction) + hidden + qkv
     out_io = parameter_bytes * out_fraction + hidden + output

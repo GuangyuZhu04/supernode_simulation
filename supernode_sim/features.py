@@ -11,6 +11,10 @@ from typing import Any
 
 
 _SUPPORTED = {
+    'training_moe_routing': (['training'], ['execution.training_moe_routing'],
+        'Fixed sender pools and expert GEMM capacities or compacted ragged rows, with an explicit assignment drop fraction.'),
+    'training_attention_windows': (['training'], ['execution.training_attention_windows'],
+        'Per-layer full or sliding causal attention, including checkpoint replay and FlashAttention tiles.'),
     'flash_attention': (['training'], ['execution.flash_attention_blocks', 'execution.overlap_attention_tp'],
         'Structured dense causal attention uses explicit tile DMA and compute. Optional forward/recompute output blocks can feed TP all-reduce.'),
     'training_qos': (['training'], ['execution.features.training_qos'],
@@ -145,6 +149,8 @@ def resolve_feature_input(data: dict) -> dict:
             raise ValueError(f'features.{name} is only supported for {"/".join(scenarios)}')
 
     direct = {
+        'training_moe_routing': 'execution.training_moe_routing',
+        'training_attention_windows': 'execution.training_attention_windows',
         'training_qos': 'execution.features.training_qos',
         'training_task': 'workload.training',
         'precision': 'execution.precision', 'optimizer': 'execution.optimizer',
@@ -192,6 +198,8 @@ def build_feature_plan(config, calibration: dict | None = None) -> dict[str, Any
     options = execution['features']
     architecture = data['model'].get('architecture')
     selected = {
+        'training_moe_routing': execution.get('training_moe_routing') is not None,
+        'training_attention_windows': any(execution.get('training_attention_windows') or []),
         'flash_attention': execution['flash_attention_blocks'] > 0,
         'training_qos': options['training_qos']['enabled'],
         'training_task': data['workload'].get('training') is not None,

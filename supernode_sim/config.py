@@ -930,6 +930,28 @@ class FeatureSpec(Spec):
     prefill_decode_disaggregation: PrefillDecodeDisaggregationSpec = Field(default_factory=PrefillDecodeDisaggregationSpec)
 
 
+class TrainingMFUReferenceSpec(Spec):
+    name: str = Field(min_length=1)
+    sequence_length: StrictInt = Field(gt=0)
+    model_flops_per_token: float = Field(gt=0, description='Published forward plus backward FLOPs per input token.')
+    dtype: DType
+
+
+class TrainingMoERoutingSpec(Spec):
+    mode: Literal['ragged', 'fixed_capacity']
+    sender_capacity_factor: float = Field(default=1.0, ge=1)
+    expert_capacity_factor: float = Field(default=1.0, ge=1)
+    assignment_drop_fraction: float = Field(default=0.0, ge=0, lt=1)
+    routed_width: StrictInt | None = Field(default=None, gt=0,
+        description='Wire row width for parameter-budget models. Structured models derive it from the latent projection.')
+
+    @model_validator(mode='after')
+    def capacities(self):
+        if self.mode == 'ragged' and (self.sender_capacity_factor != 1 or self.expert_capacity_factor != 1):
+            raise ValueError('Ragged routing uses accepted rows; capacity factors apply to fixed_capacity')
+        return self
+
+
 class ExecutionSpec(Spec):
     tp: int = Field(default=1, gt=0)
     all_to_all_algorithm: Literal['pairwise', 'direct'] = 'pairwise'
@@ -947,6 +969,12 @@ class ExecutionSpec(Spec):
     overlap_gradient_sync: bool = False
     overlap_pipeline_p2p: bool = True
     overlap_attention_tp: bool = False
+    training_attention_windows: list[Annotated[StrictInt, Field(gt=0)] | None] | None = Field(default=None,
+        description='Per-layer causal window including the current token; null denotes full causal attention.')
+    training_active_kv_heads: list[Annotated[StrictInt, Field(gt=0)] | None] | None = Field(default=None,
+        description='Active GQA KV heads per layer within the stored KV projection; null uses the stored width.')
+    training_moe_routing: TrainingMoERoutingSpec | None = None
+    training_mfu_reference: TrainingMFUReferenceSpec | None = None
     flash_attention_blocks: StrictInt = Field(default=0, ge=0,
         description='Causal sequence partitions for the structured training FlashAttention I/O pipeline. Zero uses the component kernel.')
     training_hbm_fraction: float = Field(default=0.90, gt=0, le=1,
@@ -956,6 +984,14 @@ class ExecutionSpec(Spec):
     precision: PrecisionSpec = Field(default_factory=PrecisionSpec)
     features: FeatureSpec = Field(default_factory=FeatureSpec)
     optimizer: OptimizerSpec = Field(default_factory=OptimizerSpec)
+
+    @model_serializer(mode='wrap')
+    def omit_optional_training_models(self, handler):
+        data = handler(self)
+        for key in ('training_attention_windows', 'training_active_kv_heads', 'training_moe_routing', 'training_mfu_reference'):
+            if getattr(self, key) is None:
+                data.pop(key, None)
+        return data
 
 
 class ParallelCandidate(Spec):
@@ -1014,6 +1050,8 @@ class FlashAttentionSelection(Spec):
 
 
 class FeatureSelectionSpec(Spec):
+    training_moe_routing: TrainingMoERoutingSpec | None = None
+    training_attention_windows: list[Annotated[StrictInt, Field(gt=0)] | None] | None = None
     training_qos: TrainingQoSSpec | None = None
     flash_attention: FlashAttentionSelection | None = None
     training_task: TrainingTaskSpec | None = None
@@ -1032,6 +1070,14 @@ class FeatureSelectionSpec(Spec):
     megakernel: MegakernelSpec | None = None
     prefill_decode_disaggregation: PrefillDecodeDisaggregationSpec | None = None
     kernel_profiles: dict[str, list[KernelProfile]] | None = None
+
+    @model_serializer(mode='wrap')
+    def omit_optional_training_models(self, handler):
+        data = handler(self)
+        for key in ('training_moe_routing', 'training_attention_windows'):
+            if getattr(self, key) is None:
+                data.pop(key, None)
+        return data
 
 
 class TargetSpec(Spec):
@@ -1124,6 +1170,35 @@ class Config(Spec):
             raise ValueError('flash_attention_blocks requires structured MHA, GQA, MQA or MLA layers')
         if e.overlap_attention_tp and (e.flash_attention_blocks < 2 or e.tp < 2):
             raise ValueError('overlap_attention_tp requires flash_attention_blocks >= 2 and TP > 1')
+        reference = e.training_mfu_reference
+        if reference is not None:
+            task = self.workload.training
+            if (self.workload.scenario != 'training' or self.workload.sequence_length != reference.sequence_length
+                    or (task and (task.kind != 'pretrain' or task.data.sequence_lengths))):
+                raise ValueError('training_mfu_reference requires uniform pretraining at the declared sequence length')
+            if reference.dtype != e.precision.compute or reference.dtype not in h.npu.flops:
+                raise ValueError('training_mfu_reference requires a matching compute dtype and hardware peak')
+        active_kv = e.training_active_kv_heads
+        if active_kv is not None:
+            if self.workload.scenario != 'training' or not m.architecture or len(active_kv) != m.layers:
+                raise ValueError('training_active_kv_heads requires one entry per structured training layer')
+            for kind, heads in zip(m.architecture.attention_by_layer, active_kv):
+                if heads is not None and (kind != 'GQA' or heads > m.kv_heads or m.num_heads % heads
+                        or max(heads, e.tp) % min(heads, e.tp)):
+                    raise ValueError('Active GQA KV heads must fit the stored heads and divide query heads with even TP placement')
+        windows = e.training_attention_windows
+        if windows is not None:
+            if self.workload.scenario != 'training' or len(windows) != m.layers:
+                raise ValueError('training_attention_windows requires one entry per layer in training')
+            if m.architecture and any(window is not None and kind not in ('MHA', 'GQA', 'MQA', 'MLA')
+                    for window, kind in zip(windows, m.architecture.attention_by_layer)):
+                raise ValueError('A causal training window requires an MHA, GQA, MQA or MLA layer')
+        if e.training_moe_routing is not None:
+            if self.workload.scenario != 'training' or not m.moe_layer_fraction:
+                raise ValueError('training_moe_routing requires a training workload with routed experts')
+            if m.architecture and e.training_moe_routing.routed_width is not None:
+                if e.training_moe_routing.routed_width != (m.architecture.moe.latent_dim or m.hidden_dim):
+                    raise ValueError('routed_width conflicts with the structured MoE projection')
         if self.workload.scenario != 'training' and (e.prefetch or e.prefetch_layers or
                 e.flash_attention_blocks or e.overlap_gradient_sync or e.dp_domain_size is not None or
                 self.targets.candidate_dp_domain_sizes or self.targets.training_global_batch_size is not None):
