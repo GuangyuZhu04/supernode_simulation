@@ -16,7 +16,8 @@ from .serving_report import write_serving_report
 from .host_memory import MIB, apply_worker_memory_limit, peak_memory_bytes, worker_memory_limit
 
 
-MODEL_METADATA_KEYS = ('operator_trace', 'kernel_calibration', 'collective_calibration', 'fidelity', 'feature_plan')
+MODEL_METADATA_KEYS = ('operator_trace', 'kernel_calibration', 'collective_calibration', 'fidelity', 'feature_plan',
+                       'dp_domains', 'training_qos', 'training_hbm')
 
 
 def _phase(phase: str, message: str) -> None:
@@ -84,6 +85,7 @@ TRACE_METADATA_KEYS = (
     'round_index', 'pd_role', 'trace_id', 'original_kernel', 'trace_parent_event',
     'operation_index', 'matmul', 'flops', 'workload_shape', 'operator_trace_completion',
     'training_task', 'training_role', 'training_stage', 'training_update', 'training_iteration',
+    'traffic_class', 'qos_weight', 'dp_reduction_scope', 'query_block', 'kv_block', 'causal_pairs',
     'dtype', 'trace_source', 'implementation', 'calibration', 'operator_workspace_bytes',
     'working_set_bytes', 'working_set_scope',
 )
@@ -180,8 +182,9 @@ def compact_result(result: dict) -> dict:
     training = result.get('metrics', {}).get('training_accounting')
     metrics = {k: v for k, v in result.get('metrics', {}).items()
                if k in ('latency_breakdown', 'training_latency_breakdown') or not isinstance(v, (list, dict))}
-    if result.get('metrics', {}).get('training_task'):
-        metrics['training_task'] = _bounded(result['metrics']['training_task'])
+    for key in ('training_task', 'training_communication', 'training_hbm'):
+        if result.get('metrics', {}).get(key):
+            metrics[key] = _bounded(result['metrics'][key])
     if training is not None:
         metrics['training_accounting'] = _bounded(training)
     return {

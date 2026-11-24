@@ -398,6 +398,16 @@ def markdown_report(result: dict) -> str:
         for name, row in rows:
             hardware = row.get('config', {}).get('hardware', {})
             lines.append(f"| {name} | {row['status']} | {_number(hardware.get('su_size'))} | {_number(hardware.get('npu_count'))} | {_number(row.get('metrics', {}).get('duration_s'))} |")
+        for name, search in result.get('searches', {}).items():
+            fastest = search.get('highest_throughput')
+            if fastest:
+                index = fastest['candidate_index']
+                row = search['candidates'][index]
+                layout = row['parallelism']
+                lines += ['', f"{name} 训练吞吐最高的可行候选为 {index}，"
+                          f"{_number(fastest['tokens_s'])} tokens/s。"
+                          f"TP/PP/EP/DP/FSDP = {layout['tp']}/{layout['pp']}/{layout['ep']}/{layout['dp']}/{layout['fsdp']}，"
+                          f"DP 域大小 {layout.get('dp_domain_size') or '平坦归约'}，rank 排布为 `{row['placement']}`。"]
         lines += _candidate_latency_markdown(result)
     else:
         config = result['config']
@@ -419,6 +429,19 @@ def markdown_report(result: dict) -> str:
                 '此处按事件计数；证据类型来自输入声明，不表示独立验证。仿真器预测与合成数据不计入硬件实测覆盖。']
         if config['workload']['scenario'] == 'training' and fidelity.get('distributed_muon') == 'not_implemented':
             lines += ['', '**Muon 训练限制：尚未实现分布式 Muon 正交化。当前训练步时间是本地更新与通信的代理模型，不能作为已验证的生产训练性能。**']
+        budget = result.get('model_metadata', {}).get('training_hbm')
+        if budget:
+            lines += ['', f"训练每卡 HBM 准入上限为 {_number(budget['usable_bytes_per_npu'] / 1e9)} GB"
+                      f"（物理容量的 {_number(budget['usable_fraction'] * 100)}%），"
+                      f"预留 {_number(budget['reserved_bytes_per_npu'] / 1e9)} GB。"]
+        communication = result.get('metrics', {}).get('training_communication')
+        if communication and communication['by_class']:
+            lines += ['', f"卡间通信活跃时间合计 {_number(communication['network_rank_s'])} rank·s，"
+                      f"其中 {_number(communication['overlap_with_compute_rank_s'])} rank·s 与同卡计算重叠。",
+                      '', '| 训练流量 | 权重 | 传输 payload / GB | 通信槽位等待 / event·s |', '|---|---:|---:|---:|']
+            weights = result['model_metadata'].get('training_qos', {}).get('weights', {})
+            for name, item in sorted(communication['by_class'].items()):
+                lines.append(f"| {name} | {weights.get(name, 1)} | {_number(item['payload_bytes'] / 1e9)} | {_number(item['slot_wait_event_s'])} |")
         plan = result.get('model_metadata', {}).get('feature_plan', {})
         selected = [row for row in plan.get('features', []) if row.get('selected')]
         if selected:
@@ -710,9 +733,12 @@ def write_report(result: dict, directory: str | Path, *, full_detail: bool = Fal
         _csv(directory / 'resources.csv', ['resource', 'unit', 'work_unit', 'capacity', 'work', 'utilization', 'busy_s', 'average_rate_at_lower_bound', 'required_average_rate_lower_bound'],
              ({'resource': key, **item, **resources.get(key, {})} for key, item in result.get('requirements', {}).get('per_resource', {}).items()))
         peaks = result.get('simulation', {}).get('memory_peaks_bytes', {})
-        _csv(directory / 'memory.csv', ['pool', 'capacity_bytes', 'resident_bytes', 'optimistic_peak_bytes', 'simulated_peak_bytes'], (
+        budget = result.get('model_metadata', {}).get('training_hbm', {})
+        _csv(directory / 'memory.csv', ['pool', 'capacity_bytes', 'physical_capacity_bytes', 'reserved_bytes', 'resident_bytes', 'optimistic_peak_bytes', 'simulated_peak_bytes'], (
             {'pool': pool, 'resident_bytes': result['estimate']['resident_memory_bytes'].get(pool, 0),
              'capacity_bytes': result['memory_capacities_bytes'].get(pool),
+             'physical_capacity_bytes': (budget.get('physical_bytes_per_npu') if pool.endswith('.hbm') else None) or result['memory_capacities_bytes'].get(pool),
+             'reserved_bytes': budget.get('reserved_bytes_per_npu', 0) if pool.endswith('.hbm') else 0,
              'optimistic_peak_bytes': result['estimate']['optimistic_schedule_memory_peak_bytes'].get(pool, 0),
              'simulated_peak_bytes': peaks.get(pool)}
             for pool in sorted(set(result['estimate']['resident_memory_bytes']) | set(result['estimate']['optimistic_schedule_memory_peak_bytes']) | set(peaks))))

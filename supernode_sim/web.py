@@ -504,6 +504,7 @@ class WebHandler(BaseHTTPRequestHandler):
         if path == '/api/presets':
             priority = {'demo_inference': 0, 'demo_training': 1}
             names = {'demo_inference': 'MoE 推理演示', 'demo_training': '稠密模型训练演示'}
+            names['training_overlap_qos'] = '训练通信重叠、DP 排布与 QoS'
             names.update(training_task_pretrain='预训练 · 合成任务示例', training_task_sft='SFT · 回复掩码与打包',
                          training_task_dpo='DPO · 成对偏好优化', training_task_grpo='GRPO · 生成与多轮更新',
                          training_task_ppo='PPO · 奖励模型与 Critic')

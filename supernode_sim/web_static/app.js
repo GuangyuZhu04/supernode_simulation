@@ -992,6 +992,18 @@ function renderInputParallel(config) {
     ['每微批同步 / 预取', inputScalar(e.sync_each_microbatch) + ' / ' + inputScalar(e.prefetch), 'execution.sync_each_microbatch / execution.prefetch']
   ]);
   inputExtraFacts(host, [['每微批同步', 'execution.sync_each_microbatch'], ['预取', 'execution.prefetch']]);
+  if (inputObject(config.workload).scenario === 'training') {
+    inputFacts(host, [
+      ['FSDP 预取层数', e.prefetch_layers ?? (e.prefetch ? 1 : 0), 'execution.prefetch_layers'],
+      ['梯度同步重叠', e.overlap_gradient_sync, 'execution.overlap_gradient_sync'],
+      ['异步 PP 发送', e.overlap_pipeline_p2p, 'execution.overlap_pipeline_p2p'],
+      ['FlashAttention 分块数', e.flash_attention_blocks, 'execution.flash_attention_blocks'],
+      ['Attention 分块 TP 归约', e.overlap_attention_tp, 'execution.overlap_attention_tp'],
+      ['训练可用 HBM', inputUnit(e.training_hbm_fraction, '%', .01), 'execution.training_hbm_fraction'],
+      ['DP 域大小', e.dp_domain_size ?? '平坦归约', 'execution.dp_domain_size'],
+      ['通信 QoS', inputObject(features.training_qos).enabled, 'execution.features.training_qos.enabled']
+    ]);
+  }
   inputNote(host, Array.isArray(e.rank_order) && !e.rank_order.length ? 'rank_order = []：引擎使用默认恒等放置，逻辑 rank 与物理 NPU 索引一致。' : 'rank_order 每一项的数组索引是逻辑 rank，值是物理 NPU 索引。未提供时不在此生成放置。');
   inputFields(host, config.execution, 'execution', '全部执行字段（含 rank 放置、卸载、Engram 与优化器细节）');
 }
@@ -1277,6 +1289,10 @@ addInputSpecs('hardware.remote.latency_s hardware.ssd.latency_s', {type: 'number
 });
 addInputSpecs('targets.ttft_s targets.tpot_s', {type: 'number', scale: .001, unit: 'ms', nullable: true});
 addInputSpecs('targets.step_time_s', {type: 'number', unit: 's', nullable: true});
+addInputSpecs('execution.training_hbm_fraction', {type: 'number', scale: .01, unit: '%'});
+addInputSpecs('execution.prefetch_layers execution.dp_domain_size targets.training_global_batch_size', {type: 'number', integer: true, nullable: true});
+addInputSpecs('execution.flash_attention_blocks', {type: 'number', integer: true});
+addInputSpecs('execution.overlap_gradient_sync execution.overlap_pipeline_p2p execution.overlap_attention_tp execution.features.training_qos.enabled', {type: 'boolean'});
 addInputSpecs('targets.throughput_tokens_s', {type: 'number', unit: 'tokens/s', nullable: true});
 addInputSpecs('model.architecture.tie_embeddings execution.sequence_parallel execution.reshard_after_forward execution.sync_each_microbatch execution.prefetch execution.features.optimizer_offload execution.features.activation_checkpointing execution.features.engram.enabled hardware.remote.enabled hardware.ssd.enabled', {type: 'boolean'});
 inputEditSpecs.set('hardware.topology', {type: 'select', choices: ['full_mesh', 'mesh', 'clos', 'fat_tree', 'explicit']});
