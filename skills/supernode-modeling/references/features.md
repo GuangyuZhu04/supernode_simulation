@@ -21,7 +21,9 @@ python -m supernode_sim schema -o outputs/features/schema.json
 | `optimizer_offload` | `execution.features.optimizer_offload` | 训练；CPU 更新及主机链路可能使 step time 增加 |
 | `kv_offload: {location, fraction, page_tokens, page_entry_bytes}` | `execution.features.kv_*` | 推理；remote 还要求 `hardware.remote.enabled` |
 | `sequence_parallel` | `execution.sequence_parallel` | structured inference、TP > 1、PP = 1；与 TP 共用 ranks |
-| `fsdp: {degree, reshard_after_forward, sync_each_microbatch, prefetch}` | `execution.fsdp` 等 | 训练，degree 整除 DP；structured 路径不支持 lookahead prefetch |
+| `fsdp: {degree, reshard_after_forward, sync_each_microbatch, prefetch_layers, overlap_gradient_sync}` | `execution.fsdp` 等 | 训练，degree 整除 DP。预算和结构化路径支持逐层预取与异步梯度归约。 |
+| `training_qos: {enabled, weights}` | `execution.features.training_qos` | 训练共享链路按流量类别加权，同时就绪的 collective 按权重竞争通信槽。配置与对照方法见 [训练](training.md)。 |
+| `flash_attention: {blocks, overlap_tp}` | `execution.flash_attention_blocks`, `execution.overlap_attention_tp` | 结构化训练的因果分块与双缓冲。可选的 TP 输出分块归约适用于前向与重算。 |
 | `parallelism: {tp, pp, ep, dp, rank_order}` | `execution` 对应字段 | 保留卡数、专家数、heads 与拓扑约束 |
 | `optimizer` | `execution.optimizer` | 训练；Muon 需要显式张量结构，未实现 distributed Muon |
 | `engram` | `execution.features.engram` | 推理；cache、hit rate、IOPS、位置与延迟均为显式输入 |

@@ -1,0 +1,53 @@
+# Synthetic contention and placement experiment. All hardware rates are assumptions.
+model:
+  name: synthetic-gqa-training
+  layers: 6
+  hidden_dim: 64
+  num_heads: 4
+  kv_heads: 2
+  head_dim: 16
+  architecture:
+    vocab_size: 256
+    attention_by_layer: [GQA, GQA, GQA, GQA, GQA, GQA]
+    ffn_by_layer: [Dense, Dense, Dense, Dense, Dense, Dense]
+    dense_intermediate_dim: 128
+hardware:
+  name: synthetic-two-domain-fabric
+  npu_count: 8
+  su_size: 4
+  npus_per_host: 4
+  npu:
+    hbm_bytes: 16777216
+    hbm_Bps: 2.0e+10
+    flops: {fp16: 2.0e+11, fp32: 2.0e+10}
+    efficiency: 1
+    runtime_bytes: 65536
+    workspace_bytes: 16384
+  scale_up: {bandwidth_Bps: 8.0e+9, latency_s: 1.0e-6}
+  scale_out: {bandwidth_Bps: 5.0e+8, latency_s: 5.0e-6}
+workload:
+  scenario: training
+  batch_size: 1
+  sequence_length: 32
+  gradient_accumulation: 2
+  training_steps: 1
+execution:
+  pp: 2
+  dp: 4
+  fsdp: 2
+  prefetch_layers: 2
+  overlap_gradient_sync: true
+  overlap_pipeline_p2p: true
+  training_hbm_fraction: 0.90
+features:
+  flash_attention: {blocks: 2}
+  training_qos:
+    enabled: true
+    weights: {pp: 4, fsdp_gather: 2, fsdp_reduce_scatter: 1, dp: 1}
+targets:
+  total_npus: 8
+  candidate_su_sizes: [4]
+  candidate_dp_domain_sizes: [2, 4]
+  training_global_batch_size: 8
+sources:
+  '*': {status: assumed, description: Synthetic training fixture for schedule and QoS comparisons.}

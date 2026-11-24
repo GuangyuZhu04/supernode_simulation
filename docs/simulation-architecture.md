@@ -225,7 +225,7 @@ Graph 本身是内存中的 Python 数据结构，当前没有独立的图文件
 
 两条训练路径都使用 `training.pipeline_schedule()` 生成非交错 1F1B 调度：warmup forward → forward/backward 交替 → drain backward。执行图按训练步、PP stage、microbatch、layer 构建，真实并发由依赖和资源执行器决定。
 
-- 参数预算路径：`_TrainingBuilder.build()` → `initial_state()` → `phase()` → `optimizer()`。`phase()` 组织权重 gather、前/反向 kernel、TP/EP 通信、重计算、梯度同步与 PP 传输，并配合 `add_gather()` 支持受限的一层前瞻预取。
+- 参数预算路径由 `_TrainingBuilder.build()` 串起 `initial_state()`、`phase()` 和 `optimizer()`。`phase()` 组织权重 gather、前后向 kernel、TP/EP 通信、重计算、梯度同步与 PP 传输，`add_gather()` 按配置的层数前瞻预取。
 - 结构化路径：`Builder.training_graph()` → `initial()` → `gather()` / `kernel()` / `collective()` / `pipeline_transfer()`；activation checkpointing 调用 `recompute_layer()` 重放组件与必要 TP/EP 通信，最后调用 `optimizer()`。
 - FSDP 控制权重与状态分片，`reshard_after_forward` 控制前向后的释放和反向重新 gather；`sync_each_microbatch` 控制梯度同步时机。
 - optimizer offload 将状态置于 host，并生成梯度 D2H、CPU 更新、权重 H2D，传输精度与驻留精度分别计算。
@@ -233,7 +233,7 @@ Graph 本身是内存中的 Python 数据结构，当前没有独立的图文件
 
 当前 optimizer 在该步 backward 及同步依赖满足后执行，不与 backward 重叠。`inflight_components_per_rank` 的窗口控制位于结构化 optimizer；参数预算版训练未实现该窗口。两条路径共用资源执行器，但不能据此假设所有执行特性等价。
 
-两条路径的流水线依赖不完全相同：预算版 phase 的完成标记不等待异步 PP send；结构化版会把 stage 的后继依赖接到 send 完成。因此不能把两者视为同一调度器仅更换参数量。结构化路径当前拒绝 `prefetch=true`。
+两条训练路径都支持有界 FSDP 多层预取和异步 PP 发送。接收方等待对应微批到达，发送方依 `overlap_pipeline_p2p` 决定能否先推进本地计算。梯度同步可与后续层反向重叠。实际时延取决于拓扑、通信槽、HBM 和可选的流量权重。[训练参数与结果口径](../skills/supernode-modeling/references/training.md)
 
 ### 5.2 推理
 
@@ -626,7 +626,7 @@ python -m supernode_sim web --output outputs/web
 
 当前限制包括：无异构 P/D 重分片或在线池调度、expert offload、continuous batching、动态 KV 抢占、包级与周期级模拟；serve 已支持显式 arrival、固定成批排队和有限样本 P99，不能承诺生产尾延迟；投机仅有输入接受数的同步轮次模型，megakernel 只融合合法局部链。原生 Clos/Fat-tree 模板使用简化单 spine；拓扑子 skill 编译器支持配置多个 spine 及上联共享约束，原生显式图可选 `ecmp_hash` 按物理设备对稳定选择一条等 hop 路径，不做 packet spraying 或随拥塞改路。MoE 默认均匀路由，稀疏 decode 权重读取按期望触达专家估算。缓存/MTE 输出是工作集和搬运需求，不可直接解释为精确 L1/L2/L3 容量或硬件通道数。
 
-配置显式拒绝的组合还包括：无 architecture 的 Muon、结构化 FSDP lookahead prefetch、跨 PP 的 tied embedding 和 AttnRes、非权重状态使用 FP4、非结构化推理 / TP=1 / PP>1 下的 SP。MLA compressed/expanded 改变容量和访存模型，不表示两种实际 kernel 均已校准。
+配置显式拒绝的组合还包括无 architecture 的 Muon、跨 PP 的 tied embedding 和 AttnRes、非权重状态使用 FP4，以及非结构化推理 / TP=1 / PP>1 下的 SP。MLA compressed/expanded 的容量和访存均受布局影响，kernel 时延需要分别校准。
 
 当前训练不支持 interleaved pipeline、pipeline zero2 schedule、activation offload 或 distributed Muon 正交化。两条推理构图路径的 KV 分片和量化 scale 取整公式也存在差异，尤其 TP 不能整除 KV heads 的场景，应以对应路径的输出为准，不把两条路线视为数值等价。
 

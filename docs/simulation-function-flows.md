@@ -77,7 +77,7 @@ flowchart TD
     STEP --> STAGE["内部：遍历 PP stage<br/>pipeline_schedule(stage, stages, microbatches)"]
     STAGE --> PHASE["phase(step, stage, F或B, micro)<br/>phase_previous() 建立前驱"]
     PHASE --> LAYER["内部：按 F 正序 / B 逆序遍历层"]
-    LAYER --> GATHER["按 FSDP / reshard 条件 add_gather()<br/>可选一层前瞻预取"]
+    LAYER --> GATHER["按 FSDP / reshard 条件 add_gather()<br/>可配置逐层前瞻深度"]
     GATHER --> DISPATCH["可选 collective(EP dispatch)<br/>内部：权重精度转换、activation 生命周期"]
     DISPATCH --> CK{"内部：B 且 activation checkpointing？"}
     CK -->|是| RECOMP["kernel(forward=True)<br/>重放 TP / EP 通信"]
@@ -87,7 +87,8 @@ flowchart TD
     COMM --> SYNC{"内部：B 到达梯度同步点？"}
     SYNC -->|是| GRAD["collective()<br/>dense EP AR → FSDP RS → replica DP AR"]
     SYNC -->|否| DONE["barrier(layer done)<br/>释放本层已消费临时分配"]
-    GRAD --> DONE
+    GRAD -->|同步归约| DONE
+    SYNC -->|异步归约与后续层重叠| DONE
     DONE --> MOREL{"内部：还有层？"}
     MOREL -->|是| LAYER
     MOREL -->|否| PDONE["barrier(phase done)"]
@@ -126,11 +127,13 @@ flowchart TD
     MOREC -->|否| SYNC{"内部：B 到达梯度同步点？"}
     SYNC -->|是| GRAD["collective()<br/>FSDP RS → replica AR → dense EP AR"]
     SYNC -->|否| DONE["barrier(layer.done)<br/>释放 gather / gradient / recompute 临时项"]
-    GRAD --> DONE
+    GRAD -->|同步归约| DONE
+    SYNC -->|异步归约与后续层重叠| DONE
     DONE --> MOREL{"内部：还有层？"}
     MOREL -->|是| LAYER
     MOREL -->|否| PHASE["barrier(phase 完成)<br/>释放消费完的 PP receive 等状态"]
-    PHASE --> SEND["有下游时 pipeline_transfer()<br/>可选 pack → Topology.transfer() → 可选 unpack<br/>内部：stage_previous 指向发送完成"]
+    PHASE --> SEND["有下游时 pipeline_transfer()<br/>接收方等待发送完成"]
+    PHASE -->|异步发送| MOREP
     SEND --> MOREP{"内部：还有 phase / stage？"}
     MOREP -->|是| STEP
     MOREP -->|否| OPT["optimizer(step, stage tails)<br/>见图 4"]
@@ -139,7 +142,7 @@ flowchart TD
     MORES -->|否| ANNOTATE["annotate_collective_allocations()<br/>返回 Graph"]
 ```
 
-结构化组件携带 `model_shape_signature` 和 `workload_shape`，训练微批与 phase 用于图 16 的 trace/profile 适用性校验。结构化路径没有 FSDP lookahead prefetch；配置阶段会拒绝该开关。其 stage 后继依赖可能等待 PP send，因此与图 2 的异步发送语义有区别。checkpoint 仍产生前向完整临时工作集，只改变保存与重计算策略。
+结构化组件携带 `model_shape_signature` 和 `workload_shape`，训练微批与 phase 用于图 16 的 trace/profile 适用性校验。两条训练路径均支持有界 FSDP 多层预取、异步 PP 发送和层间梯度同步重叠。checkpoint 仍产生前向完整临时工作集，只改变保存与重计算策略。
 
 ## 4. 训练优化器与 offload
 

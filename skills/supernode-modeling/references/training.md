@@ -8,15 +8,53 @@
 
 - `workload.scenario: training`；`batch_size` 是每 DP 副本、每个 microbatch 的序列数。
 - 普通固定长度训练每步 tokens 为 `batch_size * sequence_length * gradient_accumulation * dp`。任务路径按有效长度、padding、DPO 双序列或 RL 实际更新次数分别统计；RL 的 `training_steps` 表示整轮迭代，不是 optimizer 步数。
-- `execution.fsdp` 是 DP 子组大小；`reshard_after_forward` 控制前向后是否保留 gathered 权重；`sync_each_microbatch` 控制梯度同步频率；`prefetch` 表示有限的下一层预取。
+- `execution.fsdp` 是 DP 中的分片组大小。`reshard_after_forward` 控制前向后是否保留完整权重，`sync_each_microbatch` 控制梯度同步频率。预算与结构化训练都支持 `prefetch_layers`。取 0 时按需 gather，取 N 时最多提前 N 层。省略该字段时，旧配置 `prefetch: true` 对应提前一层。
 - `execution.features.optimizer_offload` 将主权重和所选优化器状态放在主机，生成梯度 D2H、CPU 更新和权重 H2D；`activation_checkpointing` 用重计算换 activation 驻留量。`execution.optimizer.kind: muon` 使用矩阵 momentum 与辅助 Adam 参数组，详情见 [memory-breakdown.md](memory-breakdown.md)。
 - PP 调度为非交错 1F1B。MoE 使用均匀路由和均衡专家计算；不能用合成结果证明热点专家场景可行。
 
-结构化训练当前不支持 `prefetch`，训练 SP 也未实现；不要将预算路径的预取或推理 SP 能力套入结构化训练。反向组件默认仍采用前向计算量的 2 倍近似。需要细分时使用 [operator trace](operator-traces.md)，分别绑定 forward/backward/recompute，显式描述 dgrad/wgrad 等子算子、矩阵形状、访存、启动与局部 workspace，再提供相应实测 profile。拆分保持原依赖，梯度同步/优化器不能提前启动；原预算守恒不证明真实 autograd 已完整复现。
+训练 SP 尚未实现。反向组件默认使用前向 FLOPs 的 2 倍近似。可为 forward、backward、recompute 分别绑定 operator trace，描述 dgrad/wgrad 的形状、启动、访存和 workspace。[子算子校准](operator-traces.md)
 
 预算训练的标准 attention 使用每序列 `S*(S+1)/2` 个因果 query-key 对和实际 `num_heads*head_dim`，与推理 prefill 保持相同口径。该修正不改变 checkpoint 重算次数，也不取消 backward 的现有近似。
 
 并行模式影响不同张量：Dense 权重会在 EP 间复制，expert 权重按 EP 分片；FSDP 并非把所有状态除以总卡数。实际 HBM 峰值还包括 gathered 权重、通信缓冲、activation、预取窗口和 workspace。
+
+## 通信重叠、容量与排布
+
+从仓库根目录运行合成案例，单独比较执行策略和排布。
+
+```powershell
+python -m supernode_sim simulate examples/training_overlap_qos.yaml -o outputs/training-overlap
+python -m supernode_sim size-su examples/training_overlap_qos.yaml --mode multi -o outputs/training-placement
+```
+
+| 配置 | 执行与结果口径 |
+|---|---|
+| `execution.prefetch_layers` | 前向按层序、反向按逆序启动 FSDP all-gather，计算等待本层权重。每次 gather 仍占用链路、HBM 端口和完整权重缓冲。窗口限定在一个 PP stage 的一次 pass 内。 |
+| `execution.overlap_gradient_sync` | 开启后，本层梯度就绪即可归约，下一层反传可以继续。每个 stage 按层提交同步，缓冲保留至归约完成，每个 backward 微批结束前排空。 |
+| `execution.overlap_pipeline_p2p` | 默认开启。接收 stage 等待对应微批的发送完成，发送 stage 可继续执行已就绪的工作。关闭可对比同步发送。 |
+| `execution.flash_attention_blocks` | 0 使用原组件。正整数指定每条序列最多划分的块数。MHA/GQA/MQA 和展开 K/V 的 MLA 分别建立前向、反向、重算的投影、因果 tile 搬入、计算和写回事件。双缓冲允许下一块 HBM 读取与当前块计算重叠。稀疏与循环注意力继续使用各自的组件模型。 |
+| `execution.training_hbm_fraction` | 默认 0.90，可设 0.85。每张卡的物理容量乘以该比例得到准入上限。常驻态、runtime、workspace、预取、未分片梯度和临时通信缓冲共享这个上限。设为 1.0 可复跑旧容量假设。CPU DRAM 采用自身容量。 |
+| `execution.overlap_attention_tp` | 当 TP 和块数都大于 1 时，可将前向及重算的输出投影按已完成的 query 块送入 TP all-reduce，同时继续计算后面的块。每块都承担通信启动成本，局部输出缓冲保留至本块归约结束。反向等待完整 dKV 累积后归约。 |
+| `execution.dp_domain_size` | 每个逻辑域内的 DP rank 数，需整除 DP 并容纳完整 FSDP 组。对同一 FSDP 分片，先做域内 reduce-scatter，再按对应分片跨域 all-reduce，最后域内 all-gather。单域或单 lane 情形退化为一次 all-reduce。 |
+| `targets.candidate_dp_domain_sizes` | `size-su` 比较候选域大小、模型并行优先和 DP 域连续的 rank 排布。省略时比较平坦归约与从 SU 推导的域大小。显式的 `rank_order` 固定物理排布。实际跨 SU 程度见 `dp_domains`。 |
+| `targets.training_global_batch_size` | 普通训练搜索按 `global_batch / (microbatch × DP)` 派生累积步数，不能整除的候选保留诊断。DPO 按偏好对计 batch。每次搜索的 `highest_throughput.candidate_index` 指向可行候选中集群吞吐最高的配置，`best` 保留最小 SU 的目标。 |
+
+FlashAttention 使用真实序列长度计算每块的有效因果对数，按访问次数计 HBM 流量，分别核算 KV 头分片和复制。块数表示聚合的解析粒度，片上缓冲容量、硬件实际 tile、流水指令和内部启动开销需通过平台 profile 校准。反向的 FLOPs 沿用现有倍数，dKV 的分块累积会产生读改写。拆分后的 kernel 使用独立名字，可以按阶段和块形状校准。
+
+调度依赖参考 TorchTitan 仿真器的计算与通信执行槽，阶段 FLOPs 与步时口径沿用项目对 SimuMax 的映射。FSDP 多层预取参考 FSDP2 的显式预取语义，attention 搬运和计算重叠参考 FlashAttention 的分块 I/O。[已有仿真器源码与版本](zhanlu-training.md) · [PyTorch FSDP2](https://docs.pytorch.org/docs/stable/distributed.fsdp.fully_shard.html) · [FlashAttention-3](https://arxiv.org/abs/2407.08608)
+
+## 训练流量优先级
+
+```yaml
+features:
+  training_qos:
+    enabled: true
+    weights: {pp: 4, tp: 2, ep: 2, fsdp_gather: 2, fsdp_reduce_scatter: 1, dp: 1}
+```
+
+默认关闭，未指定类别权重为 1。权重分配到每条活跃传输。在共享 SU/SO 链路、注入端口、NIC 或共享上联上，同等条件下权重 3 和 1 的两条流按 3∶1 分享带宽。同时争用同一 collective 收发槽时，高权重先准入，已占用的槽执行至本次传输结束。计算、HBM、链路启动时延和每条消息的字节数仍按原硬件参数计费。该模型描述算子级仲裁，设备 DSCP/PCP、PFC/ECN、硬件队列和包级抢占需另行建模。
+
+固定模型、全局 batch、排布、预取深度和 HBM 水位，分别运行 QoS 开关。比较 step time、峰值 HBM 和 `metrics.training_communication.by_class` 中的 payload、逐跳字节和事件槽位等待。通信与同卡计算的重叠率先对每张卡的传输区间取并集，再与同卡计算区间求交，分母为所有卡的通信活跃 rank·s。该比例包含事件启动时间，不能直接换算为步时长节省。硬件拟合用同一软件栈的独立 step trace、逐类通信和逐卡 HBM 峰值验证。
 
 ## 10T FP8/FP16 交叉检查
 

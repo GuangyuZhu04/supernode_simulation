@@ -17,11 +17,13 @@ flowchart TD
     MOREC -->|否| SYNC{"内部：B 到达梯度同步点？"}
     SYNC -->|是| GRAD["collective()<br/>FSDP RS → replica AR → dense EP AR"]
     SYNC -->|否| DONE["barrier(layer.done)<br/>释放 gather / gradient / recompute 临时项"]
-    GRAD --> DONE
+    GRAD -->|同步归约| DONE
+    SYNC -->|异步归约与后续层重叠| DONE
     DONE --> MOREL{"内部：还有层？"}
     MOREL -->|是| LAYER
     MOREL -->|否| PHASE["barrier(phase 完成)<br/>释放消费完的 PP receive 等状态"]
-    PHASE --> SEND["有下游时 pipeline_transfer()<br/>可选 pack → Topology.transfer() → 可选 unpack<br/>内部：stage_previous 指向发送完成"]
+    PHASE --> SEND["有下游时 pipeline_transfer()<br/>接收方等待发送完成"]
+    PHASE -->|异步发送| MOREP
     SEND --> MOREP{"内部：还有 phase / stage？"}
     MOREP -->|是| STEP
     MOREP -->|否| OPT["optimizer(step, stage tails)<br/>见图 4"]

@@ -4,6 +4,8 @@
 
 项目设计与实现：[整体架构设计文档](docs/simulation-architecture.md) · [函数级仿真流程图](docs/simulation-function-flows.md)。
 
+训练仿真支持多层 FSDP 预取、梯度归约与反传重叠、异步 PP、FlashAttention 分块搬运和按流量类别配置 QoS。训练默认将每卡 HBM 的 90% 用于准入。`size-su` 可在固定全局 batch 下比较 DP 域大小和物理 rank 排布。[8 卡合成配置](examples/training_overlap_qos.yaml) · [运行与指标说明](skills/supernode-modeling/references/training.md)
+
 训练新增预训练、SFT、DPO、PPO/GRPO 任务分类及专用参数：packing/监督标签、偏好双序列、rollout 长度与 batch、参考/奖励/价值模型、多轮更新和经验缓冲均进入可复跑配置。复用算子 trace/profile、通信及内存引擎，报告分列处理/有效/监督/生成 token 与阶段耗时；RL 当前采用共池串行、PP=FSDP=1。参数、限制和五类示例见 [训练任务指南](skills/supernode-modeling/references/training-tasks.md)。运行 `python skills/supernode-modeling/scripts/evaluate_training_tasks.py --output outputs/training-tasks` 可生成任务报告与敏感性对照，全部示例为 synthetic。
 
 支持训练与固定负载推理、FP8/FP16 权重、FSDP2/CPU optimizer offload、MoE、标准与 latent KV、KV offload、Engram 查询、SU/SO 拓扑和有限候选搜索。Demo 与 10T 容量锚点是明确标注的合成配置；Kimi K3 / Ascend 950DT 案例使用公开结构和硬件资料，并分别标明运行时、拓扑及效率假设，不将型号名称当作实测校准。

@@ -5,7 +5,7 @@ flowchart TD
     STEP --> STAGE["内部：遍历 PP stage<br/>pipeline_schedule(stage, stages, microbatches)"]
     STAGE --> PHASE["phase(step, stage, F或B, micro)<br/>phase_previous() 建立前驱"]
     PHASE --> LAYER["内部：按 F 正序 / B 逆序遍历层"]
-    LAYER --> GATHER["按 FSDP / reshard 条件 add_gather()<br/>可选一层前瞻预取"]
+    LAYER --> GATHER["按 FSDP / reshard 条件 add_gather()<br/>可配置逐层前瞻深度"]
     GATHER --> DISPATCH["可选 collective(EP dispatch)<br/>内部：权重精度转换、activation 生命周期"]
     DISPATCH --> CK{"内部：B 且 activation checkpointing？"}
     CK -->|是| RECOMP["kernel(forward=True)<br/>重放 TP / EP 通信"]
@@ -15,7 +15,8 @@ flowchart TD
     COMM --> SYNC{"内部：B 到达梯度同步点？"}
     SYNC -->|是| GRAD["collective()<br/>dense EP AR → FSDP RS → replica DP AR"]
     SYNC -->|否| DONE["barrier(layer done)<br/>释放本层已消费临时分配"]
-    GRAD --> DONE
+    GRAD -->|同步归约| DONE
+    SYNC -->|异步归约与后续层重叠| DONE
     DONE --> MOREL{"内部：还有层？"}
     MOREL -->|是| LAYER
     MOREL -->|否| PDONE["barrier(phase done)"]

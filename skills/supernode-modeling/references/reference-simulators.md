@@ -49,7 +49,7 @@
 | ZeRO / distributed optimizer | 本项目的 `execution.fsdp`、`reshard_after_forward`、`sync_each_microbatch`；不能直接把 ZeRO stage 数值填入 FSDP |
 | 重计算、参数预取、优化器 offload | `execution.features.activation_checkpointing`、`execution.prefetch`、`execution.features.optimizer_offload` |
 | 算子时间、通信类型/group/消息量 | 阶段限定 `hardware.kernel_traces` / `kernel_profiles` 与既有 collective profile/model |
-| reduce/allgather/prefetch bucket 与驻留阈值 | 无完整一一对应字段；现有有限下一层预取不等于 DeepSpeed 的 bucket 和 max-live-parameters 策略 |
+| reduce/allgather/prefetch bucket 与驻留阈值 | 通过 `execution.prefetch_layers` 指定逐层前瞻，通过 `training_hbm_fraction` 限制可用 HBM。DeepSpeed 的任意 bucket 边界和 max-live-parameters 仍需单独建模。 |
 
 参数表用于语义映射，不是外部 CLI 的自动转换器。
 本项目训练为非交错 1F1B；virtual pipeline、任意 gradient bucket、训练 SP 和框架特定重叠不可由改名获得。
