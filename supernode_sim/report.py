@@ -510,6 +510,13 @@ def markdown_report(result: dict) -> str:
                 ('executed_compute_utilization', '全部 NPU 工作的峰值归一比例'),
             ):
                 lines.append(f"| {label} | {_number(accounting.get(key))} |")
+            if 'moe_routing' in accounting:
+                routing = accounting['moe_routing']
+                lines.append(f"| 专家填充 FLOPs（含重计算） | {_number(routing['expert_padding_flops'])} |")
+                lines.append(f"| 丢弃分配对应的前反向 FLOPs | {_number(routing['dropped_forward_backward_flops'])} |")
+            if 'reference_mfu' in accounting:
+                ref = accounting['reference_mfu']
+                lines.append(f"| {ref['name']} 参考 MFU（{ref['sequence_length']} tokens） | {ref['ratio']:.2%} |")
             lines += ['', 'model_mfu 排除重计算、优化器和转换/打包；各 dtype 分别除以裸峰值，再按完整卡数与执行时间归一。',
                       '这是当前模型的计算量代理，不能不核对分子就与其他工具或论文的同名 MFU 比较。CPU 工作单独统计；详细阶段、角色与 dtype 账本见 metrics.training_accounting。']
         lines += latency_markdown(result.get('metrics', {}), scenario=result.get('config', {}).get('workload', {}).get('scenario'))

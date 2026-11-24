@@ -75,6 +75,9 @@ def rank_activity(graph, simulation, rank_count):
             owners = {meta['src'], meta['dst']}.intersection(ranks)
             kind = 'other' if meta['src'] == meta['dst'] else 'transfer'
             op = meta.get('collective') or meta.get('operation') or meta.get('category') or 'point_to_point'
+            direction = meta.get('semantic') or meta.get('operation')
+            if op == 'all_to_all_v' and direction in ('dispatch', 'combine'):
+                op = f'{op} ({direction})'
             name = ' / '.join(filter(None, (meta.get('traffic_class'), op)))
         else:
             resources = [key for key, amount in event.work.items() if amount > 0]
@@ -122,6 +125,11 @@ def build_training_summary(spec, graph, result):
         compute_ops=_partition('计算时段 · 按计算算子', 'rank·s', compute_ops),
         exposed_ops=_partition('暴露通信时段 · 按通信算子', 'rank·s', exposed_ops),
         idle=_partition('空泡 · 按每卡活动位置', 'rank·s', idle))
+    accounting = result['metrics'].get('training_accounting', {})
+    if 'moe_routing' in accounting or 'reference_mfu' in accounting:
+        summary['training_compute'] = {key: accounting[key] for key in
+            ('model_mfu', 'executed_compute_utilization', 'npu_flops_by_role', 'moe_routing', 'reference_mfu')
+            if key in accounting}
     return {**summary, 'status': 'complete', 'duration_s': sim['duration_s'], 'groups': groups,
             'rank_activity_s': by_rank,
             'peak_hbm': {'pool': peak['pool'], 'time_s': peak['peak_time_s'], 'peak_bytes': peak['peak_bytes'],
