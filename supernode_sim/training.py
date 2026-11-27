@@ -41,6 +41,8 @@ class _TrainingBuilder:
         self.layers = self.model["layers"]
         self.microbatches = self.wl["gradient_accumulation"]
         self.tokens = self.wl["batch_size"] * self.wl["sequence_length"]
+        self.source_tokens = [len(range(e, self.wl["batch_size"], self.ep)) * self.wl["sequence_length"]
+                              for e in range(self.ep)]
         self.offload = self.features["optimizer_offload"]
         self.checkpoint = self.features["activation_checkpointing"]
         self.reshard = self.exe["reshard_after_forward"]
@@ -159,6 +161,7 @@ class _TrainingBuilder:
     def collective(self, prefix: str, stage: int, axis: str, kind: str, size: float,
                    deps, metadata: dict) -> list[str]:
         ends: list[str] = []
+        average_size = size
         wire = metadata.get('wire_dtype', self.precision['communication'])
         moe = metadata.get('semantic') in ('dispatch', 'combine')
         original_deps = tuple(deps)
@@ -166,11 +169,14 @@ class _TrainingBuilder:
         for i, ranks in enumerate(self.groups(stage, axis)):
             group_prefix = f"{prefix}.g{i}"
             matrix = None
+            size = average_size
+            if axis == 'tp' and metadata.get('category') == 'tensor_parallel':
+                size *= self.source_tokens[self.reverse[ranks[0]][2]] * self.ep / self.tokens
             if kind == "all_to_all_v":
-                # Equal expert loads: size is each source's total routed token
-                # payload, including the local share (which is not transmitted).
-                matrix = [[0 if a == b else size / len(ranks) for b in range(len(ranks))]
-                          for a in range(len(ranks))]
+                matrix = [[0 if a == b else size * self.source_tokens[a] / self.tokens for b in range(self.ep)]
+                          for a in range(self.ep)]
+                if metadata.get('semantic') == 'combine':
+                    matrix = list(map(list, zip(*matrix)))
             outer = moe
             if moe:
                 selection = self.topo.select_collective_timing_scope(kind, ranks, size, matrix, metadata, algorithm)
@@ -268,37 +274,42 @@ class _TrainingBuilder:
                 {"phase": phase, "category": "quantization_metadata", "layer": layer})
         return self.barrier(name + ".gather.done", ends)
 
-    def full_activation_elements(self) -> float:
-        routed = self.model["moe_layer_fraction"] * self.model["top_k"] * self.expert_factor
-        return 2 * self.model["hidden_dim"] + self.model["intermediate_dim"] / self.tp * (1 + routed)
-
-    def activation_size(self) -> float:
-        elements_per_token = self.model["hidden_dim"] if self.checkpoint else self.full_activation_elements()
-        return self.size("activation", self.tokens * elements_per_token / self.ep)
+    def activation_size(self, rank, *, full=False) -> float:
+        tokens = self.source_tokens[self.reverse[rank][2]]
+        hidden = self.model['hidden_dim']
+        elements = tokens * hidden
+        if full or not self.checkpoint:
+            middle = self.model['intermediate_dim'] / self.tp
+            routed = self.model['moe_layer_fraction'] * self.model['top_k'] * self.expert_factor
+            elements += tokens * (hidden + middle) + self.tokens / self.ep * middle * routed
+        return self.size('activation', elements)
 
     def kernel(self, name: str, rank: str, deps, forward: bool, *, allocs=(), releases=(),
                recompute=False, layer=0) -> str:
         # 2 P_active FLOPs per token in forward; backward is twice forward.
         # Count QK and AV over the exact causal triangle, as in inference.
         # The attention head width need not equal the residual hidden width.
-        work = 2 * self.model["active_params"] / self.layers * self.tokens
+        local = self.source_tokens[self.reverse[rank][2]]
+        active = self.model['active_params'] / self.layers / self.tp
+        shared = min(active, self.dense_per_layer)
+        work = 2 * (shared * local + (active - shared) * self.tokens / self.ep)
         sequence = self.wl["sequence_length"]
         window = self.windows[layer] if self.windows else None
-        pairs = self.wl["batch_size"] * causal_pairs(sequence, window)
-        work += 4 * self.model["num_heads"] * self.model["head_dim"] * pairs
-        flops = work / self.tp / self.ep * (1 if forward else 2)
+        pairs = local // sequence * causal_pairs(sequence, window)
+        work += 4 * self.model["num_heads"] * self.model["head_dim"] * pairs / self.tp
+        flops = work * (1 if forward else 2)
         routing_work = {}
         if self.routing:
             active_routed = max(0.0, self.model["active_params"] / self.layers / self.tp - self.dense_per_layer)
             requested = 2 * active_routed * self.tokens / self.ep * (1 if forward else 2)
             flops += requested * (self.expert_factor - 1)
             routing_work = training_routed_flops(requested, self.expert_factor, self.accepted_factor)
-        reads = self.size("weight", self.params_per_layer) + 2 * self.activation_size()
+        reads = self.size("weight", self.expert_per_layer + (self.dense_per_layer if local else 0)) + 2 * self.activation_size(rank)
         if not forward:
             reads += 2 * self.size("gradient", self.params_per_layer)
         metadata = {"phase": "recompute" if recompute else ("forward" if forward else "backward"),
                     "kernel": "training_recompute" if recompute else ("training_forward" if forward else "training_backward"),
-                    "rank": rank, "layer": layer, "flops": flops,
+                    "rank": rank, "layer": layer, "flops": flops, "attention_tokens": local,
                     "hbm_bytes": reads, "working_set_bytes": reads,
                     "compute_precision": self.precision["compute"], **routing_work,
                     **({"attention_window": window} if window is not None else {})}
@@ -354,7 +365,7 @@ class _TrainingBuilder:
                 activation_id = self.layer_name(step, stage, "forward", micro, layer) + f".{rank}.activation"
                 allocations, releases = [], []
                 if forward:
-                    allocations.append(self.allocation(activation_id, rank, self.activation_size(),
+                    allocations.append(self.allocation(activation_id, rank, self.activation_size(rank),
                         "activation_checkpoint" if self.checkpoint else "activations", self.precision["activation"],
                         microbatch=micro, layer=layer))
                 else:
@@ -375,7 +386,7 @@ class _TrainingBuilder:
                     recompute_id = rank_name + ".recompute_activations"
                     # Recompute restores a full transient layer workspace, not
                     # merely the small saved checkpoint input.
-                    amount = self.size("activation", self.tokens * self.full_activation_elements() / self.ep)
+                    amount = self.activation_size(rank, full=True)
                     rank_deps = [self.kernel(rank_name + ".recompute", rank, rank_deps, True,
                         allocs=(self.allocation(recompute_id, rank, amount, "recompute_workspace", self.precision["activation"]),),
                         recompute=True, layer=layer)]
@@ -455,10 +466,12 @@ class _TrainingBuilder:
         neighbor = stage + 1 if forward else stage - 1
         transfers = []
         if 0 <= neighbor < self.pp:
-            elements = self.tokens * self.model["hidden_dim"] / self.ep
-            payload = self.size("communication", elements)
             for rank in self.stage_ranks[stage]:
                 d, _, e, t = self.reverse[rank]
+                elements = self.source_tokens[e] * self.model['hidden_dim']
+                if not elements:
+                    continue
+                payload = self.size("communication", elements)
                 dst = self.ranks[d, neighbor, e, t]
                 transfer_name = prefix + ".send." + rank
                 current = [previous]
@@ -606,4 +619,8 @@ class _TrainingBuilder:
 
 def build_training(config: dict, topology: Topology) -> Graph:
     """Build a training graph from a validated, normalized configuration."""
+    from .rank_layout import independent_groups
+    if independent_groups(config['execution']) or config['execution'].get('fsdp_domain') is not None:
+        from .structured import build_structured
+        return build_structured(config, topology)
     return _TrainingBuilder(config, topology).build()

@@ -8,7 +8,8 @@
 
 - `workload.scenario: training`；`batch_size` 是每 DP 副本、每个 microbatch 的序列数。
 - 普通固定长度训练每步 tokens 为 `batch_size * sequence_length * gradient_accumulation * dp`。任务路径按有效长度、padding、DPO 双序列或 RL 实际更新次数分别统计；RL 的 `training_steps` 表示整轮迭代，不是 optimizer 步数。
-- `execution.fsdp` 是 DP 中的分片组大小。`reshard_after_forward` 控制前向后是否保留完整权重，`sync_each_microbatch` 控制梯度同步频率。预算与结构化训练都支持 `prefetch_layers`。取 0 时按需 gather，取 N 时最多提前 N 层。省略该字段时，旧配置 `prefetch: true` 对应提前一层。
+- 每个外层 DP 副本先把完整训练序列分给 Attention 副本，再在副本内按 CP 分配上下文位置。CP=1 且 microbatch 只有一条序列时，一个 Attention 副本承担该序列的全部计算。专家工作量另按路由到各专家副本的 token 及 EP 分片计算。[并行组与 rank 放置](configuration.md#attention-和专家并行组)
+- 单独填写 `execution.fsdp` 时，其数值是外层 DP 子组的分片度。使用 `execution.fsdp_domain` 可单独指定稠密参数和路由专家的物理分片组。`reshard_after_forward` 控制前向后是否保留完整权重，`sync_each_microbatch` 控制梯度同步频率。预算与结构化训练都支持 `prefetch_layers`。取 0 时按需 gather，取 N 时最多提前 N 层。省略该字段时，旧配置 `prefetch: true` 对应提前一层。
 - `execution.features.optimizer_offload` 将主权重和所选优化器状态放在主机，生成梯度 D2H、CPU 更新和权重 H2D；`activation_checkpointing` 用重计算换 activation 驻留量。`execution.optimizer.kind: muon` 使用矩阵 momentum 与辅助 Adam 参数组，详情见 [memory-breakdown.md](memory-breakdown.md)。
 - PP 调度为非交错 1F1B。MoE 使用均匀路由和均衡专家计算；不能用合成结果证明热点专家场景可行。
 
@@ -17,6 +18,45 @@
 预算训练的标准 attention 使用每序列 `S*(S+1)/2` 个因果 query-key 对和实际 `num_heads*head_dim`，与推理 prefill 保持相同口径。该修正不改变 checkpoint 重算次数，也不取消 backward 的现有近似。
 
 并行模式影响不同张量：Dense 权重会在 EP 间复制，expert 权重按 EP 分片；FSDP 并非把所有状态除以总卡数。实际 HBM 峰值还包括 gathered 权重、通信缓冲、activation、预取窗口和 workspace。
+
+## 无流水线的 CP、EP 与 FSDP 训练
+
+8 张卡可以组成一个流水段并处理一份 batch。下面的配置将每条序列的上下文切为两份，将路由专家分给 4 个 EP 位置。每套 EP 分片有两份副本，可将同一专家的训练状态继续分片。[完整训练算例](../../../examples/training_cp_ep_fsdp.yaml)
+
+```yaml
+execution:
+  pp: 1
+  dp: 1
+  tp: 1
+  cp: 2
+  attention_dp: 4
+  ep: 4
+  expert_tp: 1
+  expert_dp: 2
+  fsdp_domain:
+    implementation: fsdp2
+    dense_degree: 4
+    expert_groups: [[0, 4], [1, 5], [2, 6], [3, 7]]
+```
+
+| 参数 | 分片成员 | 反向同步 |
+|---|---|---|
+| 稠密层、router 和共享专家 | `[0,1,2,3]`、`[4,5,6,7]` | 组内 reduce-scatter，再由两组中持有同一分片的卡成对 all-reduce |
+| 路由专家 | `[0,4]`、`[1,5]`、`[2,6]`、`[3,7]` | 每对保存同一 EP 位置的专家，组内 reduce-scatter 完成同步 |
+
+两类参数均在计算前按自身分片组 all-gather。权重、梯度、主权重和优化器状态按实际本地分片计量。在这个例子中 `DP=1`，`batch_size=4`，梯度累积 2 次，每步处理 8 条序列。FSDP 复用现有 rank，卡数和全局 batch 单独由计算布局与负载决定。
+
+- `implementation: fsdp` 按层、参数归属与权重精度将同类张量展平成一个缓冲区后分片，末尾计入等长通信所需的填充。`implementation: fsdp2` 按每个 TP/EP 本地参数的第 0 维分片，常驻状态按实际拥有的行计量，集合通信按组内最大行数补齐。同一层内兼容的张量合并通信。跨层绑定的 embedding 单独成组并共享存储。此处模拟参数所有权、载荷及生命周期。[PyTorch FSDP2](https://docs.pytorch.org/docs/stable/distributed.fsdp.fully_shard.html)
+- `dense_groups`、`expert_groups` 可分别填写完整物理 NPU 编号列表。每类都须恰好覆盖所有卡，组内下标决定分片编号。稠密组固定流水段和 Attention TP 位置，专家组固定流水段、EP 位置和专家 TP 位置。`rank_order`、`expert_rank_order` 生效后再校验物理成员。
+- 省略成员时按 `dense_degree`、`expert_degree` 从同一参数分片的副本中自动组网。显式成员可推导分片度。两者均省略时，优先用大于 1 的 `execution.fsdp` 作为公共分片度，否则使用所有兼容副本。显式指定某类度数为 1 时，该类参数完整驻留并按其副本同步梯度。`dp_domain_size` 限定外层梯度归约域，配置时每个 FSDP 分片组必须完整落在其中。
+- 仅提供总参数预算时，分片采用均衡元素量估计。缺失 TP 本地整数形状的张量也使用这一估计。具有显式形状的批量专家权重按库存中的 `[本地专家数, …]` 切第 0 维。实际运行时的通信带宽、分桶边界和内存分配仍需按目标框架校准。
+
+```powershell
+python -m supernode_sim validate examples/training_cp_ep_fsdp.yaml
+python -m supernode_sim simulate examples/training_cp_ep_fsdp.yaml -o outputs/training-cp-ep-fsdp
+```
+
+`validate` 返回 `fsdp_domains`。训练结果的 `training_summary.json` 同时列出实际分片组、对应分片的副本组，以及按参数类别和阶段汇总的跨卡发送字节 `fsdp_sent_bytes`。
 
 ## 通信重叠、容量与排布
 

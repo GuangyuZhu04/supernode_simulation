@@ -20,7 +20,10 @@ LAYOUT_FIELDS = {
     'hardware.npu_count', 'hardware.su_size', 'hardware.npus_per_host', 'hardware.topology',
     'hardware.mesh_width', 'hardware.leaf_size', 'hardware.explicit_links', 'hardware.routes',
     'hardware.io_groups', 'execution.tp', 'execution.pp', 'execution.ep', 'execution.dp',
-    'execution.fsdp', 'execution.dp_domain_size', 'execution.rank_order',
+    'execution.fsdp', 'execution.dp_domain_size', 'execution.rank_order', 'execution.cp', 'execution.expert_tp',
+    'execution.attention_dp', 'execution.expert_dp', 'execution.expert_rank_order',
+    'execution.fsdp_domain', 'execution.fsdp_domain.dense_degree', 'execution.fsdp_domain.expert_degree',
+    'execution.fsdp_domain.dense_groups', 'execution.fsdp_domain.expert_groups',
     'workload.batch_size', 'workload.gradient_accumulation',
 }
 SCORED = ('step_time_s', 'steady_step_time_s', 'peak_hbm_bytes', 'exposed_comm_s_per_rank_per_step')
@@ -94,6 +97,10 @@ def _native_case(config, case):
         'parallelism': {axis: getattr(spec.execution, axis) for axis in ('dp', 'tp', 'pp', 'ep', 'fsdp', 'dp_domain_size')},
         'simulation_status': result['status'], 'fidelity': metadata['fidelity'], 'coverage': calibration,
     })
+    if 'parallel_groups' in metadata:
+        row['parallelism'].update({k: metadata['parallel_groups'][k] for k in ('cp', 'expert_tp', 'attention_dp', 'expert_dp')})
+    if 'fsdp_domains' in metadata:
+        row['parallelism']['fsdp_domains'] = metadata['fsdp_domains']
     if summary['status'] != 'complete':
         row['diagnostics'] = result['simulation'].get('diagnostics', []) or [summary['reason']]
         return row, summary

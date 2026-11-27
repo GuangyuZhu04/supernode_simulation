@@ -98,17 +98,22 @@ def _round_storage(builder: Builder, rank: str, item: dict) -> tuple[float, floa
         # A final single-token target step has no speculative candidates and
         # cannot reject a proposal, so it needs no rollback buffer.
         return 0.0, 0.0
-    lane = builder.coords[rank][2]
-    batch = len(range(lane, builder.w['batch_size'], builder.ep))
+    from .rank_layout import shard_rows
+    lane, shard = divmod(builder.coords[rank][2], builder.mesh.cp)
+    batch = len(range(lane, builder.w['batch_size'], builder.mesh.attention_dp))
     before, queries, commit = item['context_before'], item['query_tokens'], item['committed_tokens']
     snapshot = builder.f['speculative_decode']['snapshot_bytes_per_rank']
     candidates = 0.0
     for layer in range(builder.m['layers']):
         state = attention_state(builder.m, layer, batch, before, tp=builder.tp)
         if state['kind'] == 'recurrent':
+            if shard:
+                continue
             snapshot += (state['recurrent_elements'] * DTYPE_BYTES[builder.p['recurrent']]
                          + state['convolution_elements'] * DTYPE_BYTES[builder.p['activation']])
         elif state['kind'] == 'compressed_sparse':
+            if shard:
+                continue
             from .sparse_attention import sparse_attention_state
             snapshot += state['recurrent_elements'] * DTYPE_BYTES['fp32'] + builder.kv_bytes(state['window_elements'])
             committed = sparse_attention_state(builder.m, layer, [before + commit] * batch, tp=builder.tp)
@@ -116,7 +121,8 @@ def _round_storage(builder: Builder, rank: str, item: dict) -> tuple[float, floa
             for key in ('compressed_pool_elements', 'indexer_pool_elements'):
                 candidates += builder.kv_bytes(max(0, verified[key] - committed[key]))
         else:
-            pages = batch * ceil(queries / builder.f['kv_page_tokens'])
+            rows = shard_rows(before+queries, shard, builder.mesh.cp) - shard_rows(before, shard, builder.mesh.cp)
+            pages = batch * ceil(rows / builder.f['kv_page_tokens'])
             elements = pages * builder.f['kv_page_tokens'] * state['elements_per_token']
             candidates += builder.kv_bytes(elements) + pages * builder.f['kv_page_entry_bytes']
     return snapshot, candidates

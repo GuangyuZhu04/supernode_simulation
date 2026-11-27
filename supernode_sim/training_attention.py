@@ -70,7 +70,8 @@ def flash_attention(builder, event, rank, lengths, tensors, parameter_bytes):
     output = tokens * o_bytes
     hidden = tokens * m['hidden_dim'] * width
     tiles = causal_tiles(lengths, builder.x['flash_attention_blocks'], meta.get('attention_window'))
-    flops_per_pair = 2 * q_heads * (q_dim + v_dim) * (2 if backward else 1) / builder.ep
+    divisor = meta['workload_shape']['training_ep_divisor']
+    flops_per_pair = 2 * q_heads * (q_dim + v_dim) * (2 if backward else 1) / divisor
     attention_flops = sum(tile[0] for _, tile in tiles) * flops_per_pair
     projection_flops = max(0.0, meta['flops'] - attention_flops)
     elements = sum(builder.kernel_elements(t) for t in tensors)
@@ -101,7 +102,7 @@ def flash_attention(builder, event, rank, lengths, tensors, parameter_bytes):
     stream_output = builder.x['overlap_attention_tp'] and not backward
     for (q, k), (pairs, keys, first_queries, last_queries) in tiles:
         prefix = f'{event.id}.q{q}.k{k}'
-        shape = {'query_block': q, 'kv_block': k, 'causal_pairs': pairs / builder.ep}
+        shape = {'query_block': q, 'kv_block': k, 'causal_pairs': pairs / divisor}
         reads = keys * kv_bytes + first_queries * q_bytes
         writes = last_queries * (o_bytes + lse_bytes)
         read_deps = [previous_read, two_back]
@@ -111,18 +112,18 @@ def flash_attention(builder, event, rank, lengths, tensors, parameter_bytes):
                 reads += keys * kv_bytes
                 read_deps.append(kv_updates[k])
             writes = last_queries * q_bytes + keys * kv_bytes
-        read = kernel(prefix + '.load', 'flash_tile_load', read_deps, 0, reads / builder.ep,
+        read = kernel(prefix + '.load', 'flash_tile_load', read_deps, 0, reads / divisor,
                       (rank + '.attention_read',), **shape)
         tile = kernel(prefix + '.compute', 'flash_tile_compute', [read, previous_compute],
                       pairs * flops_per_pair, 0, event.slots, **shape)
         if writes:
-            store = kernel(prefix + '.store', 'flash_tile_store', [tile], 0, writes / builder.ep,
+            store = kernel(prefix + '.store', 'flash_tile_store', [tile], 0, writes / divisor,
                            (rank + '.attention_write',), **shape)
             stores.append(store)
             if backward:
                 kv_updates[k] = store
             elif stream_output:
-                rows = last_queries / builder.ep
+                rows = last_queries / divisor
                 share = rows / tokens
                 eid = f'{event.id}.q{q}.output'
                 output_buffer = builder.allocation(eid + '.partial', rank, rows * m['hidden_dim'] * width,

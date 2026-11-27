@@ -21,6 +21,8 @@ from .moe_wire import (aligned_expert_factor, moe_payload_matrix, moe_wire_metad
 from .training_attention import causal_pairs
 from .calibration import model_shape_signature
 from .kernel_workload import kernel_workload_shape
+from .rank_layout import RankLayout, independent_groups
+from .fsdp import TrainingShards, describe_domains
 
 
 class Builder:
@@ -31,6 +33,10 @@ class Builder:
         self.a = self.m['architecture']
         self.model_shape_signature = model_shape_signature(self.m)
         self.tp, self.pp, self.ep, self.dp = (self.x[k] for k in ('tp', 'pp', 'ep', 'dp'))
+        self.grouped = independent_groups(self.x) or self.x.get('fsdp_domain') is not None
+        self.mesh = RankLayout.resolve(self.x, len(self.x['rank_order']) or self.h['npu_count'])
+        self.lanes = self.mesh.attention_dp * self.mesh.cp
+        self.stage_groups = {}
         self.sp = self.x.get('sequence_parallel', False)
         self.fsdp = self.x['fsdp']
         self.training = self.w['scenario'] == 'training'
@@ -43,9 +49,17 @@ class Builder:
         self.g = Graph()
         topology.populate(self.g, training_hbm_fraction=self.x['training_hbm_fraction'] if self.training else None)
         self.tensors = parameter_inventory(self.m)
+        if self.a is None:
+            from .grouped_layers import budget_layers
+            self.a, self.tensors = budget_layers(self.m)
         self.by_layer = {l: [t for t in self.tensors if t.layer == l] for l in range(self.m['layers'])}
+        self.shards = TrainingShards(self) if self.x.get('fsdp_domain') is not None else None
+        self.sharded_training = (any(bucket.domain.degree > 1 for buckets in self.shards.layers.values() for bucket in buckets)
+                                 if self.shards else self.fsdp > 1)
+        if self.shards:
+            self.g.metadata['fsdp_domains'] = describe_domains(self.x, self.shards.domains)
         order = self.x['rank_order'] or list(range(self.h['npu_count']))
-        self.ranks = {coord: f'npu{order[i]}' for i, coord in enumerate(product(range(self.dp), range(self.pp), range(self.ep), range(self.tp)))}
+        self.ranks = {coord: f'npu{order[i]}' for i, coord in enumerate(product(range(self.dp), range(self.pp), range(self.lanes), range(self.tp)))}
         self.coords = {rank: coord for coord, rank in self.ranks.items()}
         self.stage_layers = {s: [l for l in range(self.m['layers']) if l * self.pp // self.m['layers'] == s] for s in range(self.pp)}
         self.saved = {}
@@ -92,6 +106,12 @@ class Builder:
                 'SP uses a TP all-gather before attention/FFN and TP reduce-scatter afterwards; gathered full-hidden input remains allocated through the component. Embedding enters SP by reduce-scatter; output gathers selected positions before vocabulary-sharded projection.',
                 'SP MoE retains full latent dispatch/combine independently on each TP lane; fused DeepEP dispatch and cross-lane deduplication are not modeled.',
             ])
+        if self.grouped:
+            self.g.metadata['parallel_groups'] = self.mesh.describe()
+            self.g.metadata['assumptions'].append(
+                'Whole requests are assigned round-robin to attention replicas. CP owns cyclic context positions. '
+                'Dense attention exchanges KV rows for local queries. KDA and sparse attention gather to the first CP '
+                'rank of each TP lane. Routed experts use independent EP/TP groups and uniform expected routing.')
 
     def pool(self, node):
         return node + ('.hbm' if node.startswith('npu') else '.dram' if node.startswith('cpu') else '.memory')
@@ -126,13 +146,30 @@ class Builder:
         return key
 
     def groups(self, stage, axis):
-        if axis == 'tp':
-            return [[self.ranks[d, stage, e, t] for t in range(self.tp)] for d, e in product(range(self.dp), range(self.ep))]
-        if axis == 'ep':
-            return [[self.ranks[d, stage, e, t] for e in range(self.ep)] for d, t in product(range(self.dp), range(self.tp))]
+        if axis in ('tp', 'ep', 'cp', 'attention_dp', 'expert_tp', 'expert_dp'):
+            name = 'attention_tp' if axis == 'tp' else axis
+            return [group for d in range(self.dp) for group in self.layer_groups(d, stage)[name]]
+        if self.shards:
+            family = 'expert' if axis.startswith('expert_') else 'dense'
+            domain = self.shards.domains[family]
+            return (domain.shards if axis.endswith('fsdp') else domain.replicas)[stage]
         if axis == 'fsdp':
-            return [[self.ranks[d, stage, e, t] for d in range(start, start + self.fsdp)] for start, e, t in product(range(0, self.dp, self.fsdp), range(self.ep), range(self.tp))]
-        return [[self.ranks[d, stage, e, t] for d in range(offset, self.dp, self.fsdp)] for offset, e, t in product(range(self.fsdp), range(self.ep), range(self.tp))]
+            return [[self.ranks[d, stage, e, t] for d in range(start, start + self.fsdp)] for start, e, t in product(range(0, self.dp, self.fsdp), range(self.lanes), range(self.tp))]
+        return [[self.ranks[d, stage, e, t] for d in range(offset, self.dp, self.fsdp)] for offset, e, t in product(range(self.fsdp), range(self.lanes), range(self.tp))]
+
+    def local_elements(self, tensor, fsdp=1):
+        return tensor.local_elements(self.mesh.expert_tp if tensor.ep_shard else self.tp, self.ep, fsdp)
+
+    def resident_elements(self, tensor, rank):
+        if self.shards:
+            return self.shards.owned_elements(tensor, rank) + self.shards.padding_elements(tensor, rank)
+        return self.local_elements(tensor, self.fsdp)
+
+    def layer_groups(self, replica, stage):
+        key = replica, stage
+        if key not in self.stage_groups:
+            self.stage_groups[key] = self.mesh.groups(replica, stage)
+        return self.stage_groups[key]
 
     def collective(self, prefix, kind, ranks, size, deps, component, layer, matrix=None, activation=False,
                    *, phase=None, wire_metadata=None):
@@ -198,8 +235,9 @@ class Builder:
     def initial(self):
         logical = defaultdict(lambda: defaultdict(float))
         for tensor in self.tensors:
+            component = tensor.component if self.m['architecture'] else 'Unassigned'
             for state in self.states(tensor) if not tensor.alias_of else []:
-                logical[tensor.component][state] += tensor.accounted_elements * DTYPE_BYTES[self.state_dtype(state, tensor)]
+                logical[component][state] += tensor.accounted_elements * DTYPE_BYTES[self.state_dtype(state, tensor)]
         self.g.metadata['logical_component_state_bytes'] = {k: dict(v) for k, v in logical.items()}
         totals = defaultdict(float)
         for states in logical.values():
@@ -211,24 +249,35 @@ class Builder:
             grouped = {}
             for layer in self.stage_layers[stage]:
                 for tensor in self.local_tensors(layer):
-                    elements = tensor.local_elements(self.tp, self.ep, self.fsdp)
+                    storage = self.resident_elements(tensor, rank)
+                    padding = self.shards.padding_elements(tensor, rank) if self.shards else 0
+                    elements = storage - padding
+                    component = tensor.component if self.m['architecture'] else 'Unassigned'
                     for state in self.states(tensor):
                         dtype = self.state_dtype(state, tensor)
                         node = self.host(rank) if self.f['optimizer_offload'] and state in ('master_weight', 'optimizer_momentum', 'optimizer_variance', 'muon_momentum') else rank
-                        key = layer, tensor.component, state, dtype, node
+                        key = layer, component, state, dtype, node, self.grouped and tensor.ep_shard
                         size, names = grouped.setdefault(key, [0.0, []])
                         grouped[key][0] += elements * DTYPE_BYTES[dtype]
                         names.append(tensor.name)
-                    for state, dtype, size in [('quantization_metadata', None, self.scale(elements, self.weight_dtype(tensor))),
-                                               ('extra_weight_copy', self.f['extra_weight_copy_dtype'], elements * DTYPE_BYTES[self.f['extra_weight_copy_dtype']] if self.f['extra_weight_copy_dtype'] else 0)]:
+                        if padding:
+                            aid = f'fsdp_pad.{rank}.{tensor.name}.{state}'
+                            self.g.initial_allocations.append(self.allocation(aid, node, padding*DTYPE_BYTES[dtype],
+                                component, 'fsdp_flat_padding', layer, dtype, padding_for=state, owner_rank=rank))
+                    for state, dtype, size in [('quantization_metadata', None, self.scale(storage, self.weight_dtype(tensor))),
+                                               ('extra_weight_copy', self.f['extra_weight_copy_dtype'], storage * DTYPE_BYTES[self.f['extra_weight_copy_dtype']] if self.f['extra_weight_copy_dtype'] else 0)]:
                         if size:
-                            key = layer, tensor.component, state, dtype, rank
+                            key = layer, component, state, dtype, rank, self.grouped and tensor.ep_shard
                             grouped.setdefault(key, [0.0, []])[0] += size
                             grouped[key][1].append(tensor.name)
-            for i, ((layer, component, state, dtype, node), (size, names)) in enumerate(grouped.items()):
+            for i, ((layer, component, state, dtype, node, routed), (size, names)) in enumerate(grouped.items()):
+                domain = self.shards.domains['expert' if routed else 'dense'] if self.shards else None
                 self.g.initial_allocations.append(self.allocation(f'state.{rank}.{i}', node, size, component, state, layer, dtype,
                     tensor_name=f'layers.{layer}.{component}.{state}', tensor_members=names, owner_rank=rank,
-                    shard={'tp': self.tp, 'ep': self.ep, 'fsdp': self.fsdp}, replica=d))
+                    shard={'tp': self.mesh.expert_tp if routed else self.tp,
+                           'ep': self.ep if routed or not self.grouped else 1, 'fsdp': domain.degree if domain else self.fsdp,
+                           **({'fsdp_index': domain.index[rank], 'fsdp_family': 'expert' if routed else 'dense'} if domain else {}),
+                           **({'group': 'expert' if routed else 'attention', 'cp': self.mesh.cp} if self.grouped else {})}, replica=d))
             for state, field in [('runtime', 'runtime_bytes'), ('workspace', 'workspace_bytes')]:
                 size = self.h['npu'][field]
                 if size:
@@ -244,17 +293,21 @@ class Builder:
                     self.g.initial_allocations.append(self.allocation(rank + '.engram_cache', rank, engram['cache_bytes'], 'Engram', 'lookup_cache'))
 
     def component_order(self, layer):
+        if not self.m['architecture']:
+            return [self.a['attention_by_layer'][layer]] + (['MoE'] if self.a['ffn_by_layer'][layer] == 'MoE' else [])
         return ((['WordEmbedding'] if layer == 0 else []) +
                 (['AttnRes'] if self.a.get('attnres_block_size') else []) +
                 ['PreNorm', self.a['attention_by_layer'][layer], 'PostNorm', self.a['ffn_by_layer'][layer]] +
                 (['Output'] if layer == self.m['layers'] - 1 else []))
 
     def gather(self, name, layer, stage, deps, phase):
+        if self.shards:
+            return self.shards.gather(self, name, layer, stage, deps, phase)
         allocations = []
         retained = []
         sizes = {}
         for tensor in self.local_tensors(layer):
-            elements = tensor.local_elements(self.tp, self.ep)
+            elements = self.local_elements(tensor)
             dtype = self.weight_dtype(tensor)
             sizes[tensor.component] = sizes.get(tensor.component, 0) + elements * DTYPE_BYTES[dtype] + self.scale(elements, dtype)
         payload = sum(sizes.values())
@@ -276,7 +329,7 @@ class Builder:
     def kernel_elements(self, tensor):
         if tensor.alias_of:
             return tensor.elements / self.tp
-        count = tensor.local_elements(self.tp, self.ep)
+        count = self.local_elements(tensor)
         if self.active_kv and tensor.component == 'GQA' and tensor.tp_max_shards:
             heads = self.active_kv[tensor.layer] or self.m['kv_heads']
             count *= max(heads, self.tp) / max(self.m['kv_heads'], self.tp)
@@ -292,6 +345,17 @@ class Builder:
             model = {**model, 'kv_heads': self.active_kv[layer]}
         rows = component_activations(model, layer, tokens, tp=self.tp, ep=self.ep,
                                     training=self.training if training is None else training, checkpointing=checkpoint)
+        if not self.m['architecture']:
+            rows = [{**row, 'component': self.a['attention_by_layer'][layer]} for row in rows]
+            if self.a['ffn_by_layer'][layer] == 'MoE':
+                rows.append({'component': 'MoE', 'name': 'routed_gate_up', 'elements':
+                    tokens * model['top_k'] * model['intermediate_dim'] / self.tp,
+                    'formula': 'routed intermediate budget per tensor shard'})
+        if self.mesh.expert_tp != self.tp:
+            for row in rows:
+                if row['name'] == 'routed_gate_up':
+                    row['elements'] *= self.tp / self.mesh.expert_tp
+                    row['formula'] = 'routed intermediate elements per expert TP shard'
         if self.routing and training is not False:
             for row in rows:
                 if row['name'] == 'routed_gate_up':
@@ -374,8 +438,14 @@ class Builder:
                     'operation': 'index_score_reduce', 'buffer_dtype': self.p['compute']}))
         return terminals or list(deps)
 
-    def kernel(self, name, rank, layer, component, tokens, deps, *, backward=False, phase='prefill', total_tokens=None, allocations=(), releases=(), lengths=None, query_lengths=None):
+    def kernel(self, name, rank, layer, component, tokens, deps, *, backward=False, phase='prefill', total_tokens=None, allocations=(), releases=(), lengths=None, query_lengths=None, local_work=False, part=None, causal_work=None):
         tensors = self.local_tensors(layer, component)
+        if part in ('routed', 'shared', 'latent_up'):
+            tensors = [t for t in tensors if t.ep_shard == (part == 'routed')
+                       and ('.moe.latent_up.' in t.name) == (part == 'latent_up')]
+        elif part in ('qkv', 'context'):
+            tensors = [t for t in tensors if ('.output.' in t.name) == (part == 'context')]
+        divisor = self.ep if self.training and not local_work else 1
         total_tokens = tokens * self.ep if total_tokens is None else total_tokens
         # Tied output still performs projection, without owning another tensor.
         if component == 'Output' and not tensors:
@@ -387,7 +457,7 @@ class Builder:
         for tensor in tensors:
             elements = self.kernel_elements(tensor)
             touched = 1 - (1 - self.m['top_k'] / self.m['num_experts']) ** total_tokens if tensor.ep_shard else 1.0
-            active = tensor.active_fraction * self.ep if tensor.ep_shard else 1.0
+            active = tensor.active_fraction * self.ep if tensor.ep_shard else (1 if self.m['architecture'] else tensor.active_fraction)
             active_elements += elements * active
             if tensor.ep_shard:
                 routed_elements += elements * active
@@ -416,7 +486,7 @@ class Builder:
             sparse = sparse_attention_work(self.m, layer, lengths or [],
                 phase='prefill' if phase in ('forward', 'backward', 'recompute') else phase,
                 tp=self.tp, query_lengths=query_lengths)
-            flops += sparse['extra_flops'] / (self.ep if self.training else 1)
+            flops += sparse['extra_flops'] / divisor
         elif component == 'KDA':
             a = self.a['kda']
             flops += 8 * tokens * a['num_heads'] * a['head_k_dim'] * a['head_v_dim'] / self.tp
@@ -431,7 +501,7 @@ class Builder:
                 pairs = sum(s * (s + 1) / 2 for s in lengths or [])
             else:
                 pairs = sum(lengths or [])
-            pairs /= self.ep if self.training else 1
+            pairs = (pairs / divisor if causal_work is None else causal_work)
             qk_dim = self.a['mla']['qk_nope_head_dim'] + self.a['mla']['qk_rope_head_dim'] if component == 'MLA' else self.m['head_dim']
             v_dim = self.a['mla']['v_head_dim'] if component == 'MLA' else self.m['head_dim']
             flops += 2 * self.m['num_heads'] * (qk_dim + v_dim) * pairs / self.tp
@@ -441,14 +511,14 @@ class Builder:
         if backward:
             flops *= 2
         routing_work = {}
-        if self.routing and component == 'MoE' and phase in ('forward', 'backward', 'recompute'):
+        if self.routing and component == 'MoE' and part in (None, 'routed') and phase in ('forward', 'backward', 'recompute'):
             requested = 2 * routed_elements * tokens * (2 if backward else 1)
             expert_factor = self.executed_expert_factor(tokens)
             flops += requested * (expert_factor - 1)
             routing_work = training_routed_flops(requested, expert_factor, self.accepted_factor)
         if sparse is not None and sparse['indexer_score_workspace_elements'] and not backward:
             workspace = self.allocation(name + '.index_scores', rank,
-                sparse['indexer_score_workspace_elements'] * DTYPE_BYTES[self.p['compute']] / (self.ep if self.training else 1),
+                sparse['indexer_score_workspace_elements'] * DTYPE_BYTES[self.p['compute']] / divisor,
                 component, 'indexer_score_workspace', layer, self.p['compute'],
                 formula='reference indexer pre-mask scoring matrix; local heads plus reduced scores')
             allocations = tuple(allocations) + (workspace,)
@@ -469,7 +539,7 @@ class Builder:
             state = attention_state(self.m, layer, len(lengths), max(lengths), tp=self.tp)
             if state['kind'] == 'recurrent':
                 cache_reads = state['recurrent_elements'] * DTYPE_BYTES[self.p['recurrent']] + state['convolution_elements'] * DTYPE_BYTES[self.p['activation']]
-                cache_reads /= self.ep if self.training else 1
+                cache_reads /= divisor
             elif phase in ('decode', 'verify'):
                 cache_reads = sum(lengths) * state['elements_per_token'] * DTYPE_BYTES[self.p['kv']]
         cache_writes = 0
@@ -480,33 +550,48 @@ class Builder:
             else:
                 cache_writes = tokens * state['elements_per_token'] * DTYPE_BYTES[self.p['compute']]
         if sparse is not None:
-            divisor = self.ep if self.training else 1
             cache_reads = ((sparse['attention_read_elements'] + sparse['indexer_read_elements']) * DTYPE_BYTES[self.p['kv']]
                            + (sparse['compression_read_elements'] + sparse['state_read_elements']) * 4) / divisor
             cache_writes = (sparse['cache_write_elements'] * DTYPE_BYTES[self.p['kv']]
                             + sparse['state_write_elements'] * 4) / divisor
+        if part == 'qkv':
+            cache_reads = 0
+        elif part == 'context':
+            cache_writes = 0
         work = {rank + '.compute': max(flops, 0), rank + '.hbm': weight_reads + 2 * working + cache_reads + cache_writes}
         if sparse is not None and sparse['selection_operations'] and not backward:
             selection = rank + '.selection'
             scalar_rate = self.h['npu']['flops'].get('fp32', self.h['npu']['flops'][self.p['compute']]) * self.h['npu']['efficiency']
             self.g.resources[selection] = Resource(selection, scalar_rate, 'operation/s', 'selection')
-            work[selection] = sparse['selection_operations'] / (self.ep if self.training else 1)
+            work[selection] = sparse['selection_operations'] / divisor
         if backward:
             work[rank + '.hbm'] += active_elements * DTYPE_BYTES[self.p['gradient']]
         event = Event(name, tuple(pending), work, slots=(rank + '.compute_stream',),
             allocs=tuple(allocations), releases=tuple(releases) + ((conversion_id,) if conversion_id else ()),
-            metadata={'kernel': component.lower(), 'component': component, 'layer': layer, 'phase': phase,
+            metadata={'kernel': component.lower() if part is None else f'{component.lower()}_{part}', 'component': component, 'layer': layer, 'phase': phase,
                       'flops': flops, 'working_set_bytes': weight_reads + working + cache_reads, **routing_work,
                       **({'attention_window': window} if window is not None and component in ('GQA', 'MHA', 'MQA', 'MLA') else {}),
                       **({'active_kv_heads': self.active_kv[layer]} if self.active_kv and self.active_kv[layer] and component == 'GQA' else {}),
                       'tokens': tokens, 'sequence_parallel': self.sp,
                       'workload_shape': kernel_workload_shape(phase=phase, tokens=tokens,
                           lengths=list(lengths or []), query_lengths=query_lengths,
-                          training=self.training, ep=self.ep),
+                          training=self.training, ep=divisor),
                       'model_shape_signature': self.model_shape_signature,
-                      'tensor_parallel_degree': self.tp, 'expert_parallel_degree': self.ep,
+                      'tensor_parallel_degree': self.mesh.expert_tp if part == 'routed' else self.tp, 'expert_parallel_degree': self.ep,
                        'sequence_parallel_degree': self.tp if self.sp else 1,
                        **({'sparse_attention': sparse, 'selection_rate_assumption': 'Scalar operation throughput proxied by configured FP32 FLOP/s; calibrate with kernel profiles.'} if sparse is not None else {})})
+        if local_work:
+            shape = event.metadata['workload_shape']
+            shape['sequence_scope'] = 'expert_replica' if part == 'routed' else 'attention_replica_local_queries'
+            if causal_work is not None:
+                shape['dense_causal_pairs_reference'] = causal_work
+            if part:
+                event.metadata['model_kernel_part'] = part
+            if self.mesh.cp > 1 and part != 'routed':
+                cp_rank = self.coords[rank][2] % self.mesh.cp
+                shape.update(context_parallel_rank=cp_rank, context_parallel_degree=self.mesh.cp)
+                shape['sequence_signature'] += f':cp{cp_rank}/{self.mesh.cp}'
+            event.metadata.update(context_parallel_degree=self.mesh.cp, expert_tensor_parallel_degree=self.mesh.expert_tp)
         if self.training and self.x['flash_attention_blocks'] and component in ('MLA', 'MHA', 'MQA', 'GQA'):
             from .training_attention import flash_attention
             parameter_bytes = weight_reads + (active_elements * DTYPE_BYTES[self.p['gradient']] if backward else 0)
@@ -642,6 +727,9 @@ class Builder:
     def inference(self, *, phase='all', initial_dependencies=()):
         if phase not in ('all', 'prefill', 'decode'):
             raise ValueError('Inference phase must be all, prefill or decode')
+        if self.grouped:
+            from .grouped_layers import grouped_inference
+            return grouped_inference(self, phase, initial_dependencies)
         requested_phase = phase
         self.initial()
         self.g.metadata.update(token_completion_events={}, sequence_token_completion_events={})
@@ -914,7 +1002,35 @@ class Builder:
         return {key: sum(row[key] for row in rows) if isinstance(value, (int, float)) else value
                 for key, value in rows[0].items()}
 
+    def synchronize_gradients(self, name, layer, stage, previous, phase):
+        if self.shards:
+            return self.shards.reduce_gradients(self, name, layer, stage, previous)
+        tensors = self.local_tensors(layer)
+        all_elements = sum(self.local_elements(t) for t in tensors)
+        dense_elements = sum(self.local_elements(t) for t in tensors if not t.ep_shard)
+        reductions = [('fsdp', 'reduce_scatter', all_elements), ('replica', 'all_reduce', all_elements / self.fsdp)]
+        if self.grouped:
+            reductions.extend((axis, 'all_reduce', count / self.fsdp) for axis, count in (
+                ('attention_dp', dense_elements), ('cp', dense_elements),
+                ('expert_dp', all_elements - dense_elements)))
+        else:
+            reductions.append(('ep', 'all_reduce', dense_elements / self.fsdp))
+        for axis, kind, elements in reductions:
+            if axis == 'replica':
+                previous = replica_all_reduce(self.g, self.topo, name + '.gradient.replica',
+                    self.groups(stage, axis), elements * DTYPE_BYTES[self.p['gradient']],
+                    previous, self.x, {'phase': phase, 'category': 'data_parallel_gradients',
+                                       'component': 'System', 'layer': layer})
+                continue
+            terminals = []
+            for i, group in enumerate(self.groups(stage, axis)):
+                terminals += self.collective(name + f'.gradient.{axis}{i}', kind, group, elements * DTYPE_BYTES[self.p['gradient']], previous, 'System', layer, phase=phase,
+                    wire_metadata={'parallel_axis': axis, 'buffer_dtype': self.p['gradient']})
+            previous = list(dict.fromkeys(terminals))
+        return previous
+
     def training_graph(self):
+        from .grouped_layers import grouped_training_layer, LayerBatch
         self.initial()
         if any(kind in ('CSA', 'HCA') for kind in self.a['attention_by_layer']):
             self.g.metadata['assumptions'].append(
@@ -929,6 +1045,8 @@ class Builder:
                         continue
                     if hasattr(self, 'training_lengths_by_micro'):
                         self.train_lengths = self.training_lengths_by_micro[micro]
+                    batch = LayerBatch(self.mesh, ((i, n, n) for i, n in enumerate(self.train_lengths)))
+                    exact = self.grouped or any(rows != batch.requests[0] for rows in batch.requests[1:])
                     forward = phase == 'forward'
                     prefix = f'train.s{step}.p{stage}.{phase}.m{micro}'
                     deps = [stage_previous[stage]] if stage in stage_previous else ([f'train.step{step-1}.done'] if step else [])
@@ -944,7 +1062,7 @@ class Builder:
                     for layer in self.stage_layers[stage][::1 if forward else -1]:
                         name = prefix + f'.l{layer}'
                         gathered = []
-                        if self.fsdp > 1:
+                        if self.sharded_training:
                             if self.x['reshard_after_forward'] or (forward and micro == 0):
                                 gather_deps = gather_dependencies(previous, gathers, layer_ends, prefetch_depth(self.x))
                                 end, gathered = self.gather(name, layer, stage, gather_deps, phase)
@@ -956,19 +1074,22 @@ class Builder:
                         rows_by_rank = {}
                         ranks = [r for r, c in self.coords.items() if c[1] == stage]
                         local_tokens = sum(self.train_lengths) / self.ep
-                        for rank in ranks:
+                        for rank in ([] if exact else ranks):
                             # Checkpointing changes retention, not the forward
                             # operator's temporary working set.
                             rows_by_rank[rank] = self.activation_rows(layer, local_tokens, checkpoint=False)
                         layer_release = []
-                        if not forward and self.fsdp > 1:
+                        if not forward and self.sharded_training and self.shards:
+                            previous = self.shards.prepare_gradients(self, name, layer, ranks, step, micro, previous)
+                        elif not forward and self.sharded_training:
                             allocations = []
                             for rank in ranks:
                                 key = step, layer, rank
                                 if key not in self.grad_buffers:
                                     ids = []
                                     for component in self.component_order(layer):
-                                        count = sum(t.local_elements(self.tp, self.ep) for t in self.local_tensors(layer, component))
+                                        tensors = self.local_tensors(layer, component)
+                                        count = sum(self.local_elements(t) for t in tensors)
                                         if count:
                                             aid = f'gradient.s{step}.l{layer}.{rank}.{component}.m{micro}'
                                             allocations.append(self.allocation(aid, rank, count * DTYPE_BYTES[self.p['gradient']],
@@ -976,89 +1097,83 @@ class Builder:
                                             ids.append(aid)
                                     self.grad_buffers[key] = ids
                             previous = [self.barrier(name + '.gradient_buffers', previous, allocations)]
-                        if not forward and self.f['activation_checkpointing']:
-                            previous, retained = self.recompute_layer(name, layer, stage, ranks, local_tokens, previous)
-                            layer_release.extend(retained)
-                        for component in self.component_order(layer)[::1 if forward else -1]:
-                            ends = []
-                            if component == 'MoE' and self.ep > 1:
-                                previous = self.training_ep(name, 'dispatch', layer, stage, local_tokens, previous, phase)
-                            for rank in ranks:
-                                key = step, micro, rank, layer, component
-                                allocations, releases = [], []
-                                if forward:
-                                    for i, row in enumerate(rows_by_rank[rank]):
-                                        if row['component'] == component:
-                                            dtype = row.get('dtype', self.p['activation'])
-                                            a = self.allocation(name + f'.{rank}.{component}.a{i}', rank, row['elements'] * DTYPE_BYTES[dtype], component, 'activation', layer, dtype, formula=row['formula'])
-                                            allocations.append(a)
-                                            checkpoint_temporary = (self.f['activation_checkpointing'] and
-                                                not (component == 'PreNorm' and row['name'] == 'input'))
-                                            if row.get('lifetime') == 'operator_working_set' or checkpoint_temporary or self.forward_only:
-                                                if component == 'Output' and getattr(self, '_training_loss', None):
-                                                    objective_release.append(a.id)
-                                                else:
-                                                    releases.append(a.id)
-                                    if component == 'KDA' and not self.f['activation_checkpointing'] and not self.forward_only:
-                                        state = self.training_attention_state(layer)
-                                        size = state['recurrent_chunk_elements'] * DTYPE_BYTES[self.p['recurrent']]
-                                        if size:
-                                            allocations.append(self.allocation(name + f'.{rank}.kda_saved', rank, size, 'KDA', 'saved_recurrent_states', layer, self.p['recurrent']))
-                                    if component in ('CSA', 'HCA'):
-                                        state = self.training_attention_state(layer)
-                                        for category, field, dtype, byte_width in (
-                                                ('compressed_attention_pool', 'compressed_pool_elements', self.p['kv'], DTYPE_BYTES[self.p['kv']]),
-                                                ('attention_selection_indices', 'selection_index_elements', None, 4)):
-                                            size = state[field] * byte_width
+                        if exact:
+                            previous, release, held_logits = grouped_training_layer(self, batch, stage, layer,
+                                name, phase, previous, step, micro)
+                            layer_release.extend(release)
+                            objective_release.extend(held_logits)
+                        else:
+                            if not forward and self.f['activation_checkpointing']:
+                                previous, retained = self.recompute_layer(name, layer, stage, ranks, local_tokens, previous)
+                                layer_release.extend(retained)
+                            for component in self.component_order(layer)[::1 if forward else -1]:
+                                ends = []
+                                if component == 'MoE' and self.ep > 1:
+                                    previous = self.training_ep(name, 'dispatch', layer, stage, local_tokens, previous, phase)
+                                for rank in ranks:
+                                    key = step, micro, rank, layer, component
+                                    allocations, releases = [], []
+                                    if forward:
+                                        for i, row in enumerate(rows_by_rank[rank]):
+                                            if row['component'] == component:
+                                                dtype = row.get('dtype', self.p['activation'])
+                                                a = self.allocation(name + f'.{rank}.{component}.a{i}', rank, row['elements'] * DTYPE_BYTES[dtype], component, 'activation', layer, dtype, formula=row['formula'])
+                                                allocations.append(a)
+                                                checkpoint_temporary = (self.f['activation_checkpointing'] and
+                                                    not (component == 'PreNorm' and row['name'] == 'input'))
+                                                if row.get('lifetime') == 'operator_working_set' or checkpoint_temporary or self.forward_only:
+                                                    if component == 'Output' and getattr(self, '_training_loss', None):
+                                                        objective_release.append(a.id)
+                                                    else:
+                                                        releases.append(a.id)
+                                        if component == 'KDA' and not self.f['activation_checkpointing'] and not self.forward_only:
+                                            state = self.training_attention_state(layer)
+                                            size = state['recurrent_chunk_elements'] * DTYPE_BYTES[self.p['recurrent']]
                                             if size:
-                                                allocation = self.allocation(name + f'.{rank}.{component}.{category}', rank,
-                                                    size, component, category, layer, dtype,
-                                                    formula=state['formula'], storage_dtype='int32' if dtype is None else dtype)
-                                                allocations.append(allocation)
-                                                if self.f['activation_checkpointing'] or self.forward_only:
-                                                    releases.append(allocation.id)
-                                    self.saved[key] = [a.id for a in allocations if a.id not in releases and a.id not in objective_release]
-                                    if component == 'AttnRes':
-                                        block = attnres_state(self.m, layer, local_tokens)
-                                        if block['new_elements']:
-                                            aid = name + f'.{rank}.attnres'
-                                            allocations.append(self.allocation(aid, rank, block['new_elements'] * DTYPE_BYTES[self.p['activation']], component, 'attnres_residual', layer, self.p['activation']))
-                                            self.residual_blocks[step, micro, rank].append(aid)
-                                else:
-                                    releases = self.saved[key]
-                                ends.append(self.kernel(name + f'.{rank}.{component}', rank, layer, component, local_tokens, previous, backward=not forward, phase=phase,
-                                    allocations=allocations, releases=releases, lengths=self.train_lengths))
-                            previous = ends
-                            if forward and component == 'CSA':
-                                previous = self.sparse_index_collective(name, layer, self.groups(stage, 'tp'),
-                                    self.train_lengths, previous,
-                                    phase=phase, divisor=self.ep)
-                            if component == 'MoE' and self.ep > 1:
-                                previous = self.training_ep(name, 'combine', layer, stage, local_tokens, previous, phase)
-                            if component in (self.a['attention_by_layer'][layer], self.a['ffn_by_layer'][layer]) and self.tp > 1:
-                                previous = self.training_tp_reduce(name, component, layer, stage,
-                                    ranks, local_tokens, previous, phase)
+                                                allocations.append(self.allocation(name + f'.{rank}.kda_saved', rank, size, 'KDA', 'saved_recurrent_states', layer, self.p['recurrent']))
+                                        if component in ('CSA', 'HCA'):
+                                            state = self.training_attention_state(layer)
+                                            for category, field, dtype, byte_width in (
+                                                    ('compressed_attention_pool', 'compressed_pool_elements', self.p['kv'], DTYPE_BYTES[self.p['kv']]),
+                                                    ('attention_selection_indices', 'selection_index_elements', None, 4)):
+                                                size = state[field] * byte_width
+                                                if size:
+                                                    allocation = self.allocation(name + f'.{rank}.{component}.{category}', rank,
+                                                        size, component, category, layer, dtype,
+                                                        formula=state['formula'], storage_dtype='int32' if dtype is None else dtype)
+                                                    allocations.append(allocation)
+                                                    if self.f['activation_checkpointing'] or self.forward_only:
+                                                        releases.append(allocation.id)
+                                        self.saved[key] = [a.id for a in allocations if a.id not in releases and a.id not in objective_release]
+                                        if component == 'AttnRes':
+                                            block = attnres_state(self.m, layer, local_tokens)
+                                            if block['new_elements']:
+                                                aid = name + f'.{rank}.attnres'
+                                                allocations.append(self.allocation(aid, rank, block['new_elements'] * DTYPE_BYTES[self.p['activation']], component, 'attnres_residual', layer, self.p['activation']))
+                                                self.residual_blocks[step, micro, rank].append(aid)
+                                    else:
+                                        releases = self.saved[key]
+                                    ends.append(self.kernel(name + f'.{rank}.{component}', rank, layer, component, local_tokens, previous, backward=not forward, phase=phase,
+                                        allocations=allocations, releases=releases, lengths=self.train_lengths))
+                                previous = ends
+                                if forward and component == 'CSA':
+                                    previous = self.sparse_index_collective(name, layer, self.groups(stage, 'tp'),
+                                        self.train_lengths, previous,
+                                        phase=phase, divisor=self.ep)
+                                if component == 'MoE' and self.ep > 1:
+                                    previous = self.training_ep(name, 'combine', layer, stage, local_tokens, previous, phase)
+                                if component in (self.a['attention_by_layer'][layer], self.a['ffn_by_layer'][layer]) and self.tp > 1:
+                                    previous = self.training_tp_reduce(name, component, layer, stage,
+                                        ranks, local_tokens, previous, phase)
                         if not forward:
-                            all_elements = sum(t.local_elements(self.tp, self.ep) for t in self.local_tensors(layer))
-                            dense_elements = sum(t.local_elements(self.tp, self.ep) for t in self.local_tensors(layer) if not t.ep_shard)
                             sync = self.x['sync_each_microbatch'] or micro == self.w['gradient_accumulation'] - 1
                             if sync:
                                 compute_done = previous
                                 previous = [*previous, *gradient_ends[-1:]]
-                                for axis, kind, elements in [('fsdp', 'reduce_scatter', all_elements), ('replica', 'all_reduce', all_elements / self.fsdp), ('ep', 'all_reduce', dense_elements / self.fsdp)]:
-                                    if axis == 'replica':
-                                        previous = replica_all_reduce(self.g, self.topo, name + '.gradient.replica',
-                                            self.groups(stage, axis), elements * DTYPE_BYTES[self.p['gradient']],
-                                            previous, self.x, {'phase': phase, 'category': 'data_parallel_gradients',
-                                                               'component': 'System', 'layer': layer})
-                                        continue
-                                    terminals = []
-                                    for i, group in enumerate(self.groups(stage, axis)):
-                                        terminals += self.collective(name + f'.gradient.{axis}{i}', kind, group, elements * DTYPE_BYTES[self.p['gradient']], previous, 'System', layer, phase=phase,
-                                            wire_metadata={'parallel_axis': axis, 'buffer_dtype': self.p['gradient']})
-                                    previous = list(dict.fromkeys(terminals))
-                                grad_release = [aid for rank in ranks for aid in self.grad_buffers.pop((step, layer, rank), [])]
-                                if self.x['overlap_gradient_sync'] and (self.dp > 1 or self.ep > 1):
+                                previous = self.synchronize_gradients(name, layer, stage, previous, phase)
+                                grad_release = (self.shards.release_gradients(self, layer, ranks, step) if self.shards else
+                                                [aid for rank in ranks for aid in self.grad_buffers.pop((step, layer, rank), [])])
+                                if self.x['overlap_gradient_sync'] and (self.dp > 1 or self.lanes > 1 or self.mesh.expert_dp > 1):
                                     gradient_ends.append(self.barrier(name + '.gradient.done', previous, releases=grad_release))
                                     previous = compute_done
                                 else:
@@ -1071,7 +1186,7 @@ class Builder:
                     source_stage = stage - 1 if forward else stage + 1
                     if 0 <= source_stage < self.pp:
                         suffix = '.receive' if self.p['activation'] == self.p['communication'] else '.decoded'
-                        for d, e, t in product(range(self.dp), range(self.ep), range(self.tp)):
+                        for d, e, t in product(range(self.dp), range(self.lanes), range(self.tp)):
                             source_rank = self.ranks[d, source_stage, e, t]
                             extra_release.append(f'train.s{step}.p{source_stage}.{phase}.m{micro}.{source_rank}.pipeline' + suffix)
                     if (not forward or self.forward_only) and stage == 0:
@@ -1085,10 +1200,10 @@ class Builder:
                     transfers = []
                     next_stage = stage + (1 if forward else -1)
                     if 0 <= next_stage < self.pp:
-                        for d, e, t in product(range(self.dp), range(self.ep), range(self.tp)):
+                        for d, e, t in product(range(self.dp), range(self.lanes), range(self.tp)):
                             rank, dest = self.ranks[d, stage, e, t], self.ranks[d, next_stage, e, t]
                             transferred, _ = self.pipeline_transfer(prefix + f'.{rank}.pipeline', rank, dest,
-                                local_tokens * self.m['hidden_dim'], previous)
+                                batch.tokens(e) * self.m['hidden_dim'], previous)
                             transfers.append(transferred)
                     sent = self.barrier(prefix + '.send', transfers or (end,))
                     stage_previous[stage] = end if self.x['overlap_pipeline_p2p'] else self.barrier(
@@ -1119,7 +1234,9 @@ class Builder:
                         continue
                     prefix = f'optimizer.s{step}.{rank}.l{layer}.{component}'
                     node = self.host(rank) if self.f['optimizer_offload'] else rank
-                    elements = sum(t.local_elements(self.tp, self.ep, self.fsdp) for t in tensors)
+                    elements = sum(self.resident_elements(t, rank) for t in tensors)
+                    if self.shards and not elements:
+                        continue
                     current = list(deps)
                     lane = bucket % depth if depth else None
                     if depth and tails[lane] is not None:
@@ -1134,7 +1251,9 @@ class Builder:
                         releases.append(aid)
                     flops, optimizer_bytes, largest_matrix = 0.0, 0.0, 0.0
                     for tensor in tensors:
-                        count = tensor.local_elements(self.tp, self.ep, self.fsdp)
+                        count = self.resident_elements(tensor, rank)
+                        if not count:
+                            continue
                         states = optimizer_states(tensor, self.opt['kind'])
                         optimizer_bytes += sum(count * DTYPE_BYTES[self.p['master'] if state == 'master_weight' else self.p['optimizer']] for state in states)
                         if 'muon_momentum' in states:
@@ -1165,7 +1284,7 @@ class Builder:
                         scales = self.scale(elements, wire)
                         if scales:
                             current = [self.add(self.topo.transfer(prefix + '.scales', node, rank, scales, tuple(current), {'component': component, 'operation': 'weight_scale_transfer', 'layer': layer}))]
-                    storage = sum(t.local_elements(self.tp, self.ep, self.fsdp) * DTYPE_BYTES[self.weight_dtype(t)] for t in tensors)
+                    storage = sum(self.resident_elements(t, rank) * DTYPE_BYTES[self.weight_dtype(t)] for t in tensors)
                     ends.append(self.add(Event(prefix + '.refresh', tuple(current), {self.scalar(rank): 2 * elements, rank + '.hbm': amount + storage}, slots=(rank + '.compute_stream',), releases=(aid,), metadata={'component': component, 'kernel': 'weight_refresh', 'layer': layer, 'phase': 'weight_refresh'})))
                     if depth:
                         tails[lane] = ends[-1]

@@ -142,9 +142,13 @@ result = run(config, mode="simulate")
 print(result["metrics"])
 ```
 
-并行关系为 `TP × PP × EP × DP = NPU 数`；`fsdp` 是 DP 的子组且必须整除 DP，不能再次乘进总卡数。默认 rank 顺序为 `[dp, pp, ep, tp]`，`rank_order` 可覆盖物理放置。`batch_size` 是每个 DP 副本的 microbatch/推理 batch；改变 DP 会改变聚合负载。
+Attention 和路由专家可在同一批 NPU 上分别组网。每个外层 DP 副本的流水段卡数满足 `tp × cp × attention_dp = expert_tp × ep × expert_dp`。普通部署的总卡数为流水段卡数乘 `pp × dp`。例如 8 张卡可以同时支持 Attention TP2、CP2、两个请求副本，以及 MoE EP8、专家 TP1。设定 `expert_tp` 即可选择独立分组，完整算例见 [8 卡共池配置](examples/independent_parallel_groups.yaml)。
 
-PD 分离是总卡数规则的显式例外：两个相同 TP/EP 的池，DP=PP=1，物理卡数 `2 × TP × EP`；使用 `prefill_ranks` / `decode_ranks` 指定互斥且覆盖全设备的物理映射，不使用 `execution.rank_order`。
+原有配置继续使用 `[dp, pp, ep, tp]` 排布，Attention 和专家沿用相同 TP。两种布局都支持用 `rank_order` 指定物理放置。`batch_size` 表示每个外层 DP 副本的 microbatch 或推理 batch。字段与执行策略见 [并行组说明](skills/supernode-modeling/references/configuration.md#attention-和专家并行组)。
+
+训练可在 `PP=1、DP=1` 时组合 CP、EP 和 FSDP。通过 `execution.fsdp_domain` 选择 FSDP 或 FSDP2，并独立指定稠密参数和路由专家的分片度或物理组。单独使用标量 `fsdp` 时仍按外层 DP 子组执行。[8 卡训练配置](examples/training_cp_ep_fsdp.yaml) · [域与通信口径](skills/supernode-modeling/references/training.md#无流水线的-cpep-与-fsdp-训练)
+
+PD 分离使用两个布局相同的独立物理池，DP=PP=1，总卡数为单池卡数的两倍。`prefill_ranks` 和 `decode_ranks` 指定各池的物理编号。
 
 精度分别配置：`weight`、`compute`、`gradient`、`master`、`optimizer`、`kv`、`weight_transfer`、`activation`、`communication`。只有明确修改才改变其他张量精度。FP8 activation 通信当前采用共享静态 scale 假设；FP8 权重/KV 的 scale 与 offload 元数据另计。
 

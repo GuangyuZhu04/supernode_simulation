@@ -21,10 +21,10 @@ python -m supernode_sim schema -o outputs/features/schema.json
 | `optimizer_offload` | `execution.features.optimizer_offload` | 训练；CPU 更新及主机链路可能使 step time 增加 |
 | `kv_offload: {location, fraction, page_tokens, page_entry_bytes}` | `execution.features.kv_*` | 推理；remote 还要求 `hardware.remote.enabled` |
 | `sequence_parallel` | `execution.sequence_parallel` | structured inference、TP > 1、PP = 1；与 TP 共用 ranks |
-| `fsdp: {degree, reshard_after_forward, sync_each_microbatch, prefetch_layers, overlap_gradient_sync}` | `execution.fsdp` 等 | 训练，degree 整除 DP。预算和结构化路径支持逐层预取与异步梯度归约。 |
+| `fsdp: {degree, domain, reshard_after_forward, sync_each_microbatch, prefetch_layers, overlap_gradient_sync}` | `execution.fsdp`、`execution.fsdp_domain` 等 | 标量分片度适用于外层 DP 子组。domain 指定 FSDP/FSDP2 实现、稠密与专家分片度或物理组成员。支持逐层预取与异步梯度归约。 |
 | `training_qos: {enabled, weights}` | `execution.features.training_qos` | 训练共享链路按流量类别加权，同时就绪的 collective 按权重竞争通信槽。配置与对照方法见 [训练](training.md)。 |
 | `flash_attention: {blocks, overlap_tp}` | `execution.flash_attention_blocks`, `execution.overlap_attention_tp` | 结构化训练的因果分块与双缓冲。可选的 TP 输出分块归约适用于前向与重算。 |
-| `parallelism: {tp, pp, ep, dp, rank_order}` | `execution` 对应字段 | 保留卡数、专家数、heads 与拓扑约束 |
+| `parallelism: {tp, cp, attention_dp, expert_tp, ep, expert_dp, pp, dp, rank_order}` | `execution` 对应字段 | 保留卡数、专家数、heads 与拓扑约束 |
 | `optimizer` | `execution.optimizer` | 训练；Muon 需要显式张量结构，未实现 distributed Muon |
 | `engram` | `execution.features.engram` | 推理；cache、hit rate、IOPS、位置与延迟均为显式输入 |
 | `quantization` | `execution.features` 中 scale block、scale bytes、extra weight copy | 描述存储元数据；不推断量化质量或硬件 kernel 兼容性 |
@@ -69,7 +69,7 @@ python -m supernode_sim validate examples/features/synthetic-dspark.yaml
 python -m supernode_sim simulate examples/features/synthetic-dspark.yaml -o outputs/features/dspark
 ```
 
-最小输入使用 `features.speculative_decode`。`enabled: true` 后要求 structured inference、DP = PP = 1、同 batch 内所有 input lengths 相同且 output lengths 相同、output length 至少为 2、`execution.features.kv_offload: none`。batch 不必被 EP 整除，目标状态按 `i % EP` 的实际请求归属分配；标量 draft/commit/replay 预算必须覆盖最大 local batch，并在所有 rank（含空闲 lane）计费。普通 `simulate` 与 `run_streaming` API 使用相同轮次；后者以组件边界执行，支持单列 warm decode（TTFT 为空）。compute dtype 仍需出现在硬件 FLOPs 表中。不要把不同请求的 acceptance 独立序列直接塞入当前同步 batch 接口。
+最小输入使用 `features.speculative_decode`。`enabled: true` 后要求 structured inference、DP = PP = 1、同 batch 内所有 input lengths 相同且 output lengths 相同、output length 至少为 2、`execution.features.kv_offload: none`。batch 不必被 EP 整除，目标状态按 Attention 副本的请求归属与 CP 位置分配；标量 draft/commit/replay 预算必须覆盖最大 local batch，并在所有 rank（含空闲 lane）计费。普通 `simulate` 与 `run_streaming` API 使用相同轮次；后者以组件边界执行，支持单列 warm decode（TTFT 为空）。compute dtype 仍需出现在硬件 FLOPs 表中。不要把不同请求的 acceptance 独立序列直接塞入当前同步 batch 接口。
 
 - `draft_tokens` 是每轮草稿位置预算。`accepted_lengths` 是逐轮**最终提交的输出 token 数，包含 bonus/replacement token**，不是“通过验证的 draft token 数”。每项在 1 到 `draft_tokens + 1` 之间；同轮作用于 batch 内每个请求。也可用固定假设 `accepted_length`，两者互斥。
 - prefill 已输出第一个 token，acceptance 列表覆盖之后所有轮次。示例 output length = 7，随后 `[2, 1, 3]` 提交六个 token。末轮按剩余输出长度截断；检查输出中的 unused trace entries，而非假定列表每项都使用。
@@ -111,9 +111,9 @@ python -m supernode_sim validate examples/features/synthetic-pd.yaml
 python -m supernode_sim simulate examples/features/synthetic-pd.yaml -o outputs/features/pd
 ```
 
-`features.prefill_decode_disaggregation.enabled: true` 启用固定 batch 的分离执行。`hardware.npu_count` 始终是总物理卡数；当前 P/D 使用相同 TP/EP，且 PP = DP = 1，因此要求 **`npu_count = 2 × TP × EP`**。例如 TP = 2、EP = 1 时，需要总计 4 张卡，每池 2 张。启用 feature 不会替用户自动扩大设备数量。
+`features.prefill_decode_disaggregation.enabled: true` 启用固定 batch 的分离执行。`hardware.npu_count` 始终是总物理卡数；P/D 使用相同的 Attention 和专家分组，PP = DP = 1，总卡数为单池卡数的两倍。例如 TP = 2、EP = 1 时，需要总计 4 张卡，每池 2 张。启用 feature 不会替用户自动扩大设备数量。
 
-`prefill_ranks` 和 `decode_ranks` 按相同 TP/EP 坐标一一配对，每个列表必须有 TP × EP 个物理编号，互不重叠，并覆盖所有卡。两列表同时为空时，解析阶段生成前后连续两个池并写入 resolved 配置；只给一个列表会报错。此时 `execution.rank_order` 必须为空，以免两套映射含义冲突。
+`prefill_ranks` 和 `decode_ranks` 按相同 TP/EP 坐标一一配对，每个列表须包含单池的全部物理编号，互不重叠，并覆盖所有卡。两列表同时为空时，解析阶段生成前后连续两个池并写入 resolved 配置；只给一个列表会报错。此时 `execution.rank_order` 必须为空，以免两套映射含义冲突。
 
 两池各自驻留完整模型的对应分片、runtime 与 workspace，容量不是共用一份权重。P 池完成 prefill 并产生首 token 后，将 decode 所需持久状态和首 token ID 沿真实拓扑发送到 D 池；D 池在 handoff 完成前不能开始 decode。`token_id_bytes` 可为 4 或 8，默认 8，表示显式整数传输布局。
 

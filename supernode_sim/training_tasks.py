@@ -7,6 +7,7 @@ from dataclasses import replace
 from math import ceil
 
 from .core import Allocation, DTYPE_BYTES, Event, Graph
+from .grouped_layers import LayerBatch
 
 
 def rl_lengths(rl):
@@ -40,7 +41,7 @@ def validate_training_task(config):
         lengths = task.dpo.chosen_lengths + task.dpo.rejected_lengths
     else:
         rl = task.rl
-        if e.fsdp != 1 or e.pp != 1:
+        if (e.fsdp_domain is None and e.fsdp != 1) or e.pp != 1:
             raise ValueError('RL currently uses shared serial roles with PP=FSDP=1; TP/EP/DP are supported')
         if rl.prompts_per_step * rl.samples_per_prompt % (w.batch_size * w.gradient_accumulation):
             raise ValueError('RL samples per DP replica must divide into complete batch_size * gradient_accumulation update batches')
@@ -85,28 +86,34 @@ def _aux(builder, name, rank, tokens, deps, kernel, flops, memory_bytes, workspa
                   'sequence_parallel_degree': 1,
                   'workload_shape': kernel_workload_shape(phase=phase if phase in ('prefill', 'decode') else 'forward', tokens=tokens,
                       lengths=builder.train_lengths if lengths is None else lengths,
-                      training=builder.training, ep=builder.ep)}))
+                      training=builder.training, ep=1 if lengths is not None else builder.ep)}))
 
 
 def _objective(builder, kind, extra_flops_per_token=0):
     """Full-position log-softmax cost; masking never scales the backbone backward."""
     def hook(prefix, stage, micro, deps):
-        tokens = sum(builder.train_lengths) / builder.ep
+        batch = LayerBatch(builder.mesh, ((i, n, n) for i, n in enumerate(builder.train_lengths)))
         vocab = builder.a.get('output_head_dim') or builder.a['vocab_size']
         ends = []
         for rank, coord in builder.coords.items():
             if coord[1] != stage:
                 continue
+            tokens = batch.tokens(coord[2])
+            if not tokens:
+                continue
             logits = tokens * vocab / (1 if vocab == 1 else builder.tp)
             ends.append(_aux(builder, prefix + '.' + rank + '.' + kind, rank, tokens, deps, kind,
                 5 * logits + extra_flops_per_token * tokens,
                 2 * logits * DTYPE_BYTES[builder.p['activation']] + tokens * 8,
-                workspace=tokens * 8))
+                workspace=tokens * 8, lengths=[n for n, _ in batch.rows(coord[2])]))
         if builder.tp > 1:
             # Vocabulary-sharded max and normalization sum are separate reductions.
             for reduction in (('max', 'sum') if vocab > 1 else ('value_sum',)):
                 collective_ends = []
                 for index, ranks in enumerate(builder.groups(stage, 'tp')):
+                    tokens = batch.tokens(builder.coords[ranks[0]][2])
+                    if not tokens:
+                        continue
                     collective_ends += builder.collective(prefix + f'.{kind}.{reduction}{index}',
                         'all_reduce', ranks, tokens * 4, ends, 'TrainingObjective', builder.m['layers'] - 1,
                         phase='loss')
@@ -130,6 +137,10 @@ def _training_graph(config, topology, valid, *, frozen=False, model=None, accumu
         data['execution'].pop('training_moe_routing', None)
     if frozen:
         data['execution']['fsdp'] = 1
+        if data['execution'].get('fsdp_domain') is not None:
+            # The frozen reference keeps the actor's compute mesh and owns full local weights.
+            data['execution']['fsdp_domain'] = {'implementation': data['execution']['fsdp_domain']['implementation'],
+                                                'dense_degree': 1, 'expert_degree': 1}
         data['execution']['features'].update(optimizer_offload=False, activation_checkpointing=False)
     builder = Builder(data, topology)
     builder.forward_only = frozen
@@ -160,12 +171,16 @@ def _rollout_graph(config, topology, prompts, responses):
         for eid in counts:
             barrier, ends = barriers[eid], []
             held_logits = []
+            step = int(eid.rsplit('token', 1)[1])
+            def sampled_lengths(slot):
+                replica_index, shard = divmod(slot, builder.mesh.cp)
+                return [prompt + step for i, prompt in enumerate(prompts) if responses[i] > step
+                        and i % builder.mesh.attention_dp == replica_index and (prompt+step-1) % builder.mesh.cp == shard]
             for rank, coord in builder.coords.items():
                 if coord[0] != int(replica):
                     continue
                 # Request ownership follows the inference EP assignment, including ragged tails.
-                step = int(eid.rsplit('token', 1)[1])
-                local = sum(i % builder.ep == coord[2] and responses[i] > step for i in range(len(responses)))
+                local = len(sampled_lengths(coord[2]))
                 if not local:
                     continue
                 logits = local * builder.a['vocab_size'] / builder.tp
@@ -176,8 +191,7 @@ def _rollout_graph(config, topology, prompts, responses):
                 ends.append(_aux(builder, eid + '.' + rank + '.sampling', rank, local, barrier.deps,
                     'rollout_sampling', 5 * logits, 2 * logits * DTYPE_BYTES[builder.p['activation']], local * 8,
                     phase='prefill' if step == 0 else 'decode',
-                    lengths=[prompts[i] + step for i in range(len(responses))
-                             if i % builder.ep == coord[2] and responses[i] > step]))
+                    lengths=sampled_lengths(coord[2])))
             if builder.tp > 1:
                 for reduction in ('max', 'sum'):
                     reduced = []
@@ -185,7 +199,7 @@ def _rollout_graph(config, topology, prompts, responses):
                         coord = builder.coords[ranks[0]]
                         if coord[0] != int(replica):
                             continue
-                        local = sum(i % builder.ep == coord[2] and responses[i] > step for i in range(len(responses)))
+                        local = len(sampled_lengths(coord[2]))
                         if local:
                             reduced += builder.collective(eid + f'.sampling.{reduction}{index}', 'all_reduce',
                                 ranks, local * 4, ends, 'TrainingObjective', builder.m['layers'] - 1,
@@ -217,7 +231,8 @@ class _Schedule:
         for allocation in graph.initial_allocations:
             meta = allocation.metadata
             owner = 'shared_system' if meta.get('component') == 'System' else role
-            key = (owner, allocation.pool, allocation.category, meta.get('tensor_name'), meta.get('layer'), allocation.dtype)
+            key = (owner, allocation.pool, allocation.category, meta.get('tensor_name'), meta.get('layer'), allocation.dtype,
+                   meta.get('owner_rank'), meta.get('shard', {}).get('group'))
             if key in self.residents:
                 existing = self.residents[key]
                 if existing.size_bytes != allocation.size_bytes:
@@ -261,9 +276,11 @@ class _Schedule:
         # The actor's training ledger supersedes its rollout-only weight ledger.
         if role not in self.role_logical or update:
             self.role_logical[role] = graph.metadata.get('logical_memory_bytes', {})
-        for key in ('component_inventory', 'assumptions', 'unsupported_production_features', 'sequence_parallel'):
+        for key in ('component_inventory', 'assumptions', 'unsupported_production_features', 'sequence_parallel', 'parallel_groups'):
             if key not in self.graph.metadata and key in graph.metadata:
                 self.graph.metadata[key] = deepcopy(graph.metadata[key])
+        if update and role == 'actor' and 'fsdp_domains' in graph.metadata:
+            self.graph.metadata['fsdp_domains'] = graph.metadata['fsdp_domains']
         return end
 
 
@@ -288,10 +305,11 @@ def build_training_task(config, topology):
             if task['kind'] == 'dpo':
                 from .structured import Builder
                 builder = Builder(config, topology)
+                scores = LayerBatch(builder.mesh, ((i, n, 1) for i, n in enumerate(valid)))
                 for rank, coord in builder.coords.items():
                     if coord[1] == builder.pp - 1:
                         preference_buffers.append(builder.allocation(f'preference.i{iteration}.{rank}', rank,
-                            len(valid) * w['gradient_accumulation'] * 4 / e['ep'], 'Preference', 'reference_log_probs',
+                            scores.last_tokens(coord[2]) * w['gradient_accumulation'] * 4, 'Preference', 'reference_log_probs',
                             dtype='fp32', training_role='reference'))
                 start = f'task.i{iteration}.preference.start'
                 schedule.graph.events.append(Event(start, (schedule.previous,) if schedule.previous else (),
@@ -350,8 +368,9 @@ def _build_rl(schedule, config, topology, counts, iteration_ends):
         # Experience is live from collection through every actor/critic update.
         builder = Builder(config, topology)
         buffers = []
-        for rank in builder.coords:
-            size = sum(valid) / e['ep'] * (rl['experience_bytes_per_token'] + (4 if rl['algorithm'] == 'ppo' else 0))
+        experiences = LayerBatch(builder.mesh, ((i, n, n) for i, n in enumerate(valid)))
+        for rank, coord in builder.coords.items():
+            size = experiences.tokens(coord[2]) * (rl['experience_bytes_per_token'] + (4 if rl['algorithm'] == 'ppo' else 0))
             buffers.append(builder.allocation(f'experience.i{iteration}.{rank}', rank, size,
                 'Experience', 'experience_buffer', dtype=None, training_role='experience'))
         allocation_event = f'task.i{iteration}.experience.start'
@@ -381,16 +400,18 @@ def _build_rl(schedule, config, topology, counts, iteration_ends):
             schedule.append(graph, 'rule_reward', 'environment', iteration)
         builder = Builder(config, topology)
         builder.train_lengths = valid
-        for rank in builder.coords:
-            tokens = sum(responses) / e['ep']
+        response_batch = LayerBatch(builder.mesh, ((i, n, responses[i]) for i, n in enumerate(valid)))
+        for rank, coord in builder.coords.items():
+            tokens = response_batch.tokens(coord[2])
             _aux(builder, rank + '.advantages', rank, tokens, (),
                  'group_advantages' if rl['algorithm'] == 'grpo' else 'gae',
                  tokens * rl['advantage_flops_per_token'], tokens * 24, tokens * 4)
-        if e['ep'] > 1 and rl['algorithm'] == 'grpo':
+        if builder.lanes > 1 and rl['algorithm'] == 'grpo':
             deps = [event.id for event in builder.g.events]
-            for index, ranks in enumerate(builder.groups(0, 'ep')):
-                builder.collective(f'advantages.group_stats{index}', 'all_reduce', ranks,
-                    rl['prompts_per_step'] * 3 * 4, deps, 'TrainingObjective', 0, phase='loss')
+            for axis in ('attention_dp', 'cp'):
+                deps = [end for index, ranks in enumerate(builder.groups(0, axis))
+                        for end in builder.collective(f'advantages.group_stats.{axis}{index}', 'all_reduce', ranks,
+                            rl['prompts_per_step'] * 3 * 4, deps, 'TrainingObjective', 0, phase='loss')]
         schedule.append(builder.g, 'advantage', 'experience', iteration)
         # Different microbatches may have different shapes. Preserve one optimizer
         # boundary per accumulation group by using a per-microbatch shape schedule.

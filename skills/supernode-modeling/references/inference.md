@@ -85,9 +85,9 @@ python scripts/summarize_kimi_10t_inference.py
 
 ## Megatron 式 sequence parallel
 
-结构化推理可以设置 `execution.sequence_parallel: true`，要求 TP>1、PP=1；暂不支持预算模型或训练。SP 与 TP 共用 rank，普通模式设备关系为 `TP × EP × PP × DP`，不能再乘一次 SP；PD 使用两份相同 TP/EP 池。它分片 Norm、AttnRes 工作区和持久残差，在 Attention/FFN 前 all-gather、后 reduce-scatter；attention heads/矩阵仍由 TP 分片。MLA compressed KV 仍在 TP 间复制，KDA recurrent heads 按 TP 分片，不能套用 context-parallel KV 或 KDA prefix-scan 流量。
+结构化推理可以设置 `execution.sequence_parallel: true`，要求 TP>1、PP=1；暂不支持预算模型或训练。SP 与 TP 共用 rank，旧布局设备关系为 `TP × EP × PP × DP`，独立布局按同一物理池分别校验 Attention 和专家分解，不能再乘一次 SP；PD 使用两份相同 TP/EP 池。它分片 Norm、AttnRes 工作区和持久残差，在 Attention/FFN 前 all-gather、后 reduce-scatter；attention heads/矩阵仍由 TP 分片。MLA compressed KV 仍在 TP 间复制，KDA recurrent heads 按 TP 分片，不能套用 context-parallel KV 或 KDA prefix-scan 流量。
 
-Embedding 使用 reduce-scatter；Output 只 gather 每条序列最后一个隐藏向量用于首 token logits。为使用等长 collective，SP 行数采用 `ceil(valid_source_tokens/TP)`；decode 只有一行时会补到 TP 行。Attention/FFN 计算和 KV/state 只计有效 token。新增 gather 输入缓冲保留至相应组件完成；现有 MoE 仍在每条 TP lane 分派完整 latent，未表达 DeepEP 融合或 decode 关闭 SP 的策略。
+Embedding 使用 reduce-scatter；Output 只 gather 每条序列最后一个隐藏向量用于首 token logits。为使用等长 collective，SP 行数采用 `ceil(valid_source_tokens/TP)`；decode 只有一行时会补到 TP 行。Attention/FFN 计算和 KV/state 只计有效 token。新增 gather 输入缓冲保留至相应组件完成；旧布局的 MoE 在每条 TP lane 分派完整 latent，未表达 DeepEP 融合或 decode 关闭 SP 的策略。
 
 下面的扫描保留原 TP8 归档，在同一 1024 卡拓扑测试 TP16/SP16/EP64 与 TP32/SP32/EP32，输出 96 组结果及与 TP8 的对比：
 

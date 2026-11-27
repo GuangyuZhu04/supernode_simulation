@@ -196,10 +196,12 @@ def test_hidden_activations_replicate_across_tp_boundaries():
         "hardware": {"npu_count": 8, "su_size": 8}, "execution": {"ep": 2, "tp": 2, "pp": 2}})
     graph = compile_config(config)
     first_pp = next(e for e in graph.events if e.metadata.get("category") == "pipeline_activation")
-    assert first_pp.metadata["payload_bytes"] == 32 * 128 / 2 * 2  # tokens * H / EP * FP16
+    # The single 32-token sequence belongs to EP source zero. Both TP ranks
+    # carry its full hidden state, and EP source one sends no pipeline rows.
+    assert first_pp.metadata["payload_bytes"] == 32 * 128 * 2
     first_dispatch = next(e for e in graph.events if e.metadata.get("semantic") == "dispatch")
-    assert first_dispatch.metadata["payload_bytes"] == 32 * 128 / 2 * 2 * .5 * 2 / 2
+    assert first_dispatch.metadata["payload_bytes"] == 32 * 128 * 2 * .5 * 2 / 2
     config["execution"]["features"]["activation_checkpointing"] = True
     checkpoint = compile_config(config)
     activation = next(a for e in checkpoint.events for a in e.allocs if a.category == "activation_checkpoint")
-    assert activation.size_bytes == 32 * 128 / 2 * 2
+    assert activation.size_bytes == 32 * 128 * 2

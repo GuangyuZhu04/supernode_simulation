@@ -46,6 +46,10 @@ def kv_layout_bytes(
 
 def build_inference(config: dict[str, Any], topology: "Topology") -> Graph:
     """Build a deterministic graph for every DP replica of a fixed batch."""
+    from .rank_layout import independent_groups
+    if independent_groups(config['execution']):
+        from .structured import build_structured
+        return build_structured(config, topology)
     m, h, w, x = (config[k] for k in ("model", "hardware", "workload", "execution"))
     p, f = x["precision"], x["features"]
     tp, pp, ep, dp = (x[k] for k in ("tp", "pp", "ep", "dp"))

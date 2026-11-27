@@ -38,7 +38,7 @@ def _model_work(metadata: dict) -> tuple[float, float, float, float]:
         return 0.0, 0.0, 0.0, 0.0
     kernel = metadata.get('original_kernel', metadata.get('kernel'))
     component = metadata.get('component')
-    is_model = (metadata.get('training_attention_part') or kernel in ('training_forward', 'training_backward', 'training_recompute')
+    is_model = (metadata.get('training_attention_part') or metadata.get('model_kernel_part') or kernel in ('training_forward', 'training_backward', 'training_recompute')
                 or bool(component and kernel == str(component).lower()))
     if not is_model:
         return 0.0, 0.0, 0.0, 0.0
@@ -64,6 +64,7 @@ def training_communication(graph, simulation):
     """Union intervals per physical rank. Concurrent sends and receives count once."""
     compute, fabric = defaultdict(list), defaultdict(list)
     classes = {}
+    fsdp_payload = {}
     events = {event.id: event for event in graph.events}
 
     def append(intervals, start, end):
@@ -84,6 +85,11 @@ def training_communication(graph, simulation):
             item['transfer_events'] += 1
             item['payload_bytes'] += meta['payload_bytes']
             item['slot_wait_event_s'] += row['slot_wait_s']
+            if meta.get('fsdp_family'):
+                phases = fsdp_payload.setdefault(meta['fsdp_family'], {})
+                operations = phases.setdefault(meta['phase'], {})
+                category = meta['category']
+                operations[category] = operations.get(category, 0.0) + meta['payload_bytes']
             operation = meta.get('semantic') or meta.get('operation')
             if meta.get('collective') == 'all_to_all_v' and operation in ('dispatch', 'combine'):
                 # Count each transfer once at its sender. Multi-hop link work is a different quantity.
@@ -112,6 +118,7 @@ def training_communication(graph, simulation):
             else:
                 j += 1
     return {'by_class': classes, 'network_rank_s': communication, 'overlap_with_compute_rank_s': overlap,
+            **({'fsdp_sent_bytes': fsdp_payload} if fsdp_payload else {}),
             'overlap_fraction': overlap / communication if communication else None,
             'basis': 'Union of SU/SO transfer event intervals intersected with NPU compute event intervals on the same rank, including launch time. Summed rank-seconds.'}
 

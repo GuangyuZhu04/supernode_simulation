@@ -108,6 +108,8 @@ def build_training_summary(spec, graph, result):
     sim = result.get('simulation', {})
     summary = {'schema_version': 1, 'model': spec.model.name, 'config_sha256': result['config_sha256'],
                'npu_count': spec.hardware.npu_count, 'pp': spec.execution.pp, 'status': 'unavailable'}
+    if 'fsdp_domains' in graph.metadata:
+        summary['fsdp_domains'] = graph.metadata['fsdp_domains']
     if sim.get('status') != 'feasible' or sim['duration_s'] <= 0:
         summary['reason'] = '需要完整且耗时大于零的训练仿真轨迹。'
         return summary
@@ -132,6 +134,8 @@ def build_training_summary(spec, graph, result):
             ('model_mfu', 'executed_compute_utilization', 'npu_flops_by_role', 'moe_routing', 'reference_mfu')
             if key in accounting}
     ep = result['metrics']['training_communication']['by_class'].get('ep', {})
+    if 'fsdp_sent_bytes' in result['metrics']['training_communication']:
+        summary['fsdp_sent_bytes'] = result['metrics']['training_communication']['fsdp_sent_bytes']
     if 'routed_payload_bytes_by_phase' in ep:
         summary['moe_wire'] = {
             'off_rank_sent_bytes_by_phase': ep['routed_payload_bytes_by_phase'],

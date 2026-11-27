@@ -13,6 +13,36 @@ function topologyFixture(kind = 'full_mesh') {
   return config;
 }
 
+test('layer groups share the same ordered eight physical devices', () => {
+  const config = topologyFixture();
+  config.hardware.npu_count = 8;
+  Object.assign(config.execution, {tp: 2, cp: 2, attention_dp: 2, expert_tp: 1, ep: 8, expert_dp: 1, dp: 1, pp: 1,
+    rank_order: [7, 6, 5, 4, 3, 2, 1, 0]});
+  const h = harness(config);
+  const r = h.call('topologyRank', config, 2);
+  assert.deepEqual([r.rank, r.attention_dp, r.cp, r.tp, r.expert_dp, r.ep, r.expert_tp], [5, 1, 0, 1, 0, 5, 0]);
+  assert.match(h.call('parallelInputNote', config), /每段 8 卡/);
+  config.execution.expert_rank_order = [0,4,1,5,2,6,3,7];
+  assert.equal(h.call('topologyRank', config, 2).ep, 3);
+  config.execution.expert_dp = 2;
+  assert.match(h.call('parallelInputNote', config), /完整覆盖/);
+});
+
+test('CP and EP training preview resolves independent FSDP physical domains with outer DP one', () => {
+  const config = topologyFixture();
+  config.hardware.npu_count = 8;
+  config.workload.scenario = 'training';
+  Object.assign(config.execution, {tp:1, cp:2, ep:4, expert_tp:1, dp:1, pp:1, fsdp:1});
+  config.features = {fsdp:{domain:{implementation:'fsdp2', dense_degree:4, expert_groups:[[0,4],[1,5],[2,6],[3,7]]}}};
+  const h = harness(config);
+  const info = h.call('inputFSDPDomain', config);
+  assert.equal(info.valid, true);
+  assert.deepEqual([info.dense, info.expert], [4,2]);
+  const steps = h.call('buildExecutionPlan', config).steps;
+  assert.match(steps.find(s => s.key === 'weight-gather').detail, /FSDP2/);
+  assert.match(steps.find(s => s.key === 'gradient-sync').detail, /reduce-scatter/);
+});
+
 test('fabric views follow full-mesh, mesh and leaf/spine connectivity', () => {
   const h = harness();
   const full = h.call('buildTopologyModel', topologyFixture(), {view: 'domain', domain: 0});

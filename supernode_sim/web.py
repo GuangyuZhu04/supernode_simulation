@@ -484,7 +484,9 @@ class WebHandler(BaseHTTPRequestHandler):
                 summary = {
                     'model': config['model']['name'], 'scenario': config['workload']['scenario'],
                     'npu_count': config['hardware']['npu_count'], 'su_size': config['hardware']['su_size'],
-                    'parallel_product': execution['tp'] * execution['ep'] * execution['pp'] * execution['dp']}
+                    'parallel_product': config['hardware']['npu_count'] // (2 if execution['features']['prefill_decode_disaggregation']['enabled'] else 1)}
+                from .rank_layout import configured_groups
+                summary.update(configured_groups(execution, summary['npu_count']))
                 if serving is not None:
                     summary.update(request_count=len(serving['requests']), instance_count=serving['instance_count'],
                                    total_npus=config['hardware']['npu_count'] * serving['instance_count'])

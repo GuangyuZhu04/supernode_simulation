@@ -67,7 +67,11 @@ python -m supernode_sim schema
 
 Feature 是模型与执行策略输入，不是固定加速倍率。对同一路径的重复设置保留冲突检查；resolved config 使用 canonical 字段重跑。Attention 类型变化需要实际模型逐层结构和维度，不能默认质量等价；DSpark 类路径必须有显式 draft 成本、驻留及接受数。核对报告中的 `model_metadata.feature_plan`，并区分已选择、解析建模、profile 驱动和仍不支持的功能。
 
-Megakernel 要指定有序 kernel 组及融合启动成本，检查 `model_metadata.megakernel` 的实际匹配、跳过原因和未继承的成员 profile；零匹配不能声称提速。PD 使用两个独立物理池，当前相同 TP/EP、DP=PP=1，总卡数为 `2 × TP × EP`；双份权重、状态和首 token ID 传输按实际拓扑计费。TTFT 是 P 池首 token 完成，交接影响首个 decode 间隔，不是线上客户端延迟或生产 P99。
+Attention 与 MoE 共池时，分别填写 Attention 的 `tp/cp/attention_dp` 和专家的 `expert_tp/ep/expert_dp`。两套乘积各自等于同一流水段的卡数。报告实际的 TP、CP、EP 通信成员，以及每卡 KV、专家权重和路由负载。8 卡示例、旧配置兼容规则和不同 Attention 的 CP 策略见 [并行组说明](references/configuration.md#attention-和专家并行组)。
+
+需要 CP＋EP＋FSDP 训练时，可设 `pp=1`，通过 `execution.fsdp_domain` 选择 `fsdp` 或 `fsdp2`。分别核对稠密、路由专家的物理分片组，以及 reduce-scatter 后仍需同步的副本组。训练汇总提供组成员与实际发送字节。[无流水线的训练示例](references/training.md#无流水线的-cpep-与-fsdp-训练)
+
+Megakernel 要指定有序 kernel 组及融合启动成本，检查 `model_metadata.megakernel` 的实际匹配、跳过原因和未继承的成员 profile；零匹配不能声称提速。PD 使用两个布局相同的独立物理池，DP=PP=1，总卡数为单池卡数的两倍。双份权重、状态和首 token ID 传输按实际拓扑计费。TTFT 是 P 池首 token 完成，交接影响首个 decode 间隔，不是线上客户端延迟或生产 P99。
 
 DeepInfer 类部署选型优先比较 P 的小 EP、可选小 TP/SP 与请求 bs=1，以及 D 的 Wide-EP 与请求 bs=128/256；先声明 bs 是每 Attention replica 还是整个池。保留官方小 EP/Attention DP 基线，小 SP 是本项目候选，不能归为官方当前部署。不同 P/D 布局或 batch 使用独立阶段实验，不能套用现有同布局 PD handoff；具体 batch 换算、候选和能力边界见上述参考。
 

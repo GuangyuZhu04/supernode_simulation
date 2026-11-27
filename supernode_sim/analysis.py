@@ -84,7 +84,12 @@ def compile_graph(config: Config | dict) -> Graph:
     if spec.workload.scenario == 'training':
         from .training_schedule import dp_domain_summary
         from .training_qos import configure_training_qos
-        graph.metadata['dp_domains'] = dp_domain_summary(data['execution'], spec.hardware.su_size)
+        graph.metadata['dp_domains'] = dp_domain_summary(data['execution'], spec.hardware.su_size, spec.hardware.npu_count,
+                                                         graph.metadata.get('fsdp_domains'))
+        if spec.execution.fsdp > 1 and spec.execution.fsdp_domain is None:
+            from .rank_layout import RankLayout
+            from .fsdp import legacy_domains
+            graph.metadata['fsdp_domains'] = legacy_domains(RankLayout.resolve(data['execution'], spec.hardware.npu_count), spec.execution.fsdp)
         configure_training_qos(graph, data['execution'])
     if spec.model.architecture is None:
         graph.metadata['component_inventory'] = inventory_summary(data['model'])

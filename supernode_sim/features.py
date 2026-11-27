@@ -32,9 +32,9 @@ _SUPPORTED = {
         'KV placement, page rounding, metadata and transfers are modeled; this is not a paged-attention scheduler implementation.'),
     'sequence_parallel': (['inference'], ['execution.sequence_parallel'],
         'Requires structured inference, TP>1 and PP=1; sequence parallelism shares TP ranks.'),
-    'fsdp': (['training'], ['execution.fsdp', 'execution.reshard_after_forward', 'execution.sync_each_microbatch', 'execution.prefetch', 'execution.prefetch_layers', 'execution.overlap_gradient_sync'],
-        'FSDP is a DP subgroup. Bounded layer prefetch and asynchronous gradient reduction retain live buffers until their consumers finish.'),
-    'parallelism': (['training', 'inference'], ['execution.tp', 'execution.pp', 'execution.ep', 'execution.dp', 'execution.dp_domain_size', 'execution.rank_order'],
+    'fsdp': (['training'], ['execution.fsdp', 'execution.fsdp_domain', 'execution.reshard_after_forward', 'execution.sync_each_microbatch', 'execution.prefetch', 'execution.prefetch_layers', 'execution.overlap_gradient_sync'],
+        'Explicit FSDP/FSDP2 domains shard dense and routed parameters among compatible physical replicas. The scalar fallback uses outer DP subgroups.'),
+    'parallelism': (['training', 'inference'], ['execution.tp', 'execution.cp', 'execution.attention_dp', 'execution.expert_tp', 'execution.ep', 'execution.expert_dp', 'execution.pp', 'execution.dp', 'execution.dp_domain_size', 'execution.rank_order', 'execution.expert_rank_order'],
         'Physical rank count, placement and collective work remain subject to configuration validation.'),
     'optimizer': (['training'], ['execution.optimizer'],
         'Adam and analytical Muon component work are modeled; distributed Muon is not implemented.'),
@@ -51,7 +51,7 @@ _SUPPORTED = {
     'megakernel': (['training', 'inference'], ['execution.features.megakernel'],
         'Explicit ordered same-rank/layer/phase kernel groups preserve physical work and require fused startup costs; dependency barriers and actual matching coverage constrain fusion.'),
     'prefill_decode_disaggregation': (['inference'], ['execution.features.prefill_decode_disaggregation'],
-        'Separate physical prefill/decode pools share the same per-stage TP/EP layout; total hardware NPUs equal 2*TP*EP. State handoff follows the configured topology; dynamic admission and pool replication are not modeled.'),
+        'Prefill and decode use equal, disjoint physical pools with matching layer groups. State handoff follows the configured topology.'),
     'kernel_profiles': (['training', 'inference'], ['hardware.kernel_profiles'],
         'Measured or assumed solo-kernel profiles may represent fusion/graph/runtime implementations; actual matching coverage is reported separately.'),
 }
@@ -187,12 +187,13 @@ def resolve_feature_input(data: dict) -> dict:
     fsdp = supplied.get('fsdp')
     if fsdp is not None:
         for key, value in fsdp.items():
-            _set_canonical(result, 'execution.' + ('fsdp' if key == 'degree' else key), value)
+            _set_canonical(result, 'execution.' + {'degree': 'fsdp', 'domain': 'fsdp_domain'}.get(key, key), value)
     return result
 
 
 def build_feature_plan(config, calibration: dict | None = None) -> dict[str, Any]:
     """Explain resolved options; supplied profiles do not prove measured fidelity."""
+    from .rank_layout import independent_groups
     data = config.model_dump() if hasattr(config, 'model_dump') else copy.deepcopy(config)
     execution = data['execution']
     options = execution['features']
@@ -208,8 +209,8 @@ def build_feature_plan(config, calibration: dict | None = None) -> dict[str, Any
         'optimizer_offload': options['optimizer_offload'],
         'kv_offload': options['kv_offload'] != 'none',
         'sequence_parallel': execution['sequence_parallel'],
-        'fsdp': execution['fsdp'] > 1,
-        'parallelism': any(execution[name] > 1 for name in ('tp', 'pp', 'ep', 'dp')),
+        'fsdp': execution['fsdp'] > 1 or execution.get('fsdp_domain') is not None,
+        'parallelism': independent_groups(execution) or any(execution[name] > 1 for name in ('tp', 'pp', 'ep', 'dp')),
         'optimizer': data['workload']['scenario'] == 'training',
         'engram': options['engram']['enabled'],
         'quantization': any(value in ('fp4', 'fp8', 'int8') for value in execution['precision'].values()) or options['extra_weight_copy_dtype'] is not None,
@@ -251,6 +252,7 @@ def build_feature_plan(config, calibration: dict | None = None) -> dict[str, Any
             row['physical_npu_count'] = data['hardware']['npu_count']
             row['stage_parallelism'] = {'tp': execution['tp'], 'ep': execution['ep'],
                                        'pp': execution['pp'], 'dp': execution['dp']}
+            row['stage_parallelism'].update({k: execution[k] for k in ('cp', 'attention_dp', 'expert_tp', 'expert_dp') if k in execution})
         rows.append(row)
     return {
         'schema_version': '1.0', 'scenario': data['workload']['scenario'], 'features': rows,

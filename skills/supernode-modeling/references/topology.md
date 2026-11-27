@@ -81,7 +81,7 @@ ring 会展开约 `ranks * (ranks-1)` 个事件/阶段。大 FSDP 群和长序�
 
 用 `targets.candidate_npu_counts` 指定总卡数候选，`candidate_su_sizes` 指定多域候选；多域还必须提供 `total_npus` 或 `max_total_npus`。`parallel_candidates` 可指定 `tp/pp/ep/dp/fsdp/rank_order` 组合，`max_candidates` 限制候选数量。未提供布局候选时保留 TP/PP/EP/FSDP、从总卡数推导 DP；改变 DP 会改变全局工作量，不能隐瞒。
 
-PD 分离搜索使用双池物理总量 `2 × TP × EP` 并保持 DP=PP=1，不从总卡数推导 DP。P/D rank 列表固定于物理配置，每个候选重新校验；改变卡数/池大小需提供相应完整映射，不自动改写用户放置。交接流量走实际跨池路径，同 SU/跨 SU 的带宽、注入与共享瓶颈照常计入。
+PD 分离搜索使用双池物理总量（单池卡数的两倍） 并保持 DP=PP=1，不从总卡数推导 DP。P/D rank 列表固定于物理配置，每个候选重新校验；改变卡数/池大小需提供相应完整映射，不自动改写用户放置。交接流量走实际跨池路径，同 SU/跨 SU 的带宽、注入与共享瓶颈照常计入。
 
 ```text
 python -m supernode_sim size-su path/to/scenario.yaml --mode single --output outputs/su-single

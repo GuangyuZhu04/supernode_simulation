@@ -412,6 +412,27 @@ def markdown_report(result: dict) -> str:
     else:
         config = result['config']
         lines += [f"模型：`{config['model']['name']}`；场景：`{config['workload']['scenario']}`；权重：`{config['execution']['precision']['weight']}`。"]
+        layout = result.get('model_metadata', {}).get('parallel_groups')
+        if layout:
+            lines += ['', f"每个外层 DP 副本的每个流水段使用 **{layout['stage_width']} 张物理卡**。",
+                      '', '| 层内布局 | 张量并行 | 上下文或专家并行 | 段内副本 |',
+                      '|---|---:|---:|---:|',
+                      f"| Attention | {layout['tp']} | CP {layout['cp']} | {layout['attention_dp']} |",
+                      f"| 路由专家 | {layout['expert_tp']} | EP {layout['ep']} | {layout['expert_dp']} |",
+                      '', '各通信组的物理设备成员见结果 JSON 的 `model_metadata.parallel_groups.stages`。', '']
+        fsdp = result.get('model_metadata', {}).get('fsdp_domains')
+        if fsdp:
+            mode = {'fsdp': 'FSDP', 'fsdp2': 'FSDP2', 'legacy_full_shard': 'FSDP（外层 DP 子组）'}[fsdp['implementation']]
+            lines += ['', f'**{mode} 参数分片域**', '',
+                      '| 参数 | 分片度 | 全任务分片组数 | 第一个分片组的物理成员 |',
+                      '|---|---:|---:|---|']
+            for family, label in (('dense', '稠密及共享参数'), ('expert', '路由专家参数')):
+                desc = fsdp[family]
+                stages = desc['stages']
+                group = stages[0]['shard_groups'][0]
+                members = ', '.join(group[:8]) + (' …' if len(group) > 8 else '')
+                lines.append(f"| {label} | {desc['degree']} | {sum(len(s['shard_groups']) for s in stages)} | {members} |")
+            lines += ['', '完整分片组和对应梯度分片的副本组见 `model_metadata.fsdp_domains`。', '']
         hardware = config.get('hardware', {})
         if hardware:
             capacity = hardware.get('npu', {}).get('hbm_bytes')

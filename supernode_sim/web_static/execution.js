@@ -27,6 +27,8 @@ function buildExecutionPlan(config, mode = 'simulate') {
   if (selected.kv_offload) { f.kv_offload = selected.kv_offload.location; f.kv_offload_fraction = selected.kv_offload.fraction; }
   const parallel = {...e, ...selected.parallelism};
   const fsdp = selected.fsdp?.degree ?? e.fsdp ?? 1;
+  const sharding = inputFSDPDomain(config);
+  const sharded = sharding ? Math.max(sharding.dense, sharding.expert) > 1 : fsdp > 1;
   const sp = selected.sequence_parallel ?? e.sequence_parallel;
   const optimizer = selected.optimizer || e.optimizer || {};
   const pd = f.prefill_decode_disaggregation?.enabled === true;
@@ -56,7 +58,7 @@ function buildExecutionPlan(config, mode = 'simulate') {
     } else {
     plan.facts.push(['训练循环', count(w.training_steps) + ' 步 × ' + count(w.gradient_accumulation) + ' 微批'], ['每微批', 'Batch ' + count(w.batch_size) + ' × ' + count(w.sequence_length) + ' tokens'], ['每步全局样本', [w.batch_size,w.gradient_accumulation,parallel.dp ?? 1].every(v => Number.isSafeInteger(v) && v > 0) ? count(w.batch_size * w.gradient_accumulation * (parallel.dp ?? 1)) : '待校验']);
     if (task?.kind === 'dpo' && task.dpo?.reference_log_probs !== 'precomputed') add('reference', '冻结参考 log-prob', 'chosen/rejected 双序列先执行参考前向；batch 计偏好对。');
-    if (fsdp > 1) add('weight-gather', 'FSDP 权重聚合', '按 ' + count(fsdp) + ' 个 DP rank 分片；前向后 ' + ((selected.fsdp?.reshard_after_forward ?? e.reshard_after_forward ?? true) ? '重新分片' : '保留完整权重') + '。');
+    if (sharded) add('weight-gather', 'FSDP 权重聚合', (sharding ? sharding.label : '外层 DP 分片度 ' + count(fsdp)) + '。前向后' + ((selected.fsdp?.reshard_after_forward ?? e.reshard_after_forward ?? true) ? '重新分片' : '保留完整权重') + '。');
     add('forward', '前向计算', count(m.layers) + ' 层 · 每微批 ' + count(w.batch_size * w.sequence_length) + ' tokens；PP ' + count(parallel.pp ?? 1) + ' 个流水阶段。');
     if (task) {
       plan.steps[plan.steps.length - 1].detail = '按任务内的长度及 ' + (task.data?.batching || 'padded') + ' 方式计算；' + (task.kind === 'dpo' ? '每对包含 chosen/rejected 两条序列。' : 'batch 计序列，监督掩码不裁剪主干计算。');
@@ -64,7 +66,7 @@ function buildExecutionPlan(config, mode = 'simulate') {
     }
     if (f.activation_checkpointing) add('recompute', '激活重计算', '反向阶段按配置重新计算激活，减少保存的激活容量。');
     add('backward', '反向与梯度累积', '每步累积 ' + count(w.gradient_accumulation) + ' 个微批；同步策略：' + ((selected.fsdp?.sync_each_microbatch ?? e.sync_each_microbatch) ? '每个微批' : '累积后') + '。');
-    if ((parallel.dp ?? 1) > 1 || fsdp > 1) add('gradient-sync', '梯度同步', fsdp > 1 ? 'FSDP reduce-scatter 与剩余 DP 副本同步；具体依赖以事件图为准。' : 'DP ' + count(parallel.dp) + ' 个副本执行梯度 all-reduce。');
+    if ((parallel.dp ?? 1) > 1 || sharded) add('gradient-sync', '梯度同步', sharded ? '分片组内 reduce-scatter，持有同一梯度分片的其余副本执行 all-reduce。' : 'DP ' + count(parallel.dp) + ' 个副本执行梯度 all-reduce。');
     if (f.optimizer_offload) add('optimizer-offload', '梯度卸载 → 主机更新 → 权重回传', 'Host 执行 ' + (optimizer.kind || 'adam').toUpperCase() + '；回传精度 ' + (e.precision?.weight_transfer || '待校验') + '。');
     else add('optimizer', (optimizer.kind || 'adam').toUpperCase() + ' 更新', '在 NPU 更新权重，随后进入下一训练步。');
     plan.notes.push('流程展示每个训练步的依赖骨架；组件更新和通信可能重叠，不能按卡片数量推算进度。');
@@ -75,7 +77,7 @@ function buildExecutionPlan(config, mode = 'simulate') {
     plan.facts.push(['请求规模', 'Batch ' + count(w.batch_size) + ' / DP 副本'], ['输入长度', range(input)], ['输出长度', range(output)]);
     if (!input || !output) plan.notes.push('请求长度必须是正整数，且显式列表长度应等于 Batch；完成校验后才能确认执行规模。');
     add('prefill', pd ? 'P 池 · Prefill' : 'Prefill · 首 token', (input ? count(input.sum) + ' 输入 tokens / 副本' : '输入长度待校验') + '，经过 ' + count(m.layers) + ' 层并建立 KV / recurrent 状态。');
-    if (pd) add('pd-handoff', 'P → D 状态交接', '两个独立物理池，每池 TP × EP = ' + count((parallel.tp ?? 1) * (parallel.ep ?? 1)) + ' 卡；传输 KV / recurrent 状态与首 token ID。');
+    if (pd) add('pd-handoff', 'P → D 状态交接', '两个独立物理池，每池 ' + count(config.hardware?.npu_count / 2) + ' 卡。传输 KV / recurrent 状态与首 token ID。');
     const rounds = output ? Math.max(0, output.max - 1) : null;
     if (rounds !== 0) {
       if (f.kv_offload && f.kv_offload !== 'none' && (f.kv_offload_fraction ?? 1) > 0) add('kv-fetch', 'Decode · KV 取回', (f.kv_offload === 'host' ? '主机 DRAM' : '远程内存') + ' ↔ NPU，卸载比例 ' + percentage(f.kv_offload_fraction ?? 1) + '；随解码重复。');

@@ -1,0 +1,33 @@
+# Two attention replicas and one expert replica share these eight physical NPUs.
+model:
+  name: synthetic-eight-card-moe
+  layers: 1
+  hidden_dim: 16
+  num_heads: 4
+  kv_heads: 2
+  head_dim: 4
+  architecture:
+    vocab_size: 32
+    attention_by_layer: [GQA]
+    ffn_by_layer: [MoE]
+    moe: {num_experts: 8, top_k: 2, intermediate_dim: 8}
+hardware:
+  npu_count: 8
+  su_size: 4
+  npus_per_host: 4
+workload:
+  scenario: inference
+  batch_size: 2
+  input_lengths: [8, 5]
+  output_lengths: [3, 2]
+  sequence_length: 8
+execution:
+  tp: 2
+  cp: 2
+  attention_dp: 2
+  ep: 8
+  expert_tp: 1
+  expert_dp: 1
+  pp: 1
+  dp: 1
+  features: {kv_page_tokens: 1}

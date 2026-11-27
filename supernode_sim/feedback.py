@@ -67,7 +67,14 @@ def _divisors(value: int) -> list[int]:
 def _layouts(config: Config, search: FeedbackSpec) -> list[dict]:
     copies = 2 if config.execution.features.prefill_decode_disaggregation.enabled else 1
     slots = config.hardware.npu_count // (copies * config.execution.dp * config.execution.pp)
-    if search.tp_sizes is None and search.ep_sizes is None:
+    from .rank_layout import independent_groups
+    axes = config.execution.model_dump()
+    if independent_groups(axes):
+        attention = slots // config.execution.cp
+        expert = slots // (config.execution.expert_tp or 1)
+        pairs = itertools.product(search.tp_sizes or _divisors(attention),
+                                  search.ep_sizes or _divisors(math.gcd(expert, config.model.num_experts)))
+    elif search.tp_sizes is None and search.ep_sizes is None:
         pairs = [(slots // ep, ep) for ep in _divisors(math.gcd(slots, config.model.num_experts))]
     elif search.ep_sizes is None:
         pairs = [(tp, slots // tp if slots % tp == 0 else 1) for tp in search.tp_sizes]

@@ -26,6 +26,7 @@ class ParameterTensor:
     formula: str = "product(shape)"
     tp_max_shards: int | None = None
     budget_elements: float | None = None
+    tp_axis: int = 0
 
     @property
     def elements(self) -> float:
@@ -45,6 +46,19 @@ class ParameterTensor:
             raise ValueError("parallel factors must be positive")
         shards = min(tp, self.tp_max_shards or tp) if self.tp_shard else 1
         return self.accounted_elements / shards / (ep if self.ep_shard else 1) / fsdp
+
+    def local_rows(self, tp, ep):
+        """Dim-0 of an evenly placed local tensor, when its geometry is known."""
+        if not self.shape:
+            return None
+        dims = list(self.shape)
+        if self.ep_shard:
+            dims[0] //= ep
+        shards = min(tp, self.tp_max_shards or tp) if self.tp_shard else 1
+        if dims[self.tp_axis] % shards:
+            return None
+        dims[self.tp_axis] //= shards
+        return dims[0]
 
     def to_dict(self) -> dict[str, Any]:
         return {**asdict(self), "elements": self.elements,
@@ -87,16 +101,16 @@ def parameter_inventory(model: dict) -> list[ParameterTensor]:
     tensors: list[ParameterTensor] = []
 
     def add(name, component, layer, shape, *, role="matrix", tp_shard=True,
-            ep_shard=False, active_fraction=1.0, alias_of=None, formula="product(shape)", tp_max_shards=None):
+            ep_shard=False, active_fraction=1.0, alias_of=None, formula="product(shape)", tp_max_shards=None, tp_axis=0):
         if any(not isinstance(d, int) or d <= 0 for d in shape):
             raise ValueError(f"{name}: tensor dimensions must be positive integers")
         tensors.append(ParameterTensor(name, component, layer, tuple(shape), role,
-            tp_shard, ep_shard, active_fraction, alias_of, formula, tp_max_shards))
+            tp_shard, ep_shard, active_fraction, alias_of, formula, tp_max_shards, tp_axis=tp_axis))
 
     def linear(name, component, layer, inputs, outputs, **kwargs):
         add(name + ".weight", component, layer, (outputs, inputs), **kwargs)
         if arch.get("linear_bias", False):
-            bias_kwargs = {key: value for key, value in kwargs.items() if key != "formula"}
+            bias_kwargs = {key: value for key, value in kwargs.items() if key not in ("formula", "tp_axis")}
             add(name + ".bias", component, layer, (outputs,), role="vector", **bias_kwargs)
 
     def norm(name, component, layer, width):
@@ -137,7 +151,7 @@ def parameter_inventory(model: dict) -> list[ParameterTensor]:
                    tp_shard=False, formula="hidden_dim * (kv_lora_rank + qk_rope_head_dim)")
             norm(stem + ".mla.kv_norm", component, layer, rkv)
             linear(stem + ".mla.kv_up", component, layer, rkv, n * (nope + value))
-            linear(stem + ".mla.output", component, layer, n * value, h)
+            linear(stem + ".mla.output", component, layer, n * value, h, tp_axis=1)
             if a.get("use_output_gate", False):
                 linear(stem + ".mla.output_gate", component, layer, h, n * value)
         elif kind in ("CSA", "HCA"):
@@ -152,7 +166,7 @@ def parameter_inventory(model: dict) -> list[ParameterTensor]:
             norm(prefix + ".kv_norm", kind, layer, d)
             add(prefix + ".output_down.weight", kind, layer, (groups, rank, n * d // groups),
                 formula="grouped low-rank output: groups * rank * (heads*head_dim/groups)")
-            linear(prefix + ".output_up", kind, layer, groups * rank, h)
+            linear(prefix + ".output_up", kind, layer, groups * rank, h, tp_axis=1)
             add(prefix + ".attention_sink", kind, layer, (n,), role="vector")
 
             def compressor(name, width):
@@ -194,14 +208,14 @@ def parameter_inventory(model: dict) -> list[ParameterTensor]:
             add(stem + ".kda.decay_bias", component, layer, (nh * dk,), role="vector")
             # Shared per-head value norm. It is not multiplied by head count.
             norm(stem + ".kda.output_norm", component, layer, dv)
-            linear(stem + ".kda.output", component, layer, nh * dv, h)
+            linear(stem + ".kda.output", component, layer, nh * dv, h, tp_axis=1)
         elif kind in ("MHA", "GQA", "MQA"):
             kh = n if kind == "MHA" else (1 if kind == "MQA" else model.get("kv_heads", n))
             linear(stem + ".attention.q", component, layer, h, n * head)
             for projection in ("k", "v"):
                 linear(stem + f".attention.{projection}", component, layer, h, kh * head,
                        tp_max_shards=kh)
-            linear(stem + ".attention.output", component, layer, n * head, h)
+            linear(stem + ".attention.output", component, layer, n * head, h, tp_axis=1)
         else:
             raise ValueError(f"unsupported attention component {kind!r}")
         ffn = _kind(model, layer, "ffn_by_layer").lower()
@@ -209,7 +223,7 @@ def parameter_inventory(model: dict) -> list[ParameterTensor]:
             width = arch.get("dense_intermediate_dim") or model.get("intermediate_dim") or 4 * h
             for projection in ("gate", "up"):
                 linear(stem + ".dense." + projection, "Dense", layer, h, width)
-            linear(stem + ".dense.down", "Dense", layer, width, h)
+            linear(stem + ".dense.down", "Dense", layer, width, h, tp_axis=1)
         elif ffn == "moe":
             a = arch.get("moe") or {}
             experts = a.get("num_experts", model.get("num_experts", 1))
@@ -234,22 +248,22 @@ def parameter_inventory(model: dict) -> list[ParameterTensor]:
             for projection in ("gate", "up", "down"):
                 shape = (experts, width, latent) if projection != "down" else (experts, latent, width)
                 add(stem + ".moe.routed." + projection + ".weight", "MoE", layer, shape,
-                    ep_shard=True, active_fraction=top_k / experts,
+                    ep_shard=True, tp_axis=2 if projection == 'down' else 1, active_fraction=top_k / experts,
                     formula="num_experts * routed_latent_dim * expert_intermediate_dim")
                 if arch.get("linear_bias", False):
                     add(stem + ".moe.routed." + projection + ".bias", "MoE", layer,
                         (experts, latent if projection == "down" else width), role="vector",
-                        ep_shard=True, active_fraction=top_k / experts)
+                        ep_shard=True, tp_axis=1, active_fraction=top_k / experts)
             if shared:
                 shared_input = a.get("shared_input_dim") or h
                 for projection in ("gate", "up", "down"):
                     shape = ((shared, shared_input, shared_width) if projection == "down" else
                              (shared, shared_width, shared_input))
-                    add(stem + ".moe.shared." + projection + ".weight", "MoE", layer, shape,
+                    add(stem + ".moe.shared." + projection + ".weight", "MoE", layer, shape, tp_axis=2 if projection == 'down' else 1,
                         formula="num_shared_experts * shared_input_dim * shared_intermediate_dim")
                     if arch.get("linear_bias", False):
                         add(stem + ".moe.shared." + projection + ".bias", "MoE", layer,
-                            (shared, shared_input if projection == "down" else shared_width), role="vector")
+                            (shared, shared_input if projection == "down" else shared_width), role="vector", tp_axis=1)
         else:
             raise ValueError(f"unsupported FFN component {ffn!r}")
     if arch.get("final_norm", True):
@@ -258,6 +272,7 @@ def parameter_inventory(model: dict) -> list[ParameterTensor]:
         norm("attnres.output.norm", "AttnRes", layers - 1, h)
         linear("attnres.output.projection", "AttnRes", layers - 1, h, 1, tp_shard=False)
     add("output.weight", "Output", layers - 1, (arch.get('output_head_dim') or vocab, h), role="output",
+        tp_axis=1 if arch.get('output_head_dim') == 1 else 0,
         alias_of="word_embeddings.weight" if arch.get("tie_embeddings", False) else None,
         formula="tied alias of word_embeddings.weight" if arch.get("tie_embeddings", False)
                 else "output_head_dim (default vocab_size) * hidden_dim")

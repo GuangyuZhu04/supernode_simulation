@@ -8,16 +8,26 @@ const topologyKinds = {full_mesh: 'Full mesh · 全连接', mesh: 'Mesh · 网�
 function topologyRank(config, physical) {
   const e = {...config.execution, ...config.features?.parallelism}, tp = topologyInteger(e.tp, 1), ep = topologyInteger(e.ep, 1), pp = topologyInteger(e.pp, 1), dp = topologyInteger(e.dp, 1);
   const pd = config.features?.prefill_decode_disaggregation ?? e.features?.prefill_decode_disaggregation;
+  const independent = (e.cp ?? 1) !== 1 || e.expert_rank_order?.length || [e.expert_tp, e.attention_dp, e.expert_dp].some(v => v != null);
+  const cp = e.cp ?? 1, etp = independent ? (e.expert_tp ?? 1) : tp;
+  const sharedMesh = independent || (config.features?.fsdp?.domain ?? e.fsdp_domain);
+  const width = sharedMesh ? config.hardware.npu_count / ((pd?.enabled ? 2 : 1) * pp * dp) : tp * ep;
+  if (sharedMesh && (!Number.isInteger(width/(tp*cp)) || !Number.isInteger(width/(etp*ep)))) return null;
   let rank, pool = '';
   if (pd?.enabled) {
-    const count = tp * ep;
+    const count = width;
     if (pd.prefill_ranks?.length || pd.decode_ranks?.length) {
       rank = (pd.prefill_ranks || []).indexOf(physical); pool = 'Prefill';
       if (rank < 0) { rank = (pd.decode_ranks || []).indexOf(physical); pool = 'Decode'; }
     } else { pool = physical < count ? 'Prefill' : 'Decode'; rank = physical % count; if (physical >= 2 * count) return null; }
   } else rank = e.rank_order?.length ? e.rank_order.indexOf(physical) : physical;
-  if (rank < 0 || rank >= tp * ep * pp * dp) return null;
-  return {rank, pool, tp: rank % tp, ep: Math.floor(rank / tp) % ep, pp: Math.floor(rank / (tp * ep)) % pp, dp: Math.floor(rank / (tp * ep * pp))};
+  if (rank < 0 || rank >= width * pp * dp) return null;
+  const slot = rank % width;
+  const expert = e.expert_rank_order?.length ? (Array.isArray(e.expert_rank_order) ? e.expert_rank_order.indexOf(slot) : -1) : slot;
+  if (expert < 0) return null;
+  const result = {rank, pool, tp: slot % tp, ep: Math.floor(expert / etp) % ep, pp: Math.floor(rank / width) % pp, dp: Math.floor(rank / (width * pp))};
+  if (sharedMesh) Object.assign(result, {cp: Math.floor(slot / tp) % cp, attention_dp: Math.floor(slot / (tp*cp)), expert_tp: expert % etp, expert_dp: Math.floor(expert / (ep*etp))});
+  return result;
 }
 
 function buildTopologyModel(config, options = {}) {
@@ -200,6 +210,7 @@ function renderTopology(config = state.config) {
       const r = node.rank, sp = sequenceParallelInfo(config);
       inspector.append(el('span', '', '物理 NPU ' + node.physical + ' · SU ' + node.su + ' · Host ' + node.host));
       inspector.append(el('span', '', r ? (r.pool ? r.pool + ' 池 · ' : '') + 'Rank ' + r.rank + ' · TP ' + r.tp + ' / EP ' + r.ep + ' / PP ' + r.pp + ' / DP ' + r.dp : '未找到合法的 rank 映射，请校验并行配置。'));
+      if (r?.cp != null) inspector.append(el('span', '', 'Attention 副本 ' + r.attention_dp + ' / CP ' + r.cp + ' · 专家副本 ' + r.expert_dp + ' / 专家 TP ' + r.expert_tp));
       inspector.append(el('span', '', sp.label + (sp.enabled && r ? ' · SP 分片索引 ' + r.tp + '（与 TP 索引共用，从 0 开始）' : '')));
       const groups = (h.io_groups || []).filter(group => (group.members || []).includes(node.physical));
       if (groups.length) inspector.append(el('span', '', 'I/O 共享约束：' + groups.map(group => group.id + ' (' + number(group.bandwidth_Bps / 1e9) + ' GB/s)').join('、')));

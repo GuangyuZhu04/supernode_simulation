@@ -101,9 +101,9 @@ def build_disaggregated(config: dict, topology) -> Graph:
         if not needs_decode:
             break
         source, destination = f'npu{source_index}', f'npu{destination_index}'
-        ep_rank = prefill.coords[source][2]
+        attention_replica = prefill.coords[source][2] // prefill.mesh.cp
         sequences = [i for i, length in enumerate(config['workload']['output_lengths'])
-                     if i % prefill.ep == ep_rank and length > 1]
+                     if i % prefill.mesh.attention_dp == attention_replica and length > 1]
         targets = destination_states[destination]
         sources = source_states[source]
         if sources.keys() != targets.keys():
@@ -185,4 +185,7 @@ def build_disaggregated(config: dict, topology) -> Graph:
         'Within an active EP group, packed fixed-batch state includes completed one-token requests; first-token IDs are transferred only for requests requiring decode.',
         'A TP rank receives its own first-token ID copy; integer wire width is explicit in token_id_bytes. Source token buffers are released after transfer and decode buffers after the first decode step.',
     ])
+    if prefill.grouped:
+        graph.metadata['prefill_decode_disaggregation']['parallel_groups'] = {
+            'prefill': prefill.mesh.describe(), 'decode': decode.mesh.describe()}
     return graph

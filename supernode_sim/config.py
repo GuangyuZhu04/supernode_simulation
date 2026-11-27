@@ -907,7 +907,7 @@ class PrefillDecodeDisaggregationSpec(Spec):
 
 class TrainingQoSSpec(Spec):
     enabled: StrictBool = False
-    weights: dict[Literal['pp', 'tp', 'ep', 'fsdp_gather', 'fsdp_reduce_scatter', 'dp', 'other'],
+    weights: dict[Literal['pp', 'tp', 'ep', 'cp', 'expert_tp', 'layout_exchange', 'fsdp_gather', 'fsdp_reduce_scatter', 'dp', 'other'],
                   Annotated[StrictInt, Field(gt=0, le=65535)]] = Field(default_factory=dict,
         description='Relative fabric service weights per transfer. Unspecified classes have weight 1.')
 
@@ -961,7 +961,41 @@ class TrainingMoERoutingSpec(Spec):
         return self
 
 
-class ExecutionSpec(Spec):
+class LayerParallelSpec(Spec):
+    cp: StrictInt = Field(default=1, gt=0, description='Context ranks per attention TP group lane.')
+    expert_tp: StrictInt | None = Field(default=None, gt=0, description='Tensor shards per routed expert; selects independent layer groups.')
+    attention_dp: StrictInt | None = Field(default=None, gt=0, description='Attention replicas inside one outer DP replica and PP stage.')
+    expert_dp: StrictInt | None = Field(default=None, gt=0, description='Copies of the routed expert bank inside that same physical stage.')
+    expert_rank_order: list[StrictInt] = Field(default_factory=list,
+        description='Expert mesh order as a permutation of stage-local slots after rank_order, repeated in each DP/PP stage.')
+
+    def compact_groups(self, data):
+        for key in ('expert_tp', 'attention_dp', 'expert_dp', 'fsdp_domain'):
+            if data.get(key) is None:
+                data.pop(key, None)
+        if data.get('cp') == 1:
+            data.pop('cp')
+        if not data.get('expert_rank_order'):
+            data.pop('expert_rank_order', None)
+        return data
+
+    @model_serializer(mode='wrap')
+    def serialize_layout(self, handler, info):
+        data = handler(self)
+        return data if info.exclude_unset else self.compact_groups(data)
+
+
+class FSDPDomainSpec(Spec):
+    implementation: Literal['fsdp', 'fsdp2'] = 'fsdp2'
+    dense_degree: StrictInt | None = Field(default=None, gt=0)
+    expert_degree: StrictInt | None = Field(default=None, gt=0)
+    dense_groups: list[Annotated[list[StrictInt], Field(min_length=1)]] | None = Field(default=None, min_length=1,
+        description='Physical rank groups for non-routed parameters. Member order identifies the shard index.')
+    expert_groups: list[Annotated[list[StrictInt], Field(min_length=1)]] | None = Field(default=None, min_length=1,
+        description='Physical rank groups among copies of the same EP and expert TP shard.')
+
+
+class ExecutionSpec(LayerParallelSpec):
     tp: int = Field(default=1, gt=0)
     all_to_all_algorithm: Literal['pairwise', 'direct'] = 'pairwise'
     sequence_parallel: bool = False
@@ -969,6 +1003,7 @@ class ExecutionSpec(Spec):
     ep: int = Field(default=1, gt=0)
     dp: int = Field(default=1, gt=0)
     fsdp: int = Field(default=1, gt=0)
+    fsdp_domain: FSDPDomainSpec | None = None
     rank_order: list[int] = Field(default_factory=list)
     reshard_after_forward: bool = True
     sync_each_microbatch: bool = False
@@ -996,19 +1031,20 @@ class ExecutionSpec(Spec):
 
     @model_serializer(mode='wrap')
     def omit_optional_training_models(self, handler):
-        data = handler(self)
-        for key in ('training_attention_windows', 'training_active_kv_heads', 'training_moe_routing', 'training_mfu_reference'):
+        data = self.compact_groups(handler(self))
+        for key in ('fsdp_domain', 'training_attention_windows', 'training_active_kv_heads', 'training_moe_routing', 'training_mfu_reference'):
             if getattr(self, key) is None:
                 data.pop(key, None)
         return data
 
 
-class ParallelCandidate(Spec):
+class ParallelCandidate(LayerParallelSpec):
     tp: int = Field(default=1, gt=0)
     pp: int = Field(default=1, gt=0)
     ep: int = Field(default=1, gt=0)
     dp: int = Field(default=1, gt=0)
     fsdp: int = Field(default=1, gt=0)
+    fsdp_domain: FSDPDomainSpec | None = None
     dp_domain_size: StrictInt | None = Field(default=None, gt=0)
     rank_order: list[int] = Field(default_factory=list)
 
@@ -1022,6 +1058,7 @@ class KVOffloadSelection(Spec):
 
 class FSDPSelection(Spec):
     degree: int = Field(default=1, gt=0)
+    domain: FSDPDomainSpec | None = None
     reshard_after_forward: StrictBool = True
     sync_each_microbatch: StrictBool = False
     prefetch: StrictBool = False
@@ -1029,7 +1066,7 @@ class FSDPSelection(Spec):
     overlap_gradient_sync: StrictBool = False
 
 
-class ParallelismSelection(Spec):
+class ParallelismSelection(LayerParallelSpec):
     tp: int = Field(default=1, gt=0)
     pp: int = Field(default=1, gt=0)
     ep: int = Field(default=1, gt=0)
@@ -1136,6 +1173,13 @@ class Config(Spec):
     @model_validator(mode='after')
     def consistency(self):
         e, h, m = self.execution, self.hardware, self.model
+        from .rank_layout import RankLayout, independent_groups
+        axes = {k: getattr(e, k) for k in ('tp', 'cp', 'pp', 'ep', 'dp', 'expert_tp', 'attention_dp', 'expert_dp', 'expert_rank_order')}
+        if e.fsdp_domain is not None:
+            if self.workload.scenario != 'training':
+                raise ValueError('fsdp_domain requires a training workload')
+            axes.update(fsdp_domain=e.fsdp_domain.model_dump(), rank_order=e.rank_order,
+                        fsdp=e.fsdp, dp_domain_size=e.dp_domain_size)
         if self.workload.training is not None:
             from .training_tasks import validate_training_task
             validate_training_task(self)
@@ -1145,8 +1189,8 @@ class Config(Spec):
                 raise ValueError('prefill_decode_disaggregation requires structured inference')
             if e.dp != 1 or e.pp != 1:
                 raise ValueError('prefill_decode_disaggregation currently requires DP=PP=1 and identical TP/EP per stage')
-            pool_size = e.tp * e.ep
-            if h.npu_count != 2 * pool_size:
+            pool_size = h.npu_count // 2
+            if h.npu_count % 2 or (not independent_groups(axes) and pool_size != e.tp * e.ep):
                 raise ValueError('prefill_decode_disaggregation requires hardware.npu_count = 2 * TP * EP; TP/EP describe each stage pool')
             if e.rank_order:
                 raise ValueError('prefill_decode_disaggregation uses prefill_ranks/decode_ranks; execution.rank_order must be empty')
@@ -1154,15 +1198,16 @@ class Config(Spec):
                 pd.prefill_ranks = list(range(pool_size))
                 pd.decode_ranks = list(range(pool_size, h.npu_count))
             if len(pd.prefill_ranks) != pool_size or len(pd.decode_ranks) != pool_size:
-                raise ValueError('each prefill/decode rank pool must contain exactly TP * EP physical NPUs')
+                raise ValueError('each prefill/decode rank pool must contain half of all physical NPUs')
             if sorted(pd.prefill_ranks + pd.decode_ranks) != list(range(h.npu_count)):
                 raise ValueError('prefill/decode rank pools must cover every physical NPU exactly once')
             if e.features.speculative_decode.enabled:
                 raise ValueError('prefill_decode_disaggregation with speculative_decode is not implemented')
             if e.features.kv_offload != 'none' or e.features.engram.enabled:
                 raise ValueError('prefill_decode_disaggregation currently requires kv_offload=none and Engram disabled')
-        elif e.tp * e.pp * e.ep * e.dp != h.npu_count:
-            raise ValueError('tp * pp * ep * dp must equal hardware.npu_count; fsdp is a DP subgroup')
+        layout = RankLayout.resolve(axes, pool_size if pd.enabled else h.npu_count)
+        if (independent_groups(axes) or e.fsdp_domain is not None) and m.architecture and m.architecture.moe and m.architecture.moe.intermediate_dim % layout.expert_tp:
+            raise ValueError('Routed expert intermediate_dim must be divisible by expert_tp')
         if e.sequence_parallel:
             if e.tp == 1:
                 raise ValueError('sequence_parallel requires TP > 1; SP shares the TP ranks')
@@ -1170,13 +1215,20 @@ class Config(Spec):
                 raise ValueError('sequence_parallel currently requires structured inference')
             if e.pp != 1:
                 raise ValueError('sequence_parallel currently requires PP=1; SP pipeline forwarding is not modeled')
-        if e.dp % e.fsdp:
+        if e.fsdp_domain is None and e.dp % e.fsdp:
             raise ValueError('fsdp must divide dp')
-        if e.dp_domain_size is not None and (e.dp % e.dp_domain_size or e.dp_domain_size % e.fsdp):
+        if e.dp_domain_size is not None and (e.dp % e.dp_domain_size or (e.fsdp_domain is None and e.dp_domain_size % e.fsdp)):
             raise ValueError('dp_domain_size must divide dp and contain whole FSDP groups')
+        if e.fsdp_domain is not None:
+            from .fsdp import resolve_domains
+            domains = resolve_domains(layout, axes)
+            if self.workload.training and self.workload.training.kind == 'rl' and any(d.degree > 1 for d in domains.values()):
+                raise ValueError('RL currently uses shared serial roles with PP=FSDP=1')
         if e.flash_attention_blocks and (m.architecture is None or not any(
                 kind in ('MHA', 'GQA', 'MQA', 'MLA') for kind in m.architecture.attention_by_layer)):
             raise ValueError('flash_attention_blocks requires structured MHA, GQA, MQA or MLA layers')
+        if e.flash_attention_blocks and e.cp > 1:
+            raise ValueError('flash_attention_blocks requires CP=1; tile-level scheduling of distributed KV is not modeled')
         if e.overlap_attention_tp and (e.flash_attention_blocks < 2 or e.tp < 2):
             raise ValueError('overlap_attention_tp requires flash_attention_blocks >= 2 and TP > 1')
         reference = e.training_mfu_reference

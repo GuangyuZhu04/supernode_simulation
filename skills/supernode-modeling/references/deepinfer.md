@@ -22,7 +22,7 @@
 
 P 的请求 bs=1 不意味着 GEMM 的 token 维度为 1：一个请求的长 prompt 可提供大量 token。官方 `--prefill_batch_size` 是每步 **token budget**（默认 32,768），`--decode_num_requests` 才是请求数。不要把 `prefill_batch_size=1` 当作单请求 P 配置。当前引擎没有动态 chunk 调度，`input_length` 也不能直接替代 chunk budget。
 
-默认把本页候选的 bs 标为**每 Attention replica 的请求数**，以便对齐官方 CP=1 的 decode benchmark。若用户场景中的 bs 指整个实例/池，保留该口径并改用下表换算；不要默默乘 EP。
+默认把本页候选的 bs 标为**每 Attention replica 的请求数**，以便对齐官方 CP=1 的 decode benchmark。下表采用 Attention 副本数等于 EP 的旧布局。独立分组的均匀负载按 `每 Attention 副本请求数 × attention_dp` 得到一个外层 DP 副本的 batch。同一副本的 CP ranks 共同处理这些请求。[独立分组字段](configuration.md#attention-和专家并行组)
 
 | 名称 | 本引擎口径与换算（单实例、PP=DP=1） |
 | --- | --- |

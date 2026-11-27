@@ -13,15 +13,38 @@
 | `model` | `name`, `total_params`, `active_params`, `layers`, `hidden_dim`, `intermediate_dim`, `num_heads`, `kv_heads`, `head_dim`, `attention_kind`；MoE 另设 `num_experts`, `top_k`, `moe_layer_fraction`, `expert_parameter_fraction` |
 | `hardware` | `npu_count`, `su_size`, `npus_per_host`, `topology`, `routing_policy`, `npu`, `cpu`, `scale_up`, `scale_out`, `host_link`, `remote`, `ssd` |
 | `workload` | `scenario: training/inference`, `batch_size`；`training.kind: pretrain/sft/dpo/rl` 及专用参数见 [训练任务](training-tasks.md)，其他字段见训练/推理参考 |
-| `execution` | `tp`, `sequence_parallel`, `pp`, `ep`, `dp`, `fsdp`, `rank_order`, `precision`, `features` |
+| `execution` | `tp`, `cp`, `attention_dp`, `expert_tp`, `ep`, `expert_dp`, `sequence_parallel`, `pp`, `dp`, `fsdp`, `rank_order`, `precision`, `features` |
 | `targets` | `throughput_tokens_s`, `ttft_s`, `tpot_s`, `step_time_s`，及搜索候选字段 |
 | `sources` | 以字段路径或对象名称为 key，记录 `status`, `description`, `uri`, `revision` |
 | `assumptions` | 记录用户提供或分析所需的假设，随输出保存 |
 | `features` | 可选统一输入，展开为 canonical 配置；具体选项与冲突规则见 [features.md](features.md) |
 
-内部单位是 byte、second、FLOP。容量示例用十进制 TB/GB；吞吐用 byte/s。配置中的 `80e9` 表示 80 GB，不是 80 GiB。`tp * pp * ep * dp == npu_count`；FSDP 是 DP 子组，`dp % fsdp == 0`。更换卡数后要同时校验并行分解与 rank 放置。
+内部单位是 byte、second、FLOP。容量示例用十进制 TB/GB，吞吐用 byte/s。单独配置标量 `fsdp` 时要求 `dp % fsdp == 0`。训练时可用 `execution.fsdp_domain` 选择 FSDP 或 FSDP2 并分别布置稠密和专家参数的分片组，支持 `pp=1, dp=1`。[域配置及 8 卡示例](training.md#无流水线的-cpep-与-fsdp-训练)
 
-开启 `prefill_decode_disaggregation` 时使用双池契约替代上述总卡数等式：`npu_count == 2 * tp * ep`、DP=PP=1；P/D 各有 TP×EP 张卡，两列表互斥并完整覆盖物理卡数。默认派生连续两池，resolved config 保存实际映射；细节见 [features.md](features.md)。
+### Attention 和专家并行组
+
+单池中，每个外层 DP 副本的流水段宽度为 `W = npu_count / (pp × dp)`。同一段的两套分解都必须覆盖这 W 张卡。
+
+| 执行位置 | 段内分解 | 各轴的含义 |
+|---|---|---|
+| Attention | `tp × cp × attention_dp = W` | TP 切投影矩阵及注意力头，CP 切上下文位置，attention_dp 分配不同请求 |
+| 路由专家 | `expert_tp × ep × expert_dp = W` | expert_tp 切单个专家矩阵，EP 切专家集合，expert_dp 复制整套专家分片 |
+
+设置 `cp > 1`、给出 `expert_rank_order` 排列，或显式设置 `expert_tp`、`attention_dp`、`expert_dp` 中任一项即使用独立布局。此时专家 TP 默认 1。两个段内副本数可省略，由 W 整除推导。旧配置仍使用 `cp=1, attention_dp=ep, expert_tp=tp, expert_dp=1`。外层 `dp` 表示各自执行一份完整 batch 的副本数。段内副本共享这份 batch。
+
+典型 8 卡配置为 `execution: {tp: 2, cp: 2, attention_dp: 2, expert_tp: 1, ep: 8, expert_dp: 1}`。默认放置时 Attention TP 组为 `[0,1], [2,3], [4,5], [6,7]`，第一份请求副本内的 CP 组为 `[0,2], [1,3]`，EP 组覆盖 `[0..7]`。设置 `rank_order` 会对两套组一起重映射。运行后可在 `model_metadata.parallel_groups.stages[].groups` 查看每个通信组的实际成员。
+
+请求按序号轮转分配给 Attention 副本。CP 按位置对 CP 度取模分配 token 和 KV。MHA、MQA、GQA、MLA 为本地查询交换 KV，反向将 KV 梯度归还原持有者。KDA、CSA、HCA 在每条 TP 通道上将输入聚到 CP 的第一个 rank，完成有序状态更新后发回输出。FlashAttention 分块调度当前要求 CP=1。路由专家通过自己的 EP 组 dispatch/combine，在专家 TP 组归约矩阵分片结果。两种 TP 布局之间需要的隐藏向量复制按实际端点计费。专家负载沿用均匀 top-k 的期望值。
+
+PD 分离时 P、D 各占一半物理卡，各池独立应用上述公式，且 PP=DP=1。两份物理映射互斥并覆盖所有设备。[PD 配置](features.md)
+
+`expert_rank_order` 可以单独指定专家放置。其值是 W 个段内下标的排列，先按 `rank_order` 取到这一段的物理卡，再按该排列构建专家网格。相同排列用于每个流水段和外层 DP 副本。例如 W=8、专家 TP2 时，`[0,4,1,5,2,6,3,7]` 将第一组专家 TP 放在段内位置 0、4，Attention TP2 仍使用位置 0、1。两组之间的激活重分布进入通信账本。
+
+从仓库根目录运行完整示例。
+
+```powershell
+python -m supernode_sim simulate examples/independent_parallel_groups.yaml -o outputs/independent-parallel-groups
+```
 
 `sources` 的状态为 `assumed/public/user/measured`。实测校准配置应保留测量来源。引擎默认值是合成假设，不表示某厂商的硬件或某命名模型的已验证规格。用户只有总参数和活跃参数时，可先做条件容量分析；时间、KV、拓扑可行性需要额外结构和执行信息。
 

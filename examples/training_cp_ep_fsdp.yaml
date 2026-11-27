@@ -1,0 +1,36 @@
+# Eight NPUs, one pipeline stage. Each EP shard has two physical copies.
+model:
+  name: synthetic-cp-ep-fsdp-training
+  layers: 2
+  hidden_dim: 16
+  num_heads: 4
+  kv_heads: 2
+  head_dim: 4
+  architecture:
+    vocab_size: 32
+    attention_by_layer: [GQA, GQA]
+    ffn_by_layer: [MoE, MoE]
+    moe: {num_experts: 8, top_k: 2, intermediate_dim: 8}
+hardware:
+  npu_count: 8
+  su_size: 4
+  npus_per_host: 4
+workload:
+  scenario: training
+  batch_size: 4
+  sequence_length: 8
+  gradient_accumulation: 2
+  training_steps: 1
+execution:
+  pp: 1
+  dp: 1
+  tp: 1
+  cp: 2
+  attention_dp: 4
+  ep: 4
+  expert_tp: 1
+  expert_dp: 2
+  fsdp_domain:
+    implementation: fsdp2
+    dense_degree: 4
+    expert_groups: [[0, 4], [1, 5], [2, 6], [3, 7]]

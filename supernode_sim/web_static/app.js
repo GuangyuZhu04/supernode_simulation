@@ -173,9 +173,15 @@ function renderInputNotes() {
   const e = state.config.execution || {}, h = state.config.hardware || {}, w = state.config.workload || {};
   renderSequenceParallelControl();
   const pd = pdEnabled(state.config);
-  const product = (pd ? 2 : 1) * ['tp', 'pp', 'ep', 'dp'].reduce((a, key) => a * (e[key] || 1), 1);
-  text('#parallel-note', (pd ? 'PD 双池总卡数 ' : '并行乘积 ') + number(product, 0) + ' / ' + number(h.npu_count, 0) + ' NPU · ' + sequenceParallelInfo(state.config).label + ' · SP 不增加卡数，FSDP 为 DP 子组');
-  $('#parallel-note').classList.toggle('error', product !== h.npu_count || (e.dp || 1) % (e.fsdp || 1) !== 0 || pd && (e.dp !== 1 || e.pp !== 1));
+  const axes = {...e, ...state.config.features?.parallelism};
+  const groups = inputParallelGroups(state.config);
+  const product = (pd ? 2 : 1) * ['tp', 'pp', 'ep', 'dp'].reduce((a, key) => a * (axes[key] ?? 1), 1);
+  const note = groups ? parallelInputNote(state.config) : (pd ? 'PD 双池总卡数 ' : '并行乘积 ') + number(product, 0) + ' / ' + number(h.npu_count, 0) + ' NPU';
+  const sharding = inputFSDPDomain(state.config);
+  text('#parallel-note', note + ' · ' + sequenceParallelInfo(state.config).label + ' · ' +
+    (sharding ? sharding.label : 'SP 不增加卡数，FSDP 为 DP 子组'));
+  const invalid = groups ? !groups.valid : product !== h.npu_count;
+  $('#parallel-note').classList.toggle('error', invalid || (sharding ? !sharding.valid : (axes.dp ?? 1) % (e.fsdp ?? 1) !== 0) || pd && ((axes.dp ?? 1) !== 1 || (axes.pp ?? 1) !== 1));
   const inCount = Array.isArray(w.input_lengths) ? w.input_lengths.length : 0;
   const outCount = Array.isArray(w.output_lengths) ? w.output_lengths.length : 0;
   text('#length-note', '已填 ' + inCount + ' / ' + outCount + ' 条输入 / 输出；需要 ' + (w.batch_size || '—') + ' 条。');
@@ -966,8 +972,39 @@ function renderInputHardware(config) {
 function pdEnabled(config) {
   return (config.features?.prefill_decode_disaggregation?.enabled ?? config.execution?.features?.prefill_decode_disaggregation?.enabled) === true;
 }
+function inputParallelGroups(config) {
+  const e = {...config.execution, ...config.features?.parallelism};
+  const independent = (e.cp ?? 1) !== 1 || e.expert_rank_order?.length || [e.expert_tp, e.attention_dp, e.expert_dp].some(v => v != null);
+  if (independent || (config.features?.fsdp?.domain ?? e.fsdp_domain)) {
+    const width = config.hardware?.npu_count / ((e.dp ?? 1) * (e.pp ?? 1) * (pdEnabled(config) ? 2 : 1));
+    const expertTP = independent ? (e.expert_tp ?? 1) : (e.tp ?? 1);
+    const a = width / ((e.tp ?? 1) * (e.cp ?? 1)), x = width / (expertTP * (e.ep ?? 1));
+    const order = e.expert_rank_order ?? [];
+    const validOrder = Array.isArray(order) && (!order.length || (order.length === width && new Set(order).size === width && order.every(i => Number.isInteger(i) && i >= 0 && i < width)));
+    return {width, a, x, expertTP, valid: validOrder && [width, a, x].every(inputPositiveInt) && (e.attention_dp ?? a) === a && (e.expert_dp ?? x) === x};
+  }
+  return null;
+}
+function inputFSDPDomain(config) {
+  const e = {...config.execution, ...config.features?.parallelism};
+  const domain = config.features?.fsdp?.domain ?? e.fsdp_domain;
+  if (!domain) return null;
+  const mesh = inputParallelGroups(config), common = config.features?.fsdp?.degree ?? e.fsdp ?? 1;
+  const copies = {dense: mesh.a * (e.cp ?? 1) * (e.dp ?? 1), expert: mesh.x * (e.dp ?? 1)};
+  const outerDomains = (e.dp ?? 1) / (e.dp_domain_size ?? e.dp ?? 1);
+  const size = kind => domain[kind + '_degree'] ?? domain[kind + '_groups']?.[0]?.length ?? (common > 1 ? common : copies[kind] / outerDomains);
+  const dense = size('dense'), expert = size('expert');
+  return {dense, expert, valid: mesh.valid && inputPositiveInt(outerDomains) && inputPositiveInt(dense) && inputPositiveInt(expert) &&
+    (copies.dense / outerDomains) % dense === 0 && (copies.expert / outerDomains) % expert === 0,
+    label: String(domain.implementation ?? 'fsdp2').toUpperCase() + ' 分片度 · 稠密 ' + dense + ' / 路由专家 ' + expert};
+}
 function parallelInputNote(config) {
-  const e = inputObject(config.execution), h = inputObject(config.hardware), pd = pdEnabled(config);
+  const e = {...inputObject(config.execution), ...config.features?.parallelism}, h = inputObject(config.hardware), pd = pdEnabled(config);
+  const groups = inputParallelGroups(config);
+  if (groups) {
+    if (!groups.valid) return 'Attention 和 MoE 两套分组都必须完整覆盖同一流水段的物理卡。';
+    return '每段 ' + groups.width + ' 卡。Attention ' + (e.tp ?? 1) + ' TP × ' + (e.cp ?? 1) + ' CP × ' + groups.a + ' 副本。MoE ' + groups.expertTP + ' 专家 TP × ' + (e.ep ?? 1) + ' EP × ' + groups.x + ' 副本。';
+  }
   const factors = [e.tp, e.pp, e.ep, e.dp];
   if (!factors.every(inputPositiveInt)) return '并行乘积尚不可推导。TP / PP / EP / DP 必须都是正整数；SP 共用 TP rank，FSDP 是 DP 子组。';
   const product = factors.reduce((a, b) => a * b, pd ? 2 : 1);
@@ -978,7 +1015,16 @@ function renderInputParallel(config) {
   const host = $('#input-parallel-body'); host.replaceChildren();
   const e = inputObject(config.execution), h = inputObject(config.hardware), precision = inputObject(e.precision), features = inputObject(e.features), optimizer = inputObject(e.optimizer);
   inputFacts(host, [['TP · 张量并行', e.tp, 'execution.tp'], ['PP · 流水线并行', e.pp, 'execution.pp'], ['EP · 专家并行', e.ep, 'execution.ep'], ['DP · 数据并行', e.dp, 'execution.dp'], ['FSDP · DP 子组', e.fsdp, 'execution.fsdp'], ['SP · 序列并行开关', e.sequence_parallel, 'execution.sequence_parallel'], ['SP 并行度', sequenceParallelInfo(config).label]]);
+  inputFacts(host, [['Attention CP', e.cp, 'execution.cp'], ['专家 TP', e.expert_tp, 'execution.expert_tp'], ['段内 Attention 副本', e.attention_dp, 'execution.attention_dp'], ['段内专家副本', e.expert_dp, 'execution.expert_dp']]);
   inputNote(host, parallelInputNote(config), 'parallel');
+  if (config.workload?.scenario === 'training') {
+    const fsdp = e.fsdp_domain || {};
+    inputFacts(host, [['FSDP 实现', fsdp.implementation, 'execution.fsdp_domain.implementation'],
+      ['稠密参数分片度', fsdp.dense_degree, 'execution.fsdp_domain.dense_degree'],
+      ['路由专家分片度', fsdp.expert_degree, 'execution.fsdp_domain.expert_degree']]);
+    inputFields(host, e.fsdp_domain, 'execution.fsdp_domain', 'FSDP 物理分片组');
+  }
+  inputFields(host, e.expert_rank_order, 'execution.expert_rank_order', '专家 rank 顺序（段内下标）');
   const precisionLabels = {weight: '权重驻留', compute: '计算', gradient: '梯度', master: '主权重', optimizer: '优化器状态', kv: 'KV', weight_transfer: '权重回传', activation: '激活', communication: '通信', recurrent: '循环状态', routed_expert_weight: '路由专家权重覆盖'};
   inputTable(host, ['独立精度项', '数据类型'], Object.entries(precision).map(([key, value]) => [(precisionLabels[key] || key) + ' · ' + key, inputEditableValue(['execution', 'precision', key], value)]), '各精度独立配置；未设置的覆盖项保留 null');
   if (!Object.keys(precision).length) inputNote(host, '精度映射：' + inputScalar(e.precision));
@@ -1294,6 +1340,9 @@ addInputSpecs('execution.training_hbm_fraction', {type: 'number', scale: .01, un
 addInputSpecs('execution.prefetch_layers execution.dp_domain_size targets.training_global_batch_size', {type: 'number', integer: true, nullable: true});
 addInputSpecs('execution.flash_attention_blocks', {type: 'number', integer: true});
 addInputSpecs('execution.overlap_gradient_sync execution.overlap_pipeline_p2p execution.overlap_attention_tp execution.features.training_qos.enabled', {type: 'boolean'});
+addInputSpecs('execution.cp execution.expert_tp execution.attention_dp execution.expert_dp', {type: 'number', integer: true});
+addInputSpecs('execution.fsdp_domain.dense_degree execution.fsdp_domain.expert_degree', {type: 'number', integer: true, nullable: true});
+inputEditSpecs.set('execution.fsdp_domain.implementation', {type: 'select', choices: ['fsdp', 'fsdp2']});
 addInputSpecs('targets.throughput_tokens_s', {type: 'number', unit: 'tokens/s', nullable: true});
 addInputSpecs('model.architecture.tie_embeddings execution.sequence_parallel execution.reshard_after_forward execution.sync_each_microbatch execution.prefetch execution.features.optimizer_offload execution.features.activation_checkpointing execution.features.engram.enabled hardware.remote.enabled hardware.ssd.enabled', {type: 'boolean'});
 inputEditSpecs.set('hardware.topology', {type: 'select', choices: ['full_mesh', 'mesh', 'clos', 'fat_tree', 'explicit']});

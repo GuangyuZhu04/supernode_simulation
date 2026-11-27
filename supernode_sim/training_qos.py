@@ -6,8 +6,9 @@ from itertools import product
 def configure_training_qos(graph, execution):
     policy = execution['features']['training_qos']
     weights = policy['weights']
-    order = execution['rank_order'] or range(execution['dp'] * execution['pp'] * execution['ep'] * execution['tp'])
-    coords = product(*(range(execution[axis]) for axis in ('dp', 'pp', 'ep', 'tp')))
+    width = graph.metadata.get('parallel_groups', {}).get('stage_width', execution['ep'] * execution['tp'])
+    order = execution['rank_order'] or range(execution['dp'] * execution['pp'] * width)
+    coords = product(range(execution['dp']), range(execution['pp']), range(width//execution['tp']), range(execution['tp']))
     logical = {f'npu{physical}': coord for physical, coord in zip(order, coords)}
     for event in graph.events:
         meta = event.metadata
@@ -16,8 +17,13 @@ def configure_training_qos(graph, execution):
         src, dst = logical.get(meta['src']), logical.get(meta['dst'])
         if src is None or dst is None:
             continue
-        if meta.get('parallel_axis') == 'dp_replica' or meta.get('category') == 'data_parallel_gradients':
+        axis = meta.get('parallel_axis')
+        if axis == 'fsdp' and meta.get('collective') in ('all_gather', 'reduce_scatter'):
+            traffic = 'fsdp_gather' if meta['collective'] == 'all_gather' else 'fsdp_reduce_scatter'
+        elif axis in ('dp_replica', 'expert_dp', 'attention_dp') or meta.get('category') == 'data_parallel_gradients':
             traffic = 'dp'
+        elif axis in ('ep', 'tp', 'expert_tp', 'layout_exchange', 'cp'):
+            traffic = axis
         elif src[3] != dst[3]:
             traffic = 'tp'
         elif src[2] != dst[2]:

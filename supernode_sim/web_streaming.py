@@ -32,7 +32,7 @@ def should_stream(config: Config, mode: str, memory_limit: int = DEFAULT_LIMIT_B
             or features.megakernel.enabled or features.prefill_decode_disaggregation.enabled):
         return False
     rank_layers = config.hardware.npu_count * config.model.layers * max(config.workload.output_lengths)
-    events_per_rank_layer = 24 + 4 * execution.tp + 2 * execution.ep
+    events_per_rank_layer = 24 + 4 * execution.tp + 2 * execution.ep + 2 * (execution.cp - 1) + 2 * ((execution.expert_tp or 1) - 1)
     return rank_layers * events_per_rank_layer * 2048 > memory_limit // 3
 
 

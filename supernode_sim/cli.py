@@ -131,8 +131,10 @@ def _main(argv: list[str] | None = None) -> int:
                 'slo_satisfied': passed}, ensure_ascii=False, allow_nan=False))
             return 3 if result['status'] == 'completed_with_failures' or passed is False else 0
         if args.command == 'validate':
+            from .rank_layout import configured_groups
             print(json.dumps({'status': 'valid', 'schema_version': config.schema_version, 'model': config.model.name,
-                              'feature_plan': build_feature_plan(config)}, ensure_ascii=False))
+                              'feature_plan': build_feature_plan(config),
+                              **configured_groups(config.execution.model_dump(), config.hardware.npu_count)}, ensure_ascii=False))
             return 0
         if args.command == 'sweep':
             result = sweep(config, read_data(args.axes), args.mode, workers=args.workers)

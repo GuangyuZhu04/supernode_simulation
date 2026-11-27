@@ -1,5 +1,7 @@
 # SP/CP 算子细粒度仿真
 
+本页复现实验使用历史 owner-star 脚本，其输入中的 `execution.tp` 表示替换前的 TP 度。通用 `simulate` 入口使用 `execution.cp`，支持在同一批设备上配置独立的 Attention 与路由专家组。[通用并行组配置](../skills/supernode-modeling/references/configuration.md#attention-和专家并行组)
+
 `scripts/scaling_cp_fine_ops.py` 在原 `scaling_context_parallel.build_cp_layer` 的 owner-star 上下文并行图上，调用原生 `apply_kernel_traces` 生成实际执行的子事件。它不是将旧耗时按百分比重画，也不是 Ascend 指令级仿真或实机校准。
 
 ## 执行内容

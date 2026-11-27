@@ -40,7 +40,7 @@ python -m supernode_sim feedback examples/demo_inference.yaml --ttft-s 1 --tpop-
 
 保持完整 `model` 与 `hardware` 不变，包括 NPU 数、SU/SO 域、显式链路、路由、带宽、容量和 kernel profiles。同时保持 PP、DP、FSDP、`rank_order`、精度、offload、Engram 等执行设置不变。只搜索 TP、SP、EP、齐次输入长度和 batch；输出 horizon 只有显式设置时才改变，TTFT/TPOT 目标取本次输入。原配置若有 `targets.throughput_tokens_s`，仍按完整执行吞吐检查。
 
-普通模式并行约束是 `TP × PP × EP × DP = NPU 数`。启用 PD 分离时为 `2 × TP × EP = NPU 数`、PP=DP=1；搜索按每池卡数枚举布局，保留并重校验已有 P/D 物理映射。SP 是 `execution.sequence_parallel` 布尔开关：开启时 SP degree 等于 TP，关闭时为 1，与 TP 共用 rank。SP 要求结构化推理、TP>1、PP=1，不能再乘入设备数。模型 attention/KDA heads 的 TP 整除与专家数的 EP 整除等约束仍由原生配置校验。
+旧布局并行约束是 `TP × PP × EP × DP = NPU 数`。独立布局分别枚举 Attention TP 和 EP 的合法因子，并校验两套分组覆盖相同的物理池。启用 PD 分离时总卡数为单池卡数的两倍、PP=DP=1；搜索按每池卡数枚举布局，保留并重校验已有 P/D 物理映射。SP 是 `execution.sequence_parallel` 布尔开关：开启时 SP degree 等于 TP，关闭时为 1，与 TP 共用 rank。SP 要求结构化推理、TP>1、PP=1，不能再乘入设备数。模型 attention/KDA heads 的 TP 整除与专家数的 EP 整除等约束仍由原生配置校验。
 
 每个候选均执行完整 Prefill 和 Decode，再判断 TTFT、TPOT、完整执行吞吐目标与内存可行性。这里的 Prefill 长度是每条请求的输入长度；Decode batch 同时也是该候选的 Prefill batch。PD 仍使用相同布局与固定 batch，吞吐窗口包含两池交接；没有 chunked prefill 或 continuous batching，不能把两个独立阶段的最优长度、batch 拼成一个通过联合 SLO 的推荐。
 

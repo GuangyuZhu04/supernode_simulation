@@ -116,11 +116,12 @@ def _su_candidate(arguments) -> dict:
     return row
 
 
-def _training_placements(config, layout, su_size):
+def _training_placements(config, layout, su_size, npu_count):
     """Search a flat baseline and SU-sized domains; honor explicit sizes and pinning."""
     from .training_schedule import domain_rank_order
-    dp, fsdp = layout['dp'], layout['fsdp']
-    mp = layout['tp'] * layout['ep'] * layout['pp']
+    dp = layout['dp']
+    fsdp = 1 if layout.get('fsdp_domain') is not None else layout['fsdp']
+    mp = npu_count // dp
     identity = list(range(mp * dp))
     pinned = layout['rank_order'] or (config.execution.rank_order if len(config.execution.rank_order) == len(identity) else [])
     sizes = config.targets.candidate_dp_domain_sizes
@@ -138,7 +139,7 @@ def _training_placements(config, layout, su_size):
     for size in dict.fromkeys(sizes):
         orders = [('explicit' if pinned else 'model_parallel_first', pinned)]
         if not pinned and size and dp % size == 0 and size % fsdp == 0:
-            orders.append(('dp_domain_first', domain_rank_order(layout, size)))
+            orders.append(('dp_domain_first', domain_rank_order(layout, size, mp)))
         for label, order in orders:
             # In a one-domain or one-replica-per-domain mesh the replica
             # collective is flat. Avoid duplicate automatic simulations.
@@ -183,19 +184,28 @@ def size_su(config: Config, mode: str = 'both', *, workers: int = 1) -> dict:
             for su_size in sizes:
                 if npu_count % su_size or su_size > npu_count:
                     continue
-                layouts = [p.model_dump() for p in target.parallel_candidates]
+                layouts = [{**p.model_dump(), **p.model_dump(exclude_unset=True)} for p in target.parallel_candidates]
                 if not layouts:
                     e = config.execution
-                    base = deployment_copies * e.tp * e.pp * e.ep
+                    base = config.hardware.npu_count // e.dp
                     layouts = [{'tp': e.tp, 'pp': e.pp, 'ep': e.ep, 'dp': 1 if pd_enabled else npu_count // base,
                                 'fsdp': e.fsdp, 'rank_order': e.rank_order if npu_count == config.hardware.npu_count else []}] if npu_count % base == 0 else []
                 for layout in layouts:
-                    if deployment_copies * layout['tp'] * layout['pp'] * layout['ep'] * layout['dp'] == npu_count:
-                        variants = _training_placements(config, layout, su_size) if training else [(layout, None)]
-                        for variant, placement in variants:
-                            candidates.append((npu_count, su_size, variant, placement))
-                            if total_evaluated + len(candidates) > target.max_candidates:
-                                raise ValueError('SU candidate set exceeds max_candidates; narrow candidates or raise the explicit limit')
+                    from .rank_layout import RankLayout
+                    axes = {key: value for key, value in base_config['execution'].items()
+                            if key in ('cp', 'expert_tp', 'attention_dp', 'expert_dp', 'expert_rank_order', 'fsdp_domain')}
+                    layout = {**axes, **layout}
+                    if npu_count % deployment_copies:
+                        continue
+                    try:
+                        RankLayout.resolve({**layout, 'rank_order': []}, npu_count // deployment_copies)
+                    except ValueError:
+                        continue
+                    variants = _training_placements(config, layout, su_size, npu_count) if training else [(layout, None)]
+                    for variant, placement in variants:
+                        candidates.append((npu_count, su_size, variant, placement))
+                        if total_evaluated + len(candidates) > target.max_candidates:
+                            raise ValueError('SU candidate set exceeds max_candidates; narrow candidates or raise the explicit limit')
         total_evaluated += len(candidates)
         arguments = ((base_config, *candidate) for candidate in candidates)
         rows = list(ordered_map(_su_candidate, arguments, workers=workers, count=len(candidates)))
