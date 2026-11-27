@@ -622,14 +622,94 @@ class TrainingDataSpec(Spec):
         description='Valid tokens per sequence in one microbatch; packed preserves document boundaries.')
 
 
+class TrainingFault(Spec):
+    scope: Literal['card', 'host', 'su', 'link']
+    rate_per_unit_hour: float = Field(default=0, ge=0)
+    detect_s: float = Field(default=0, ge=0)
+    repair_s: float = Field(ge=0, description='Time from detection to physical repair.')
+    resources: list[str] = Field(default_factory=list)
+    bandwidth_fraction: float | None = Field(default=None, gt=0, lt=1)
+
+    @model_validator(mode='after')
+    def link_parameters(self):
+        if self.scope == 'link':
+            if self.bandwidth_fraction is None or not self.resources:
+                raise ValueError('A link fault needs bandwidth_fraction and affected bandwidth resource IDs')
+            if len(set(self.resources)) != len(self.resources):
+                raise ValueError('Duplicate bandwidth resource in one link fault')
+        elif self.resources or self.bandwidth_fraction is not None:
+            raise ValueError('Bandwidth changes only apply to link faults')
+        return self
+
+
+class TrainingFaultEvent(Spec):
+    at_s: float = Field(ge=0)
+    fault: str = Field(min_length=1)
+    target: StrictInt = Field(default=0, ge=0, description='Installed physical card, host or SU index; 0 for a named link group.')
+    detect_s: float | None = Field(default=None, ge=0)
+    repair_s: float | None = Field(default=None, ge=0)
+
+
+class TrainingRecovery(Spec):
+    mode: Literal['global_restart', 'local_spare', 'replica_isolation'] = 'global_restart'
+    spares_per_su: StrictInt = Field(default=0, ge=0)
+    swap_s: float = Field(default=0, ge=0)
+    isolate_s: float = Field(default=0, ge=0)
+    rebuild_s: float = Field(default=0, ge=0)
+    restore_s: float = Field(default=0, ge=0)
+
+    @model_validator(mode='after')
+    def applicable(self):
+        if (self.mode == 'local_spare') != bool(self.spares_per_su):
+            raise ValueError('local_spare requires a positive spares_per_su reserved within each SU')
+        if self.swap_s and self.mode != 'local_spare':
+            raise ValueError('swap_s applies only to local_spare')
+        if self.isolate_s and self.mode != 'replica_isolation':
+            raise ValueError('isolate_s applies only to replica_isolation')
+        return self
+
+
+class FaultCampaign(Spec):
+    horizon_s: float = Field(gt=0, description='Wall-clock observation limit; unfinished trials are right-censored.')
+    seed: StrictInt = 0
+    trials: StrictInt = Field(default=1, ge=1)
+    checkpoint_interval_steps: StrictInt | None = Field(default=None, ge=1)
+    checkpoint_write_s: float = Field(default=0, ge=0)
+    faults: dict[str, TrainingFault] = Field(default_factory=dict)
+    trace: list[TrainingFaultEvent] = Field(default_factory=list)
+
+    @model_validator(mode='after')
+    def check_trace(self):
+        if self.checkpoint_write_s and self.checkpoint_interval_steps is None:
+            raise ValueError('checkpoint_write_s requires checkpoint_interval_steps')
+        for event in self.trace:
+            if event.fault not in self.faults or event.at_s > self.horizon_s:
+                raise ValueError(f'Unknown fault or event outside horizon: {event}')
+        return self
+
+
+class PretrainReliability(FaultCampaign):
+    policy: TrainingRecovery = Field(default_factory=TrainingRecovery)
+
+
 class PretrainingSpec(Spec):
     dataset_tokens: int | None = Field(default=None, gt=0)
     epochs: int = Field(default=1, gt=0)
+    reliability: PretrainReliability | None = None
+
+    @model_serializer(mode='wrap')
+    def omit_unused_reliability(self, handler):
+        data = handler(self)
+        if self.reliability is None:
+            data.pop('reliability', None)
+        return data
 
     @model_validator(mode='after')
     def budget(self):
         if self.epochs != 1 and self.dataset_tokens is None:
             raise ValueError('pretrain.epochs requires dataset_tokens')
+        if self.reliability is not None and self.dataset_tokens is None:
+            raise ValueError('pretrain.reliability requires dataset_tokens')
         return self
 
 

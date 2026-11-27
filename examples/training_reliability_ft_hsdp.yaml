@@ -1,0 +1,23 @@
+# Fixed observation window from the paper's accounting example. Both jobs outlast it.
+target_tokens: 1000000
+horizon_s: 1080
+clusters:
+  ft_hsdp_98k:
+    installed_cards: 98304
+    su_size: 8
+    cards_per_host: 8
+    cards_per_replica: 8192
+    tokens_per_replica_step: 1
+    step_time_s: 20
+    source: {status: public, description: '12 replicas of 8192 H100s, typical step about 20 s. Tokens normalized to one unit per replica-step.', uri: 'https://arxiv.org/html/2602.00277'}
+policies:
+  synchronous: {mode: global_restart}
+  ft_hsdp: {mode: replica_isolation, isolate_s: 180}
+faults:
+  unavailable: {scope: card, repair_s: 600}
+trace: [{at_s: 0, fault: unavailable, target: 0}]
+sources:
+  timing:
+    status: public
+    description: Section 6.1 uses 10 minutes to recover a replica and 3 minutes of global stall per 18-minute interval. The example uses aggregate timings.
+    uri: https://arxiv.org/html/2602.00277

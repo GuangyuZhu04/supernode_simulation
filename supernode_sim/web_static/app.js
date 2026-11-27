@@ -1979,6 +1979,14 @@ function renderTrainingAccounting(result) {
   if (task) {
     kpis.append(metricCard('训练任务', {pretrain:'预训练',sft:'SFT',dpo:'DPO',rl:'RL'}[task.kind] || task.kind, '', '包含任务专用阶段'));
     kpis.append(metricCard('有效 token 吞吐', number(task.effective_tokens_s, 2), 'tokens/s', '排除 padding，包含重复更新'));
+    const reliability = task.budget_projection?.reliability;
+    if (reliability) {
+      resultTable(tables, ['完成 / 试验', 'P50 工期 / s', 'P95 工期 / s', 'P50 净有效 tokens/s', 'P50 回滚 token', 'P50 损失卡时'],
+        [[reliability.completed + ' / ' + reliability.trials,
+          ...[reliability.wall_s_p50, reliability.wall_s_p95].map(t => t == null ? '超出观测窗口' : number(t, 2)),
+          number(reliability.net_tokens_s_p50, 2), number(reliability.rollback_tokens_p50, 0), number(reliability.lost_card_hours_p50, 3)]],
+        '故障恢复与预训练工期');
+    }
     if (task.supervised_tokens_s != null) kpis.append(metricCard('监督 token 吞吐', number(task.supervised_tokens_s, 2), 'tokens/s', 'RL 为参与更新的回复 token'));
     resultTable(tables, ['阶段','累计时间 / s'], Object.entries(task.stage_times_s || {}).map(([key,value]) => [key,number(value,6)]), '训练任务阶段（串行，可相加）');
     resultTable(tables, ['Actor 处理 token','Actor 有效 token','监督 token','Actor 优化步','生成 token'], [[number(task.processed_tokens,0),number(task.effective_tokens,0),number(task.supervised_tokens,0),number(task.optimizer_steps,0),number(task.rollout_generated_tokens,0)]], '任务工作量（生成与更新分别计数）');

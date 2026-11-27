@@ -63,6 +63,9 @@ def parser() -> argparse.ArgumentParser:
     p = sub.add_parser('training-scaling', help='冻结基线参数，验证训练强/弱扩展效率与留出实测误差')
     p.add_argument('manifest', type=Path, help='含基线、留出配置与可选实测的 YAML/JSON')
     p.add_argument('--output', '-o', type=Path, default=Path('outputs') / 'training-scaling')
+    p = sub.add_parser('training-reliability', help='在共同物理故障轨迹上比较大规模预训练恢复策略')
+    p.add_argument('manifest', type=Path, help='含有效 token 预算、规模、步时来源、故障和策略的 YAML/JSON')
+    p.add_argument('--output', '-o', type=Path, default=Path('outputs') / 'training-reliability')
     p = sub.add_parser('import-hf')
     p.add_argument('config', type=Path)
     p.add_argument('--overrides', type=Path)
@@ -103,6 +106,14 @@ def _main(argv: list[str] | None = None) -> int:
                 print(json.dumps({'status': 'written', 'path': str(args.output)}, ensure_ascii=False))
             else:
                 print(data)
+            return 0
+        if args.command == 'training-reliability':
+            from .training_reliability import run_study, write_reliability_report
+            study = run_study(args.manifest)
+            path = write_reliability_report(study, args.output)
+            print(json.dumps({'status': 'complete', 'cases': len(study['cases']), 'output': str(path),
+                              'censored_trials': sum(c['summary']['censored'] for c in study['cases'])},
+                             ensure_ascii=False))
             return 0
         if args.command == 'training-scaling':
             from .training_scaling import run_training_scaling, write_scaling_report

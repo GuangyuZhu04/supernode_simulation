@@ -37,7 +37,7 @@
 
 `steps = ceil(dataset_tokens × epochs / 每优化步有效token)`；`duration_s = steps × 当前仿真平均步时`。
 
-这是明确的预算外推，不构造数百万步事件，也不包含数据加载、写盘、故障恢复和收敛预测。不同上下文长度的 curriculum 应分别运行各阶段并汇总预算，不能拿短序列结果直接外推长序列 attention。
+基础预算用无故障平均步时外推。设置 `training.pretrain.reliability` 后，`budget_projection.reliability` 另外给出周期性保存、故障、恢复与回滚后的工期分布。数据加载和收敛需单独分析。不同上下文长度的 curriculum 应分别运行各阶段并汇总预算。[故障配置与指标](training-reliability.md)
 
 ### SFT
 

@@ -508,6 +508,7 @@ class WebHandler(BaseHTTPRequestHandler):
             names = {'demo_inference': 'MoE 推理演示', 'demo_training': '稠密模型训练演示'}
             names['training_overlap_qos'] = '训练通信重叠、DP 排布与 QoS'
             names.update(training_task_pretrain='预训练 · 合成任务示例', training_task_sft='SFT · 回复掩码与打包',
+                         training_reliability_atlas950='预训练故障 · Atlas 950 保护端口降速与掉卡',
                          training_task_dpo='DPO · 成对偏好优化', training_task_grpo='GRPO · 生成与多轮更新',
                          training_task_ppo='PPO · 奖励模型与 Critic')
             self._json({'presets': [{'id': key, 'name': names.get(key, key.replace('_', ' ')),

@@ -407,6 +407,12 @@ def run_compiled(spec, graph, estimate, mode, *, full_detail):
         graph.metadata['collective_calibration'] = summarize_collective_calibration(graph, sim)
         result['simulation'] = sim
         result['metrics'] = execution_metrics(spec, graph, sim)
+        task = spec.workload.training
+        if sim['status'] == 'feasible' and task and task.pretrain and task.pretrain.reliability is not None:
+            from .training_reliability import native_reliability
+            study = native_reliability(spec, graph, result['metrics'])
+            result['training_reliability'] = study
+            result['metrics']['training_task']['budget_projection']['reliability'] = study['cases'][0]['summary']
         result['slo'] = evaluate_targets(spec, result['metrics'], sim['status'] == 'feasible')
         result['status'] = sim['status'] if sim['status'] != 'feasible' or result['slo']['satisfied'] else 'slo_failed'
     if spec.workload.scenario == 'inference' and 'latency_breakdown' not in result['metrics']:

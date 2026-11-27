@@ -4,6 +4,8 @@
 
 训练扩卡可运行 `python -m supernode_sim training-scaling examples/training_scaling.yaml -o outputs/training-scaling`。同一份校准配置生成基线和各留出点的预测、独立实测误差及分段图。随仓示例在 64、128、256 卡上保持每步 1,024 个 token，硬件与负载为合成配置。[跨规模训练验证与指标定义](skills/supernode-modeling/references/training.md#跨规模训练验证) · [64/128/256 卡结果](docs/examples/training-scaling/training_scaling.json)
 
+预训练可在固定有效 token 预算下比较故障恢复策略。普通 `simulate` 支持按物理卡、主机、超节点注入故障，也可以重算受损链路上的代表步。万卡和十万卡的共同轨迹对照用 `python -m supernode_sim training-reliability examples/training_reliability_scaling.yaml -o outputs/reliability/scaling`，生成工期分位、净吞吐、回滚 token 和损失卡时。[配置、示例与实测依据](skills/supernode-modeling/references/training-reliability.md)
+
 仓库原创代码采用 [MIT 许可证](LICENSE)，版权归 Guangyu Zhu 所有。第三方模型资料、论文和源码摘录的许可见[来源说明](docs/sources/README.md)。
 
 `supernode_sim` 是面向架构分析的 Python 数值引擎。`supernode-modeling` skill 负责收集配置与解释结果；公式、通信映射和时序由可重跑代码执行。

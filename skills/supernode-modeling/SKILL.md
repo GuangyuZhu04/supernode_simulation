@@ -1,6 +1,6 @@
 ---
 name: supernode-modeling
-description: Model supernode training and inference resources, optional acceleration features, and TTFT/TPOT (TPOP) latency breakdowns with supernode_sim, automatically opening its editable local web dashboard. Use for pretraining, SFT, DPO, PPO/GRPO post-training with operator-level rollout/scoring/update costs, megakernel fusion, prefill/decode disaggregation, DSpark draft/verify, CSA/HCA/KDA attention, quantization, checkpoint/offload, Adam/Muon, Kimi K3 and Ascend 950, SU/SO topology and minimum-SU searches, or feedback searches for TP/SP/EP, prefill length and decode batch under latency targets.
+description: Model supernode training and inference resources, pretraining fault recovery and goodput, optional acceleration features, and TTFT/TPOT (TPOP) latency breakdowns with supernode_sim, automatically opening its editable local web dashboard. Use for pretraining, SFT, DPO, PPO/GRPO post-training with operator-level rollout/scoring/update costs, megakernel fusion, prefill/decode disaggregation, DSpark draft/verify, CSA/HCA/KDA attention, quantization, checkpoint/offload, Adam/Muon, Kimi K3 and Ascend 950, SU/SO topology and minimum-SU searches, or feedback searches for TP/SP/EP, prefill length and decode batch under latency targets.
 ---
 
 # 超节点资源与通信建模
@@ -39,6 +39,7 @@ python -m supernode_sim schema
 
 ## 按问题选择资料和命令
 
+- 评估单卡故障率、超节点共因故障、端口降速、断点恢复、备卡或副本续训对有效吞吐和工期的影响，读[预训练故障与恢复](references/training-reliability.md)。原生配置用 `simulate` 取得路由与步时。已有代表步时的万卡、十万卡场景用 `training-reliability` 对照同一条故障轨迹。
 - 配置、来源、单位、CLI：读 [configuration.md](references/configuration.md)。
 - 借鉴其他仿真器、提高训练/推理执行粒度：读 [参考程序映射](references/reference-simulators.md) 和 [子算子执行描述](references/operator-traces.md)。使用 `hardware.kernel_traces` 将有依据的组件展开为串行子算子，再按实际子算子 profile 校准；同时核对阶段、矩阵维度和逐请求长度分布，不将更细粒度或 synthetic 检查称为实测精度提升。
 - 根据 DavidV100 MicroBenchmark 改进核内计算、搬运或指令供给建模：读 [DavidV100 微架构服务需求](references/david-v100-microarchitecture.md)，在有范围约束的子算子上配置 `resource_demands` 与 `dependency_floor_s`。同物理资源先合并需求，独立资源才取最大值；保留 HBM 总流量与争用。报告参数仅适用于其 DavidV100 测试条件，不传播为其他 Ascend 型号的默认规格，也不把资源下界称为整网实测校准。

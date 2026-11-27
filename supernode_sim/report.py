@@ -363,6 +363,14 @@ def training_task_markdown(result: dict) -> list[str]:
         if metrics.get('budget_projection'):
             projection = metrics['budget_projection']
             lines += ['', f"数据预算推算：{projection['optimizer_steps']} 个优化步、{_number(projection['duration_s'])} s；按当前平均步时外推并向上取整，不包含数据加载或收敛预测。"]
+            if 'reliability' in projection:
+                r = projection['reliability']
+                lines += ['', '### 含故障的预训练工期', '',
+                          '| 完成 / 试验 | P50 工期 / s | P95 工期 / s | P50 净有效 tokens/s | P50 回滚 token | P50 损失卡时 |',
+                          '|---:|---:|---:|---:|---:|---:|',
+                          f"| {r['completed']}/{r['trials']} | {_number(r['wall_s_p50'])} | {_number(r['wall_s_p95'])} | "
+                          f"{_number(r['net_tokens_s_p50'])} | {_number(r['rollback_tokens_p50'])} | {_number(r['lost_card_hours_p50'])} |",
+                          '', '超过观测窗口的工期分位显示为缺失。首条轨迹的事件时刻、各故障的恢复分位与损失卡时见 [故障仿真结果](training_reliability.json)。']
     else:
         lines += ['', '没有完整可行执行，阶段时间和吞吐不可用；上表仅为计划工作量。']
     lines += ['', '各角色的逻辑状态容量见 model_metadata.training_task.role_logical_memory_bytes；张量 metadata.training_role 区分 actor/reference/reward/critic。']
@@ -850,6 +858,12 @@ def write_report(result: dict, directory: str | Path, *, full_detail: bool = Fal
         _csv(directory / 'training_task_stages.csv', ['iteration', 'stage', 'role', 'duration_s', 'start_event', 'end_event'],
              result.get('metrics', {}).get('training_task', {}).get('stages', []))
     write_latency_csv(result, directory)
+    if 'training_reliability' in result:
+        from .training_reliability import write_reliability_report
+        write_reliability_report(result['training_reliability'], directory)
+    else:
+        for filename in ('training_reliability.json', 'training_reliability.csv'):
+            (directory / filename).unlink(missing_ok=True)
     _write_result_json(directory / 'result.json', exported)
     write_training_summary(result.get('training_summary'), directory)
     (directory / 'report.md').write_text(markdown_report(exported), encoding='utf-8')

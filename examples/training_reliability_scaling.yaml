@@ -1,0 +1,37 @@
+# All candidate step times, component rates and recovery durations here are sensitivity inputs.
+target_tokens: 10000000000
+horizon_s: 604800
+seed: 37
+trials: 32
+checkpoint_interval_steps: 25
+checkpoint_write_s: 8
+faults:
+  card_loss: {scope: card, rate_per_unit_hour: 0.0000125, detect_s: 60, repair_s: 1200}
+  host_loss: {scope: host, rate_per_unit_hour: 0.000005, detect_s: 60, repair_s: 1800}
+  switch_loss: {scope: su, rate_per_unit_hour: 0.0002, detect_s: 30, repair_s: 900}
+policies:
+  restart: {mode: global_restart, rebuild_s: 60, restore_s: 60}
+  su_spares: {mode: local_spare, spares_per_su: 8, swap_s: 30, rebuild_s: 60, restore_s: 60}
+  replica: {mode: replica_isolation, isolate_s: 60, rebuild_s: 60, restore_s: 60}
+variants:
+  baseline: {}
+  half_card_rate: {card_rate_factor: 0.5}
+  half_recovery_time: {recovery_time_factor: 0.5}
+  card_rate_1_1x: {card_rate_factor: 1.1}
+  card_rate_1_2x: {card_rate_factor: 1.2}
+  recovery_time_1_2x: {recovery_time_factor: 1.2}
+  recovery_time_1_4x: {recovery_time_factor: 1.4}
+clusters:
+  10k_su256: &small
+    installed_cards: 10240
+    su_size: 256
+    cards_per_host: 8
+    cards_per_replica: 16
+    tokens_per_replica_step: 1024
+    step_time_s: 22
+    source: {status: assumed, description: Synthetic homogeneous replica throughput at the specified scale.}
+  10k_su1024: {<<: *small, su_size: 1024, step_time_s: 20}
+  100k_su256: {<<: *small, installed_cards: 102400, step_time_s: 24}
+  100k_su1024: {<<: *small, installed_cards: 102400, su_size: 1024, step_time_s: 22}
+sources:
+  '*': {status: assumed, description: Illustrative independent root-cause rates per installed unit-hour.}

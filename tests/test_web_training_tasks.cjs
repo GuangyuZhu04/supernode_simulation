@@ -3,6 +3,21 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {fixture, harness} = require('./web_frontend_harness.cjs');
 
+test('pretraining results show censored completion quantiles and clear the comparison for a healthy run', () => {
+  const h = harness(fixture());
+  const projection = {reliability: {completed: 5, trials: 6, wall_s_p50: 42, wall_s_p95: null,
+    net_tokens_s_p50: 500, rollback_tokens_p50: 128, lost_card_hours_p50: 2.5}};
+  const result = {metrics: {training_accounting: {status: 'complete'},
+    training_task: {kind: 'pretrain', budget_projection: projection}}};
+  h.call('renderTrainingAccounting', result);
+  const table = h.node('training-accounting-tables');
+  assert.match(table.textContent, /5 \/ 6/);
+  assert.match(table.textContent, /超出观测窗口/);
+  delete projection.reliability;
+  h.call('renderTrainingAccounting', result);
+  assert.doesNotMatch(table.textContent, /超出观测窗口/);
+});
+
 test('training report shows the job chart and exact record and clears both on job change', () => {
   const h = harness(fixture());
   Object.assign(h.context.location, {origin:'http://localhost:8090', href:'http://localhost:8090/'});
